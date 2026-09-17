@@ -6058,7 +6058,14 @@ function savePlayerRanks(){
   closePlayerRanksModal();
 }
 
-/* ============ 對陣文字（給官網用，目前只開放中環碁聖賽） ============ */
+/* ============ 對陣文字（給官網用） ============
+   2026-09-17從只開放中環碁聖賽擴大到全部賽事。不同賽事的資料結構差很多（有的走
+   currentBracket.rounds那套通用陣列，有的像棋王賽循環圈/第20屆初賽/複賽是完全另一套
+   「場次/組別」資料），所以拆成buildMatchupPairs()依customBracket分別組出統一格式
+   {label, pairs:[[姓名0,姓名1],...], titlePrefix}，下面的generateMatchupText()
+   只負責把這個統一格式轉成文字、不用管每個賽事底層資料長什麼樣子——這個分工方式
+   直接比照printRoundScoreSheet()／setupExportPanel()既有的「依customBracket各自
+   處理，通用的留在最後」寫法，同一份資料來源，不用重新設計一套判斷邏輯。 */
 function closeMatchupTextModal(){
   document.getElementById('matchupTextModal').style.display='none';
 }
@@ -6067,30 +6074,92 @@ function nameWithRank(name){
   const rank = playerRanks[name];
   return rank ? (name+rank) : (name+'（未設段位）');
 }
+function buildMatchupPairs(idx){
+  const cb = currentStConfig && currentStConfig.customBracket;
+  const stageId = currentBracket.stageId;
+
+  /* 棋王賽循環圈：8人循環賽，常規7輪的對手表印死在QIWANG19_SCHEDULE，2個加賽輪
+     則是使用者自己在畫面上手動填的對手序號（跟printQiwang19ScoreSheet同一套讀法）。 */
+  if(cb==='qiwang19circle'){
+    const label = (QIWANG19_ROUND_LABELS[idx] || '循環圈').replace(/（[^）]*）/,'');
+    const pairs=[]; const seen={};
+    if(idx<7){
+      const oppRow = QIWANG19_SCHEDULE[idx];
+      for(let c=1;c<=8;c++){
+        if(seen[c]) continue;
+        const opp=oppRow[c-1];
+        seen[c]=true; seen[opp]=true;
+        pairs.push([QIWANG19_NAMES[c-1], QIWANG19_NAMES[opp-1]]);
+      }
+    } else {
+      const p = idx===7 ? 'p1' : 'p2';
+      for(let c=1;c<=8;c++){
+        if(seen[c]) continue;
+        const oppInput=document.getElementById('qw_'+stageId+'_'+p+'_c'+c+'_opp');
+        const opp=oppInput ? parseInt(oppInput.value.trim(),10) : NaN;
+        if(!opp || opp<1 || opp>8 || opp===c) continue;
+        seen[c]=true; seen[opp]=true;
+        pairs.push([QIWANG19_NAMES[c-1], QIWANG19_NAMES[opp-1]]);
+      }
+    }
+    return { label, pairs, titlePrefix:'第19屆' };
+  }
+
+  /* 棋王賽第20屆初賽：場次是「組別×part模板」組出match id（跟printQiwang20PrelimScoreSheet同一套）。 */
+  if(cb==='qiwang20prelim'){
+    const sess = QIWANG20_PRELIM_SESSIONS[idx];
+    if(!sess) return null;
+    const pairs=[];
+    sess.groups.forEach(function(g){
+      sess.parts.forEach(function(part){
+        const matchId='g'+g+'_'+part;
+        pairs.push([getSlotName(stageId,matchId,0), getSlotName(stageId,matchId,1)]);
+      });
+    });
+    const label = sess.label.replace(/[（(][^）)]*[）)]/,'').trim();
+    return { label, pairs, titlePrefix:'第20屆' };
+  }
+
+  /* 棋王賽第20屆複賽：場次直接列出完整match id（跟printQiwang20FusaiScoreSheet同一套）。 */
+  if(cb==='qiwang20fusai'){
+    const sess = QIWANG20_FUSAI_SESSIONS[idx];
+    if(!sess) return null;
+    const pairs = sess.parts.map(function(matchId){
+      return [getSlotName(stageId,matchId,0), getSlotName(stageId,matchId,1)];
+    });
+    return { label: sess.label, pairs, titlePrefix:'第20屆' };
+  }
+
+  /* 通用路徑：玄樂盃初賽/本賽、中環碁聖賽、中環國手賽、棋王賽第20屆資格賽都走
+     currentBracket.rounds這套資料。中環碁聖賽的「決賽」比較特別——rounds資料裡是
+     兩位準決賽勝者匯流進來的一場虛擬對戰，畫面上實際是決賽三番戰三局各自獨立計分，
+     這裡要對應印出三局，不能只印一場合併起來的「決賽」（跟printRoundScoreSheet
+     同一個判斷）；中環國手賽的決賽（挑戰者決定賽）是單場定生死，沒有這個特例。 */
+  if(!currentBracket.rounds || !currentBracket.rounds[idx]) return null;
+  const isZh69Final = (cb==='zhonghuan69' && idx===currentBracket.rounds.length-1);
+  const round = currentBracket.rounds[idx];
+  const matchList = isZh69Final
+    ? ['zh69_game0','zh69_game1','zh69_game2'].map(function(gid){ return {id:gid}; })
+    : round.filter(function(m){ return !(m.slots[0].isBye || m.slots[1].isBye); });
+  const pairs = matchList.map(function(m){
+    return [getSlotName(stageId,m.id,0), getSlotName(stageId,m.id,1)];
+  });
+  const titlePrefix = (cb==='qiwang20qualifier') ? '第20屆' : '';
+  return { label: roundLabelFor(idx), pairs, titlePrefix };
+}
 function generateMatchupText(){
   if(!currentBracket){ alert('請先產生賽程表'); return; }
   const idx=parseInt(document.getElementById('exportRoundSelect').value,10);
-  const stageId=currentBracket.stageId;
-  /* 跟printRoundScoreSheet同一套判斷：中環碁聖賽第14屆的「決賽」在rounds資料裡其實是
-     兩位準決賽勝者匯流進來的那一場虛擬對戰，畫面上實際是決賽三番戰三局各自獨立計分，
-     這裡也要對應印出三局，不能只印一場合併起來的「決賽」。 */
-  const isZh69Final = (currentStConfig && currentStConfig.customBracket==='zhonghuan69' && idx===currentBracket.rounds.length-1);
-  const round=currentBracket.rounds[idx];
-  const matches = isZh69Final
-    ? ['zh69_game0','zh69_game1','zh69_game2'].map(function(gid){ return {id:gid}; })
-    : round.filter(function(m){ return !(m.slots[0].isBye || m.slots[1].isBye); });
-  if(matches.length===0){ alert('這一輪沒有對局可以產生對陣文字（可能都是輪空）'); return; }
-  const label = roundLabelFor(idx);
-  const lines = matches.map(function(m){
-    const n0=getSlotName(stageId,m.id,0), n1=getSlotName(stageId,m.id,1);
-    return nameWithRank(n0)+' vs. '+nameWithRank(n1);
-  });
+  const result = buildMatchupPairs(idx);
+  if(!result){ alert('找不到這一輪/場次的資料'); return; }
+  if(result.pairs.length===0){ alert('這一輪沒有對局可以產生對陣文字（可能都是輪空，或加賽對手序號還沒填）'); return; }
+  const lines = result.pairs.map(function(p){ return nameWithRank(p[0])+' vs. '+nameWithRank(p[1]); });
   /* 日期跟「本賽/二回戰」這種口語化的輪次講法，目前系統裡沒有對應的既有欄位可以直接抓
      （currentBracket.stageName是原始碼裡的正式階段名稱，customLabels是「2回賽」這種
      固定格式，不一定跟使用者實際想貼到官網的口語用法一致），所以這裡只給一個看得出來
      是「請自行填寫/確認」的草稿，開放使用者在彈出的文字盒裡自由編輯後再複製，不強行
      猜測日期或用詞。 */
-  const header = '＿＿/＿＿（　）　'+currentBracket.stageName+label+'對陣：';
+  const header = '＿＿/＿＿（　）　'+result.titlePrefix+currentBracket.title+'　'+currentBracket.stageName+result.label+'對陣：';
   document.getElementById('matchupTextarea').value = header+'\n'+lines.join('\n');
   document.getElementById('matchupTextModal').style.display='flex';
 }
@@ -6107,8 +6176,11 @@ function setupExportPanel(){
      右下角的封存按鈕打開；沒有賽程表可看的時候（回首頁/重置/從存檔讀回失敗）
      則是在那幾個地方直接關掉，兩邊要對應著改，不能只顧其中一邊。 */
   document.getElementById('archiveFloatBtn').style.display='';
-  /* 「產生對陣文字」目前只先開放中環碁聖賽（zhonghuan69）試用，其他賽事的座標/資料結構
-     還沒逐一確認過，先預設隱藏，只在最下面的通用路徑裡符合zhonghuan69才顯示出來。 */
+  /* 「產生對陣文字」2026-09-17從只開放中環碁聖賽（zhonghuan69）擴大到全部賽事——
+     這裡先預設隱藏，下面每個customBracket分支各自決定要不要打開。快棋爭霸戰初賽
+     （kuaiqi7prelimImg，沒有「輪次」結構、已隱藏的舊屆賽事）跟棋王挑戰賽七番勝負
+     （qiwang19challenge，固定同一組2人打7局，沒有「這輪誰對誰」可言）刻意不開放，
+     其他賽事都已經逐一確認過資料結構、比照各自的成績登記表列印邏輯開放。 */
   document.getElementById('matchupTextBtn').style.display='none';
   /* 快棋爭霸戰初賽是一張平面的疊圖賽程表，沒有「輪次」這種分段結構，
      成績登記表列印也還沒支援這個模式，所以只留「下載賽程圖」按鈕，把跟輪次有關的部分藏起來。
@@ -6126,6 +6198,7 @@ function setupExportPanel(){
   if(currentStConfig && currentStConfig.customBracket==='qiwang20prelim'){
     roundField.style.display='';
     printBtn.style.display='';
+    document.getElementById('matchupTextBtn').style.display='';
     const pwSel=document.getElementById('exportRoundSelect');
     pwSel.innerHTML = QIWANG20_PRELIM_SESSIONS.map(function(sess, idx){
       return '<option value="'+idx+'">'+escapeHtml(sess.label)+'</option>';
@@ -6139,6 +6212,7 @@ function setupExportPanel(){
   if(currentStConfig && currentStConfig.customBracket==='qiwang20fusai'){
     roundField.style.display='';
     printBtn.style.display='';
+    document.getElementById('matchupTextBtn').style.display='';
     const fwSel=document.getElementById('exportRoundSelect');
     fwSel.innerHTML = QIWANG20_FUSAI_SESSIONS.map(function(sess, idx){
       return '<option value="'+idx+'">'+escapeHtml(sess.label)+'</option>';
@@ -6152,6 +6226,7 @@ function setupExportPanel(){
   if(currentStConfig && currentStConfig.customBracket==='qiwang19circle'){
     roundField.style.display='';
     printBtn.style.display='';
+    document.getElementById('matchupTextBtn').style.display='';
     const qwSel=document.getElementById('exportRoundSelect');
     qwSel.innerHTML = QIWANG19_ROUND_LABELS.map(function(lbl, idx){
       return '<option value="'+idx+'">'+escapeHtml(lbl)+'</option>';
@@ -6172,9 +6247,10 @@ function setupExportPanel(){
   }
   roundField.style.display='';
   printBtn.style.display='';
-  if(currentStConfig && currentStConfig.customBracket==='zhonghuan69'){
-    document.getElementById('matchupTextBtn').style.display='';
-  }
+  /* 能走到這裡的都是用currentBracket.rounds那套通用資料結構的賽事（玄樂盃初賽/本賽、
+     中環碁聖賽、中環國手賽、棋王賽第20屆資格賽...），上面已經個別攔掉的幾種特殊結構
+     都在各自分支return掉了，這裡一律打開「產生對陣文字」即可。 */
+  document.getElementById('matchupTextBtn').style.display='';
   if(!currentBracket.rounds || currentBracket.rounds.length===0){ panel.style.display='none'; return; }
   const sel=document.getElementById('exportRoundSelect');
   sel.innerHTML = currentBracket.rounds.map(function(round, idx){
