@@ -5124,6 +5124,33 @@ function sortedBracketKeys(filterFn){
   });
   return keys;
 }
+function stageLabelForKey(key){
+  const idx = key.lastIndexOf('__');
+  const presetId = key.slice(0, idx), stageIdx = parseInt(key.slice(idx+2),10);
+  const preset = PRESET_TOURNAMENTS.find(function(p){return p.id===presetId;});
+  const stageName = preset && preset.stages[stageIdx] ? preset.stages[stageIdx].name : '';
+  return (preset ? preset.label : presetId) + (stageName ? ('　'+stageName) : '');
+}
+function restoreStageBackup(i){
+  const b = stageBackups[i];
+  if(!b) return;
+  const label = stageLabelForKey(b.key);
+  if(savedBrackets[b.key]){
+    if(!confirm('「'+label+'」目前已經有新的資料了。\n還原會用這份備份取代目前的資料（目前的資料會另外存成一筆新的備份，不會消失）。確定要還原嗎？')) return;
+    stageBackups.unshift({ key: b.key, removedAt: new Date().toISOString(), rec: savedBrackets[b.key] });
+    i += 1;
+  } else if(!confirm('確定要還原「'+label+'」嗎？')) return;
+  /* 先把畫面上正在顯示的賽程表清掉，不然saveState()會把畫面上的舊內容重新存回同一個key，
+     蓋掉剛還原的資料。 */
+  document.getElementById('output').innerHTML='';
+  currentBracket=null; currentStConfig=null; activeBracketKey=null;
+  savedBrackets[b.key] = b.rec;
+  stageBackups.splice(i, 1);
+  stageBackups = stageBackups.slice(0, STAGE_BACKUP_LIMIT);
+  saveState();
+  const idx = b.key.lastIndexOf('__');
+  jumpToSavedStage(b.key.slice(0, idx), parseInt(b.key.slice(idx+2), 10));
+}
 /* 封存資料夾：列出所有被封存的階段，點名稱可以直接跳進去查看（封存完全不影響這條路徑），
    也可以按「取消封存」讓它回到首頁的捷徑列表。 */
 function renderArchivedFolder(){
@@ -5148,10 +5175,21 @@ function renderArchivedFolder(){
     }).join('');
     listHtml = '<div style="display:flex;gap:10px;flex-wrap:wrap;">'+rows+'</div>';
   }
+  let backupHtml = '';
+  if(stageBackups.length){
+    backupHtml = '<p class="step-title" style="margin-top:22px;">🗂 「重新輸入名單」前的備份</p>'+
+      '<p class="hint" style="margin-top:0;">按了「重新輸入名單」之後，被清掉的舊資料會暫存在這裡（只保留最近 '+STAGE_BACKUP_LIMIT+' 筆），按錯的話可以按「還原」救回來。</p>'+
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;">'+
+      stageBackups.map(function(b, i){
+        return '<span class="resume-chip"><span style="font-size:13px;padding:0 6px;">'+escapeHtml(stageLabelForKey(b.key))+'（'+escapeHtml(formatSavedAt(b.removedAt))+' 清除）</span>'+
+          '<button type="button" class="btn small" onclick="restoreStageBackup('+i+')">還原</button></span>';
+      }).join('')+
+      '</div>';
+  }
   box.innerHTML =
     '<p class="step-title">📦 封存資料夾</p>'+
     '<p class="hint" style="margin-top:0;">這裡是已經封存、不會出現在首頁捷徑列表的賽程表。點比賽名稱可以直接查看，或按「取消封存」讓它回到首頁列表。</p>'+
-    listHtml +
+    listHtml + backupHtml +
     '<div class="setup-actions" style="margin-top:16px;"><button type="button" class="btn secondary" onclick="renderPresetSelect()">← 返回首頁</button></div>';
   area.appendChild(box);
 }
@@ -5363,7 +5401,7 @@ function displayBracket(key){
   const __dbPreset = PRESET_TOURNAMENTS.find(function(p){ return p.id===__dbKeyParts[0]; });
   const __dbStageDef = __dbPreset && __dbPreset.stages[parseInt(__dbKeyParts[1],10)];
   currentBracket = Object.assign({}, rec.currentBracket, {
-    rounds:built.data.rounds, hasChampion:built.data.hasChampion,
+    rounds:built.data.rounds, hasChampion:!!built.data.hasChampion,
     customLabels:built.data.customLabels||null, irregularPrefix:built.data.irregularPrefix||0,
     stageName: __dbStageDef ? __dbStageDef.name : rec.currentBracket.stageName,
     title: __dbPreset ? __dbPreset.title : rec.currentBracket.title,
@@ -5391,8 +5429,12 @@ function showExistingStage(key, stageDef){
 function confirmRegenerateStage(){
   const preset=PRESET_TOURNAMENTS.find(function(p){return p.id===opState.presetId;});
   const stageDef=preset.stages[opState.stageIdx];
-  if(!confirm('確定要重新輸入「'+stageDef.name+'」的名單嗎？這會清除本階段目前已記錄的所有資料，且無法復原。')) return;
+  if(!confirm('確定要重新輸入「'+stageDef.name+'」的名單嗎？\n目前這個階段的資料會被清空，但會自動備份一份到「📦 封存資料夾」，按錯的話可以從那裡還原。')) return;
   const key=bracketKey(opState.presetId, opState.stageIdx);
+  if(savedBrackets[key]){
+    stageBackups.unshift({ key: key, removedAt: new Date().toISOString(), rec: savedBrackets[key] });
+    stageBackups = stageBackups.slice(0, STAGE_BACKUP_LIMIT);
+  }
   delete savedBrackets[key];
   document.getElementById('output').innerHTML='';
   currentBracket=null; currentStConfig=null; activeBracketKey=null;
@@ -5458,7 +5500,7 @@ function generateStage(){
   alert(msg);
 
   currentBracket = { stageId:id, title:opState.title, org:opState.org, stageName:stageDef.name,
-    rounds:built.data.rounds, hasChampion:built.data.hasChampion,
+    rounds:built.data.rounds, hasChampion:!!built.data.hasChampion,
     customLabels: built.data.customLabels||null, irregularPrefix: built.data.irregularPrefix||0 };
   currentStConfig = st;
   activeBracketKey = bracketKey(opState.presetId, opState.stageIdx);
@@ -5491,7 +5533,7 @@ function generateQiwang19Stage(){
   out.appendChild(built.section);
 
   currentBracket = { stageId:id, title:opState.title, org:opState.org, stageName:stageDef.name,
-    rounds:built.data.rounds, hasChampion:built.data.hasChampion,
+    rounds:built.data.rounds, hasChampion:!!built.data.hasChampion,
     customLabels: built.data.customLabels||null, irregularPrefix: built.data.irregularPrefix||0 };
   currentStConfig = st;
   activeBracketKey = bracketKey(opState.presetId, opState.stageIdx);
@@ -5535,7 +5577,7 @@ function generateQiwang19ChallengeStage(){
   }
 
   currentBracket = { stageId:id, title:opState.title, org:opState.org, stageName:stageDef.name,
-    rounds:built.data.rounds, hasChampion:built.data.hasChampion,
+    rounds:built.data.rounds, hasChampion:!!built.data.hasChampion,
     customLabels: built.data.customLabels||null, irregularPrefix: built.data.irregularPrefix||0 };
   currentStConfig = st;
   activeBracketKey = bracketKey(opState.presetId, opState.stageIdx);
@@ -6424,7 +6466,8 @@ function buildSaveObject(){
     stageSeq: stageSeq,
     brackets: savedBrackets,
     bgImage: bgImageDataUrl,
-    playerRanks: playerRanks
+    playerRanks: playerRanks,
+    stageBackups: stageBackups
   };
 }
 
@@ -6439,7 +6482,7 @@ function saveState(){
           currentBracket: {
             stageId: currentBracket.stageId, title: currentBracket.title, org: currentBracket.org,
             stageName: currentBracket.stageName, customLabels: currentBracket.customLabels,
-            irregularPrefix: currentBracket.irregularPrefix, hasChampion: currentBracket.hasChampion
+            irregularPrefix: currentBracket.irregularPrefix, hasChampion: !!currentBracket.hasChampion
           },
           dom: snapshotOutputDOM()
         };
@@ -6502,6 +6545,11 @@ let activeBracketKey = null;
    不屬於任何單一賽事的savedBrackets，所以另外獨立存放；一樣跟著buildSaveObject／
    restoreFromSaved走，本機/雲端都會自動同步，不用另外寫存檔邏輯。 */
 let playerRanks = {};
+/* 「重新輸入名單」清掉的舊資料備份：[{key, removedAt, rec}]，最新的在最前面，只留最近
+   STAGE_BACKUP_LIMIT筆（整份存檔會同步到Firestore，單一文件有1MB上限，不能無限累積）。
+   在「封存資料夾」裡可以看到並還原。 */
+let stageBackups = [];
+const STAGE_BACKUP_LIMIT = 5;
 
 function restoreFromSaved(saved){
   if(!saved || !saved.opState){ restart(); return; }
@@ -6510,6 +6558,7 @@ function restoreFromSaved(saved){
   bgImageDataUrl = saved.bgImage || null;
   savedBrackets = saved.brackets || {};
   playerRanks = saved.playerRanks || {};
+  stageBackups = saved.stageBackups || [];
   document.getElementById('output').innerHTML='';
   document.getElementById('printBar').style.display='none';
   document.getElementById('exportPanel').style.display='none';
@@ -6575,7 +6624,11 @@ const SAVE_KEY = 'go_bracket_operator_save_v1_zhonghuan62_第13屆';
 
 function setCloudStatus(text){
   const el = document.getElementById('cloudStatus');
-  if(el) el.textContent = text;
+  if(!el) return;
+  el.textContent = text;
+  const isError = text.indexOf('⚠')===0;
+  el.style.color = isError ? 'var(--seal)' : '';
+  el.style.fontWeight = isError ? '700' : '';
 }
 function formatSavedAt(iso){
   if(!iso) return '';
@@ -6607,11 +6660,18 @@ function doCloudLogout(){
 
 function pushToCloud(obj){
   if(!CLOUD_ENABLED || !cloudAuth.currentUser) return;
-  const cloudObj = Object.assign({}, obj);
+  /* JSON來回轉一次：拿掉所有undefined欄位（Firestore遇到undefined會整份拒收），
+     也讓上傳的內容跟本機localStorage存的（一樣是JSON.stringify過的）完全一致。 */
+  const cloudObj = JSON.parse(JSON.stringify(obj));
   delete cloudObj.bgImage; /* 使用者自行上傳的賽程底圖不同步到雲端，避免超過 Firestore 單一文件 1MB 上限 */
-  cloudDocRef.set(cloudObj)
-    .then(function(){ setCloudStatus('已同步到雲端：'+formatSavedAt(cloudObj.savedAt)); })
-    .catch(function(err){ console.error('雲端同步失敗', err); setCloudStatus('⚠ 雲端同步失敗（'+err.message+'），已保留在本機'); });
+  function onFail(err){ console.error('雲端同步失敗', err); setCloudStatus('⚠ 雲端同步失敗（'+err.message+'），已保留在本機'); }
+  /* set()遇到資料格式錯誤是「當場丟錯」而不是回傳失敗的promise，.catch()接不到，
+     以前這種錯誤會變成主控台的Uncaught錯誤、畫面上還顯示舊的「已同步」，沒人發現。 */
+  try{
+    cloudDocRef.set(cloudObj)
+      .then(function(){ setCloudStatus('已同步到雲端：'+formatSavedAt(cloudObj.savedAt)); })
+      .catch(onFail);
+  }catch(err){ onFail(err); }
 }
 function syncWithCloud(manualPull){
   if(!CLOUD_ENABLED || !cloudAuth.currentUser) return;
