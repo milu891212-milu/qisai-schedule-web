@@ -5421,7 +5421,8 @@ function showExistingStage(key, stageDef){
   area.innerHTML='';
   const box=document.createElement('div');
   box.innerHTML =
-    '<p class="hint" style="margin-top:0;">「'+escapeHtml(stageDef.name)+'」已經有資料，下面顯示的就是目前的賽程表，可以直接繼續記錄勝負。</p>'+
+    '<p class="hint" style="margin-top:0;">「'+escapeHtml(stageDef.name)+'」已經有資料，下面顯示的就是目前的賽程表，可以直接繼續記錄勝負。'+
+      (MANUAL_EDIT_BRACKETS.indexOf(stageDef.customBracket)!==-1 ? '<br>特殊情況（例如雙方都沒到要寫「棄」）：在格子上按<b>滑鼠右鍵</b>可以直接修改那一格的文字。' : '')+'</p>'+
     '<div class="setup-actions"><button type="button" class="btn secondary small" onclick="confirmRegenerateStage()">重新輸入名單（會清除本階段目前資料）</button></div>';
   area.appendChild(box);
   document.getElementById('printBar').style.display='flex';
@@ -6578,6 +6579,25 @@ document.getElementById('output').addEventListener('input', function(e){
   if(e.target.classList && (e.target.classList.contains('name-input') || e.target.classList.contains('round-date-input') || e.target.classList.contains('mini-input'))){
     saveState();
   }
+});
+
+/* 極少數特殊情況（例如一局雙方都沒到，晉級格要寫「棄」）：疊圖格子平常是唯讀、左鍵
+   用來標記勝方，所以另外開放「右鍵」直接改這一格的文字，不經過自動晉級流程、也不動
+   任何賽制結構。改的就是格子本身的input值，存檔／列印／下載都會照這個文字走。
+   使用者指定目前只開放棋王賽第20屆初賽（實際遇到的那一場），其他賽事右鍵維持瀏覽器預設。 */
+const MANUAL_EDIT_BRACKETS = ['qiwang20prelim'];
+document.getElementById('output').addEventListener('contextmenu', function(e){
+  if(!currentStConfig || MANUAL_EDIT_BRACKETS.indexOf(currentStConfig.customBracket)===-1) return;
+  const slot = e.target.closest && e.target.closest('.zh-slot');
+  if(!slot) return;
+  const input = slot.querySelector('.zh-slot-input');
+  if(!input) return;
+  e.preventDefault();
+  const v = prompt('手動修改這一格的文字（特殊情況用，例如雙方都沒到就輸入「棄」）\n清空後按確定＝清除這一格', input.value);
+  if(v===null) return;
+  input.value = v.trim();
+  if(currentBracket && zhRedrawFns[currentBracket.stageId]) zhRedrawFns[currentBracket.stageId]();
+  saveState();
 });
 
 document.addEventListener('DOMContentLoaded', function(){
