@@ -532,8 +532,17 @@ document.getElementById('upFile').addEventListener('change', async function(e){
     area.innerHTML = '<p class="status-bad">讀不了這個檔案：'+esc(err.message||err)+'</p>';
   }
 });
+/* 「同一局」的判斷是照數量比對，不是只看有沒有：真的會有一天下兩盤、而且黑白一樣的情況
+   （例如新人王賽循環圈、GLOBIS盃），所以系統裡有幾局同樣的，檔案裡的前幾局就算「已經有」，
+   多出來的才算新的。同一個檔案裡出現第二局一樣的，先標成「有問題」讓人確認是不是真的下了兩盤。 */
+function countKeys(list){
+  const m = new Map();
+  list.forEach(g=>{ const k = gameKey(g); m.set(k, (m.get(k)||0)+1); });
+  return m;
+}
 function analyzeUpload(wb, fileName){
-  const existing = new Set(GAMES.map(gameKey));
+  const existingCount = countKeys(GAMES);
+  const seenCount = new Map();
   const inFile = new Map();
   const items = [];
   const skippedSheets = [];
@@ -550,10 +559,13 @@ function analyzeUpload(wb, fileName){
       const g = { y:cellStr(get('年份')).replace(/\.0$/,''), d:normDate(get('日期')), c1:cellStr(get('大類')), c2:cellStr(get('小類')), ev:cellStr(get('賽名')), st:cellStr(get('階段')), b:cellStr(get('執黑')), w:cellStr(get('執白')), win:cellStr(get('勝方')), mv:cellStr(get('目數')) };
       const it = { g, sheet:sn, rowNo:r+1, problems:checkGame(g) };
       const key = gameKey(g);
-      if(existing.has(key)) it.status='exists';
+      const occ = (seenCount.get(key)||0) + 1;
+      seenCount.set(key, occ);
+      const firstSeen = inFile.get(key);
+      if(!firstSeen) inFile.set(key, sn+' 第'+(r+1)+'列');
+      if(occ <= (existingCount.get(key)||0)) it.status='exists';
       else {
-        if(inFile.has(key)) it.problems.push('跟同一個檔案裡的第 '+inFile.get(key)+' 列重複');
-        else inFile.set(key, sn+' 第'+(r+1)+'列');
+        if(firstSeen) it.problems.push('跟同一個檔案裡的 '+firstSeen+' 一模一樣（真的一天下了兩盤就勾選照樣匯入）');
         it.status = it.problems.length ? 'problem' : 'new';
       }
       items.push(it);
@@ -603,14 +615,15 @@ async function confirmUpload(){
   try{
     /* 寫入前先抓一次雲端最新資料，避免蓋掉別台電腦剛上傳的內容 */
     await loadData(true);
-    const existing = new Set(GAMES.map(gameKey));
+    const existingCount = countKeys(GAMES);
+    const seenCount = new Map();
     const add = [];
     pendingUpload.items.forEach(it=>{
-      if(it.status==='new' || (it.status==='problem' && includeProblem)){
-        const k = gameKey(it.g);
-        if(existing.has(k) && it.status==='new') return;
-        add.push(it.g);
-      }
+      const k = gameKey(it.g);
+      const occ = (seenCount.get(k)||0) + 1;
+      seenCount.set(k, occ);
+      if(occ <= (existingCount.get(k)||0)) return;   // 雲端已經有這麼多局了
+      if(it.status==='new' || (it.status==='problem' && includeProblem)) add.push(it.g);
     });
     if(add.length===0){ st.textContent='沒有需要匯入的新資料'; btn.disabled=false; return; }
     GAMES = GAMES.concat(add);
