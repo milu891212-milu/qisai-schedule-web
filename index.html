@@ -350,6 +350,15 @@ table.ss-table.ss-table-wide.ss-table-challenge col.c-notary{width:13.5%;}
       <button type="button" class="btn" id="printScoreBtn" onclick="printRoundScoreSheet()">🖨 列印本輪成績登記表</button>
       <button type="button" class="btn secondary" onclick="downloadBracketSVG()">⬇ 下載賽程圖（電子檔）</button>
       <button type="button" class="btn secondary" id="matchupTextBtn" onclick="generateMatchupText()" style="display:none;">📋 產生對陣文字（給官網用）</button>
+      <button type="button" class="btn" id="scoreImportBtn" onclick="openScorePhotoImport()" style="display:none;" title="開啟辨識工具，上傳這一輪的成績表照片；寫入 Excel 後自動標好勝方、下載賽程圖與下輪對陣">📷 匯入成績照片（自動晉級）</button>
+    </div>
+  </div>
+
+  <div id="scoreImportModal" class="modal-overlay no-print" style="display:none;">
+    <div class="modal-box">
+      <p class="step-title" style="margin-top:0;" id="scoreImportTitle">📷 匯入成績</p>
+      <div id="scoreImportBody"></div>
+      <div class="setup-actions" style="margin-top:14px;" id="scoreImportActions"></div>
     </div>
   </div>
 
@@ -5697,15 +5706,16 @@ function buildMatchupPairs(idx){
   if(cb==='qiwang20prelim'){
     const sess = QIWANG20_PRELIM_SESSIONS[idx];
     if(!sess) return null;
-    const pairs=[];
+    const pairs=[], ids=[];
     sess.groups.forEach(function(g){
       sess.parts.forEach(function(part){
         const matchId='g'+g+'_'+part;
+        ids.push(matchId);
         pairs.push([getSlotName(stageId,matchId,0), getSlotName(stageId,matchId,1)]);
       });
     });
     const label = sess.label.replace(/[（(][^）)]*[）)]/,'').trim();
-    return { label, pairs, titlePrefix:'第20屆' };
+    return { label, pairs, ids, titlePrefix:'第20屆' };
   }
 
   /* 棋王賽第20屆複賽：場次直接列出完整match id（跟printQiwang20FusaiScoreSheet同一套）。 */
@@ -5715,7 +5725,7 @@ function buildMatchupPairs(idx){
     const pairs = sess.parts.map(function(matchId){
       return [getSlotName(stageId,matchId,0), getSlotName(stageId,matchId,1)];
     });
-    return { label: sess.label, pairs, titlePrefix:'第20屆' };
+    return { label: sess.label, pairs, ids: sess.parts.slice(), titlePrefix:'第20屆' };
   }
 
   /* 通用路徑：玄樂盃初賽/本賽、中環碁聖賽、中環國手賽、棋王賽第20屆資格賽都走
@@ -5733,22 +5743,29 @@ function buildMatchupPairs(idx){
     return [getSlotName(stageId,m.id,0), getSlotName(stageId,m.id,1)];
   });
   const titlePrefix = (cb==='qiwang20qualifier') ? '第20屆' : '';
-  return { label: roundLabelFor(idx), pairs, titlePrefix };
+  return { label: roundLabelFor(idx), pairs, ids: matchList.map(function(m){ return m.id; }), titlePrefix };
+}
+/* 組出某一輪的對陣文字；「📋 產生對陣文字」按鈕跟「📷 匯入成績照片」自動產生下輪對陣共用同一份。
+   回傳 {text, result} 或 {error}。 */
+function buildMatchupText(idx){
+  const result = buildMatchupPairs(idx);
+  if(!result) return { error:'找不到這一輪/場次的資料' };
+  if(result.pairs.length===0) return { error:'這一輪沒有對局可以產生對陣文字（可能都是輪空，或加賽對手序號還沒填）' };
+  const lines = result.pairs.map(function(p){ return nameWithRank(p[0])+' vs. '+nameWithRank(p[1]); });
+  const header = '＿＿/＿＿（　）　'+result.titlePrefix+currentBracket.title+'　'+currentBracket.stageName+result.label+'對陣：';
+  return { text: header+'\n'+lines.join('\n'), result };
 }
 function generateMatchupText(){
   if(!currentBracket){ alert('請先產生賽程表'); return; }
   const idx=parseInt(document.getElementById('exportRoundSelect').value,10);
-  const result = buildMatchupPairs(idx);
-  if(!result){ alert('找不到這一輪/場次的資料'); return; }
-  if(result.pairs.length===0){ alert('這一輪沒有對局可以產生對陣文字（可能都是輪空，或加賽對手序號還沒填）'); return; }
-  const lines = result.pairs.map(function(p){ return nameWithRank(p[0])+' vs. '+nameWithRank(p[1]); });
+  const built = buildMatchupText(idx);
+  if(built.error){ alert(built.error); return; }
   /* 日期跟「本賽/二回戰」這種口語化的輪次講法，目前系統裡沒有對應的既有欄位可以直接抓
      （currentBracket.stageName是原始碼裡的正式階段名稱，customLabels是「2回賽」這種
      固定格式，不一定跟使用者實際想貼到官網的口語用法一致），所以這裡只給一個看得出來
      是「請自行填寫/確認」的草稿，開放使用者在彈出的文字盒裡自由編輯後再複製，不強行
      猜測日期或用詞。 */
-  const header = '＿＿/＿＿（　）　'+result.titlePrefix+currentBracket.title+'　'+currentBracket.stageName+result.label+'對陣：';
-  document.getElementById('matchupTextarea').value = header+'\n'+lines.join('\n');
+  document.getElementById('matchupTextarea').value = built.text;
   document.getElementById('matchupTextModal').style.display='flex';
 }
 
@@ -5756,6 +5773,298 @@ function roundLabelFor(idx){
   if(currentBracket.customLabels && currentBracket.customLabels[idx]) return currentBracket.customLabels[idx];
   return roundLabel(currentBracket.rounds[idx].length*2);
 }
+
+/* ============ 📷 匯入成績照片（2026-09-30）============
+   使用者要的自動化：拍照上傳→核對一次→後面全部自動。流程：
+   1. 這裡按鈕用 window.open 叫出本機的辨識工具（http://127.0.0.1:5000，桌面版跟同事打包版都是這個網址）
+   2. 辨識工具載入後送 'qisai-tool-ready'，這裡回傳這一輪的賽名/階段/對陣名單（'qisai-context'），
+      辨識工具用這份名單在核對表格上提醒「名字不在這一輪」
+   3. 使用者在辨識工具核對、按「寫入 Excel」成功後，辨識工具把每局 黑/白/勝方 送回來（'qisai-results'）
+   4. 這裡用「黑+白兩個名字」找出這個階段裡還沒分勝負的那一場，呼叫既有的 toggleWinner 標勝方
+      （晉級、敗部復活、跨階段晉級、雲端存檔全部沿用 toggleWinner 原本的行為，不分賽制）
+   5. 自動下載賽程圖（downloadBracketSVG）＋下輪對陣文字（.txt）
+   只有名字對不上/勝方不明時才會跳視窗讓使用者挑。兩個視窗之間只用 postMessage 傳資料、
+   不走網路請求，以後辨識工具搬上網路，只要改 SCORE_TOOL_URL/SCORE_TOOL_ORIGINS 就能沿用。 */
+const SCORE_TOOL_URL = 'http://127.0.0.1:5000/';
+const SCORE_TOOL_ORIGINS = ['http://127.0.0.1:5000', 'http://localhost:5000'];
+let scoreImportSession = null;
+
+function normPlayerName(s){ return String(s==null?'':s).replace(/\s+/g,''); }
+
+function openScorePhotoImport(){
+  if(!currentBracket){ alert('請先產生賽程表'); return; }
+  const idx=parseInt(document.getElementById('exportRoundSelect').value,10);
+  const info=buildMatchupPairs(idx);
+  if(!info || !info.ids || info.ids.length===0){ alert('這一輪沒有可以匯入成績的對局'); return; }
+  const win=window.open(SCORE_TOOL_URL, 'qisaiScoreTool');
+  if(!win){ alert('瀏覽器擋下了彈出視窗。請在網址列右邊允許這個網站開啟彈出視窗，再按一次「📷 匯入成績照片」。'); return; }
+  if(scoreImportSession && scoreImportSession.readyTimer) clearTimeout(scoreImportSession.readyTimer);
+  scoreImportSession = { win, stageId: currentBracket.stageId, roundIdx: idx, gotReady:false, readyTimer:null };
+  const sess=scoreImportSession;
+  sess.readyTimer=setTimeout(function(){
+    if(scoreImportSession===sess && !sess.gotReady){
+      alert('連不上辨識工具。\n請先在這台電腦啟動辨識工具（雙擊「啟動工具.bat」，或同事版的 GoResultTool），等黑色視窗出現後，再回來按一次「📷 匯入成績照片」。');
+    }
+  }, 20000);
+}
+
+function sendScoreContext(sess, targetWin, targetOrigin){
+  if(!currentBracket || currentBracket.stageId!==sess.stageId) return;
+  const info=buildMatchupPairs(sess.roundIdx);
+  if(!info) return;
+  const pairs=info.pairs.filter(function(p){ return p[0] && p[1]; });
+  const players=[];
+  pairs.forEach(function(p){ p.forEach(function(n){ if(players.indexOf(n)<0) players.push(n); }); });
+  targetWin.postMessage({
+    type:'qisai-context',
+    title:(info.titlePrefix||'')+currentBracket.title,
+    stageName:currentBracket.stageName,
+    roundLabel:info.label,
+    pairs:pairs,
+    players:players
+  }, targetOrigin);
+}
+
+window.addEventListener('message', function(ev){
+  if(SCORE_TOOL_ORIGINS.indexOf(ev.origin)<0) return;
+  const d=ev.data;
+  if(!d || typeof d!=='object') return;
+  const sess=scoreImportSession;
+  if(!sess || ev.source!==sess.win) return;
+  if(d.type==='qisai-tool-ready'){
+    sess.gotReady=true;
+    if(sess.readyTimer){ clearTimeout(sess.readyTimer); sess.readyTimer=null; }
+    sendScoreContext(sess, ev.source, ev.origin);
+  } else if(d.type==='qisai-results'){
+    try{ window.focus(); }catch(e){}
+    handleScoreResults(sess, Array.isArray(d.games)?d.games:[]);
+  }
+});
+
+function slotIsWinner(stageId, matchId, idx){
+  const el=document.getElementById(slotWrapId(stageId,matchId,idx));
+  return !!(el && el.classList.contains('winner'));
+}
+function matchIsDecided(stageId, matchId){
+  return slotIsWinner(stageId,matchId,0) || slotIsWinner(stageId,matchId,1);
+}
+/* 這一輪裡「兩邊名字都有、還沒分勝負、這次還沒被用掉」的對局，給使用者手動挑的下拉選單用 */
+function openMatchesInRound(stageId, ids, used){
+  return ids.filter(function(mid){
+    return !used[mid] && getSlotName(stageId,mid,0) && getSlotName(stageId,mid,1) && !matchIsDecided(stageId,mid);
+  });
+}
+
+function matchScoreGames(stageId, ids, games){
+  const reg=matchRegistry[stageId]||{};
+  const allIds=Object.keys(reg);
+  const used={};
+  const items=[];
+  function samePair(mid, b, w){
+    const n0=normPlayerName(getSlotName(stageId,mid,0)), n1=normPlayerName(getSlotName(stageId,mid,1));
+    if(!n0 || !n1) return false;
+    return (n0===b && n1===w) || (n0===w && n1===b);
+  }
+  games.forEach(function(g){
+    const b=normPlayerName(g.black), w=normPlayerName(g.white), win=normPlayerName(g.winner);
+    const item={ game:g, status:'problem', reason:'', matchId:null, slotIdx:-1, note:'' };
+    items.push(item);
+    if(!b || !w){ item.reason='黑方或白方的名字是空的'; return; }
+    /* 先找選定的這一輪；找不到再找整個階段（例如選錯輪次、或同一張表混了別輪的對局）。
+       同一對選手有好幾場時（例如中環碁聖賽決賽三番戰），優先用還沒分勝負的第一場。 */
+    let cands=ids.filter(function(mid){ return !used[mid] && samePair(mid,b,w); });
+    if(cands.length===0){
+      cands=allIds.filter(function(mid){ return !used[mid] && ids.indexOf(mid)<0 && samePair(mid,b,w); });
+      if(cands.length) item.note='（這局不在選定的輪次裡，是在同一階段的其他輪找到的）';
+    }
+    if(cands.length===0){ item.reason='賽程表這一輪找不到這兩位的對局'; return; }
+    const open=cands.filter(function(mid){ return !matchIsDecided(stageId,mid); });
+    const mid=(open.length?open:cands)[0];
+    const n0=normPlayerName(getSlotName(stageId,mid,0)), n1=normPlayerName(getSlotName(stageId,mid,1));
+    const slotIdx = win===n0 ? 0 : (win===n1 ? 1 : -1);
+    item.matchId=mid;
+    if(slotIdx<0){ item.reason = win ? '勝方名字跟黑白兩方都對不上' : '勝方是空的'; return; }
+    item.slotIdx=slotIdx;
+    used[mid]=true;
+    if(matchIsDecided(stageId,mid)){
+      if(slotIsWinner(stageId,mid,slotIdx)){ item.status='already'; }
+      else { item.status='problem'; item.reason='賽程表上這局已經標成另一方贏，為了安全不自動改，請自己確認後手動修改'; item.locked=true; }
+      return;
+    }
+    item.status='ok';
+  });
+  return { items, used };
+}
+
+function handleScoreResults(sess, games){
+  if(!currentBracket || currentBracket.stageId!==sess.stageId){
+    alert('收到辨識工具送來的成績，但目前畫面已經不是按下「📷 匯入成績照片」時的那場比賽。\n請切回那場比賽，再到辨識工具按「重新送到賽程表」。');
+    return;
+  }
+  if(games.length===0){ alert('辨識工具送來的成績是空的'); return; }
+  const stageId=sess.stageId;
+  const info=buildMatchupPairs(sess.roundIdx);
+  const ids=(info && info.ids) || [];
+  const res=matchScoreGames(stageId, ids, games);
+  const problems=res.items.filter(function(it){ return it.status==='problem'; });
+  if(problems.length===0){ applyScoreItems(sess, res.items); return; }
+  showScoreProblemDialog(sess, res, ids);
+}
+
+function scoreGameLabel(g){
+  return '黑 '+escapeHtml(g.black||'（空）')+'　白 '+escapeHtml(g.white||'（空）')+'　勝方 '+escapeHtml(g.winner||'（空）');
+}
+
+function showScoreProblemDialog(sess, res, ids){
+  const stageId=sess.stageId;
+  const open=openMatchesInRound(stageId, ids, res.used);
+  const okCount=res.items.filter(function(it){ return it.status==='ok'; }).length;
+  /* 預選建議：常見狀況是兩個名字裡只有一個辨識錯，另一個對得上——如果這一輪只有一場
+     有那個對得上的名字，就先幫忙選好那一場，勝方也照「勝方是對的名字還是錯的那個」推出來。
+     只是預選，使用者還是要看過按「確定」才會套用。 */
+  const suggested={}, taken={};
+  res.items.forEach(function(it, i){
+    if(it.status!=='problem' || it.locked) return;
+    const b=normPlayerName(it.game.black), w=normPlayerName(it.game.white), win=normPlayerName(it.game.winner);
+    const hits=open.filter(function(mid){
+      const n0=normPlayerName(getSlotName(stageId,mid,0)), n1=normPlayerName(getSlotName(stageId,mid,1));
+      return !taken[mid] && ((b && (n0===b || n1===b)) || (w && (n0===w || n1===w)));
+    });
+    if(hits.length!==1) return;
+    const mid=hits[0];
+    const n0=normPlayerName(getSlotName(stageId,mid,0)), n1=normPlayerName(getSlotName(stageId,mid,1));
+    const known = (n0===b || n1===b) ? b : w;
+    const other = known===b ? w : b;
+    const knownIdx = n0===known ? 0 : 1;
+    let slotIdx=-1;
+    if(win && win===known) slotIdx=knownIdx;
+    else if(win && win===other && other!==known) slotIdx=1-knownIdx;
+    if(slotIdx<0) return;
+    suggested[i]=mid+'|'+slotIdx; taken[mid]=true;
+  });
+  const alreadyCount=res.items.filter(function(it){ return it.status==='already'; }).length;
+  let html='<p class="hint" style="margin-top:0;">有 '+res.items.filter(function(it){return it.status==='problem';}).length+' 局沒辦法自動對上賽程表，請幫忙挑選。'+
+    (okCount?'其他 '+okCount+' 局已經對好，按「確定」後一起套用。':'')+
+    (alreadyCount?'另外 '+alreadyCount+' 局賽程表上之前就標過了，不會重複動作。':'')+'</p>';
+  html+='<table style="width:100%;border-collapse:collapse;font-size:14px;">';
+  res.items.forEach(function(it, i){
+    if(it.status!=='problem') return;
+    html+='<tr style="border-top:1px solid #ddd;"><td style="padding:8px 4px;">'+scoreGameLabel(it.game)+'<br><span style="color:#b45309;font-size:12px;">⚠️ '+escapeHtml(it.reason)+'</span></td><td style="padding:8px 4px;">';
+    if(it.locked){
+      html+='<span style="font-size:12px;color:#666;">這局會跳過</span>';
+    } else {
+      html+='<select data-score-item="'+i+'" style="max-width:260px;"><option value="">— 請選擇 —</option><option value="skip">跳過（之後自己手動點）</option>';
+      open.forEach(function(mid){
+        const a=getSlotName(stageId,mid,0), b=getSlotName(stageId,mid,1);
+        [0,1].forEach(function(k){
+          const v=mid+'|'+k;
+          html+='<option value="'+escapeHtml(v)+'"'+(suggested[i]===v?' selected':'')+'>'+escapeHtml(a)+' vs '+escapeHtml(b)+' → '+escapeHtml(k===0?a:b)+' 勝</option>';
+        });
+      });
+      html+='</select>';
+      if(suggested[i]) html+='<div style="font-size:12px;color:#15803d;margin-top:2px;">已依另一位選手的名字預選，請確認</div>';
+    }
+    html+='</td></tr>';
+  });
+  html+='</table>';
+  document.getElementById('scoreImportTitle').textContent='📷 匯入成績：有幾局要請你確認';
+  document.getElementById('scoreImportBody').innerHTML=html;
+  const actions=document.getElementById('scoreImportActions');
+  actions.innerHTML='';
+  const okBtn=document.createElement('button'); okBtn.type='button'; okBtn.className='btn'; okBtn.textContent='確定，套用勝負';
+  const cancelBtn=document.createElement('button'); cancelBtn.type='button'; cancelBtn.className='btn secondary'; cancelBtn.textContent='取消（這次全部不套用）';
+  okBtn.onclick=function(){
+    const sels=document.querySelectorAll('#scoreImportBody select[data-score-item]');
+    const picked={};
+    for(let k=0;k<sels.length;k++){
+      const v=sels[k].value;
+      if(!v){ alert('還有沒選的局，請選一個對局，或選「跳過」'); sels[k].focus(); return; }
+      if(v==='skip') continue;
+      const parts=v.split('|');
+      if(picked[parts[0]]){ alert('同一場對局被選了兩次，請再檢查一下'); sels[k].focus(); return; }
+      picked[parts[0]]=true;
+      const it=res.items[parseInt(sels[k].dataset.scoreItem,10)];
+      it.matchId=parts[0]; it.slotIdx=parseInt(parts[1],10); it.status='ok'; it.note='（手動選的）';
+    }
+    closeScoreImportModal();
+    applyScoreItems(sess, res.items);
+  };
+  cancelBtn.onclick=closeScoreImportModal;
+  actions.appendChild(okBtn); actions.appendChild(cancelBtn);
+  document.getElementById('scoreImportModal').style.display='flex';
+}
+
+function closeScoreImportModal(){
+  document.getElementById('scoreImportModal').style.display='none';
+}
+
+function downloadTextFile(filename, text){
+  const blob=new Blob(['﻿'+text], {type:'text/plain;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+}
+
+function applyScoreItems(sess, items){
+  const stageId=sess.stageId;
+  let applied=0;
+  items.forEach(function(it){
+    if(it.status!=='ok') return;
+    /* 套用前再檢查一次：同一批裡前面的局晉級後可能改到這場（理論上同一輪不會，保險起見） */
+    if(matchIsDecided(stageId,it.matchId)) { it.status = slotIsWinner(stageId,it.matchId,it.slotIdx) ? 'already' : 'problem'; return; }
+    toggleWinner(stageId, it.matchId, it.slotIdx);
+    it.status='applied';
+    applied++;
+  });
+  const already=items.filter(function(it){ return it.status==='already'; }).length;
+  const skipped=items.filter(function(it){ return it.status==='problem' || it.status==='ok'; }).length;
+
+  /* 自動下載賽程圖（跟按「⬇ 下載賽程圖」同一張） */
+  if(applied>0){ try{ downloadBracketSVG(); }catch(e){ console.error(e); } }
+
+  /* 下輪對陣：下一個輪次/場次存在才產生，順便把「選擇要輸出的輪次」切到下一輪，方便接著印成績登記表 */
+  const sel=document.getElementById('exportRoundSelect');
+  const nextIdx=sess.roundIdx+1;
+  let nextText='', nextNote='';
+  if(sel && nextIdx < sel.options.length){
+    const built=buildMatchupText(nextIdx);
+    if(built.error){ nextNote='下輪對陣沒有產生：'+built.error; }
+    else {
+      nextText=built.text;
+      sel.value=String(nextIdx);
+      if(applied>0){
+        const fname=(built.result.titlePrefix||'')+currentBracket.title+'_'+currentBracket.stageName+'_'+built.result.label+'_對陣.txt';
+        downloadTextFile(fname.replace(/[\\\/:*?"<>|]/g,''), nextText);
+      }
+      if(nextText.indexOf('＿＿＿＿')>=0) nextNote='下輪還有位置沒確定（顯示「＿＿＿＿」），可能是別組還沒比完，比完再按一次「📋 產生對陣文字」。';
+    }
+  } else {
+    nextNote='這已經是最後一輪，沒有下輪對陣。';
+  }
+
+  let html='<p style="margin-top:0;">✅ 自動標好勝方：<b>'+applied+'</b> 局';
+  if(already) html+='　（'+already+' 局之前就標過了，沒有重複動作）';
+  if(skipped) html+='<br>⏭ 跳過：<b>'+skipped+'</b> 局，請自己在賽程表上手動點';
+  html+='</p>';
+  if(applied>0) html+='<p class="hint">⬇ 已下載：賽程圖'+(nextText?'、下輪對陣文字（.txt）':'')+'。如果瀏覽器問「是否允許下載多個檔案」，請按允許。</p>';
+  const noted=items.filter(function(it){ return it.note && it.status==='applied'; });
+  if(noted.length){
+    html+='<p class="hint">'+noted.map(function(it){ return scoreGameLabel(it.game)+' '+escapeHtml(it.note); }).join('<br>')+'</p>';
+  }
+  if(nextNote) html+='<p class="hint">'+escapeHtml(nextNote)+'</p>';
+  if(nextText) html+='<p class="hint" style="margin-bottom:4px;">下輪對陣（日期、輪次文字只是草稿，請確認後再貼到官網）：</p><textarea rows="10" style="width:100%;">'+escapeHtml(nextText)+'</textarea>';
+  document.getElementById('scoreImportTitle').textContent='📷 匯入成績完成';
+  document.getElementById('scoreImportBody').innerHTML=html;
+  const actions=document.getElementById('scoreImportActions');
+  actions.innerHTML='';
+  const closeBtn=document.createElement('button'); closeBtn.type='button'; closeBtn.className='btn secondary'; closeBtn.textContent='關閉';
+  closeBtn.onclick=closeScoreImportModal;
+  actions.appendChild(closeBtn);
+  document.getElementById('scoreImportModal').style.display='flex';
+}
+
 function setupExportPanel(){
   const panel=document.getElementById('exportPanel');
   const roundField=document.getElementById('exportRoundField');
@@ -5770,6 +6079,9 @@ function setupExportPanel(){
      （qiwang19challenge，固定同一組2人打7局，沒有「這輪誰對誰」可言）刻意不開放，
      其他賽事都已經逐一確認過資料結構、比照各自的成績登記表列印邏輯開放。 */
   document.getElementById('matchupTextBtn').style.display='none';
+  /* 「📷 匯入成績照片」跟對陣文字一樣先預設隱藏；循環圈（qiwang19circle）使用者說先不管，
+     所以只在棋王賽第20屆初賽/複賽跟通用路徑這三個分支打開。 */
+  document.getElementById('scoreImportBtn').style.display='none';
   /* 快棋爭霸戰初賽是一張平面的疊圖賽程表，沒有「輪次」這種分段結構，
      成績登記表列印也還沒支援這個模式，所以只留「下載賽程圖」按鈕，把跟輪次有關的部分藏起來。
      玄樂盃初賽／本賽雖然也是疊圖模式，但底下的對戰結構本來就有清楚的「輪次」分組
@@ -5787,6 +6099,7 @@ function setupExportPanel(){
     roundField.style.display='';
     printBtn.style.display='';
     document.getElementById('matchupTextBtn').style.display='';
+    document.getElementById('scoreImportBtn').style.display='';
     const pwSel=document.getElementById('exportRoundSelect');
     pwSel.innerHTML = QIWANG20_PRELIM_SESSIONS.map(function(sess, idx){
       return '<option value="'+idx+'">'+escapeHtml(sess.label)+'</option>';
@@ -5801,6 +6114,7 @@ function setupExportPanel(){
     roundField.style.display='';
     printBtn.style.display='';
     document.getElementById('matchupTextBtn').style.display='';
+    document.getElementById('scoreImportBtn').style.display='';
     const fwSel=document.getElementById('exportRoundSelect');
     fwSel.innerHTML = QIWANG20_FUSAI_SESSIONS.map(function(sess, idx){
       return '<option value="'+idx+'">'+escapeHtml(sess.label)+'</option>';
@@ -5839,6 +6153,7 @@ function setupExportPanel(){
      中環碁聖賽、中環國手賽、棋王賽第20屆資格賽...），上面已經個別攔掉的幾種特殊結構
      都在各自分支return掉了，這裡一律打開「產生對陣文字」即可。 */
   document.getElementById('matchupTextBtn').style.display='';
+  document.getElementById('scoreImportBtn').style.display='';
   if(!currentBracket.rounds || currentBracket.rounds.length===0){ panel.style.display='none'; return; }
   const sel=document.getElementById('exportRoundSelect');
   sel.innerHTML = currentBracket.rounds.map(function(round, idx){

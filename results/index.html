@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>海峰棋院成績查詢</title>
+<style>
+:root{
+  --paper:#F1EBDA;
+  --paper2:#E9E2CC;
+  --ink:#20241D;
+  --ink-soft:#5B5F52;
+  --line:#C9BF9E;
+  --seal:#9C2B23;
+  --seal-soft:#C97B6E;
+  --wood:#A9793E;
+  --ok:#2F6B3A;
+  --warn-bg:#FBEFD5;
+  --bad-bg:#F6DCD6;
+  --font-display:"游明朝","Yu Mincho","YuMincho","Noto Serif TC","Songti TC","PMingLiU","SimSun",serif;
+  --font-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",sans-serif;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--paper2);color:var(--ink);font-family:var(--font-body);line-height:1.5;}
+.page-header{position:relative;padding:28px 16px 18px;text-align:center;overflow:hidden;background:var(--paper);border-bottom:3px solid var(--ink);}
+.page-header::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background-image:
+    repeating-linear-gradient(0deg,rgba(32,36,29,.09) 0 1px,transparent 1px 26px),
+    repeating-linear-gradient(90deg,rgba(32,36,29,.09) 0 1px,transparent 1px 26px);
+  -webkit-mask-image:radial-gradient(ellipse at center,black 0%,transparent 70%);
+  mask-image:radial-gradient(ellipse at center,black 0%,transparent 70%);
+}
+.page-header h1{position:relative;font-family:var(--font-display);font-size:24px;letter-spacing:.12em;margin:0 0 6px;}
+.page-header .sub{position:relative;color:var(--ink-soft);font-size:13px;}
+.toolbar{max-width:1200px;margin:0 auto;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;}
+.toolbar-status{font-size:12.5px;color:var(--ink-soft);}
+.toolbar-actions{display:flex;gap:8px;flex-wrap:wrap;}
+main{max-width:1200px;margin:0 auto;padding:0 16px 70px;}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:16px;}
+.card h2{font-family:var(--font-display);font-size:17px;letter-spacing:.06em;margin:0 0 12px;}
+.card h3{font-size:14.5px;margin:18px 0 8px;}
+.card h3:first-of-type{margin-top:4px;}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px 12px;}
+.field label{display:block;font-size:12.5px;color:var(--ink-soft);margin-bottom:3px;}
+.field input[type=text],.field select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:14px;background:#fffdf7;color:var(--ink);font-family:inherit;}
+.checks{display:flex;gap:12px;flex-wrap:wrap;padding-top:6px;font-size:14px;}
+.checks label{display:flex;align-items:center;gap:4px;color:var(--ink);font-size:14px;margin:0;cursor:pointer;}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px;}
+.btn{padding:8px 16px;border:none;border-radius:6px;background:var(--seal);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;}
+.btn:hover{filter:brightness(1.08);}
+.btn:disabled{opacity:.5;cursor:default;filter:none;}
+.btn.secondary{background:transparent;color:var(--ink);border:1px solid var(--ink-soft);font-weight:500;}
+.btn.danger{background:#6d1c16;}
+.hint{font-size:12.5px;color:var(--ink-soft);margin:6px 0;}
+.status-ok{color:var(--ok);font-weight:700;}
+.status-bad{color:var(--seal);font-weight:700;}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:#fffdf7;}
+table{border-collapse:collapse;width:100%;font-size:13.5px;}
+th,td{padding:6px 9px;border-bottom:1px solid #e6dfc8;text-align:center;white-space:nowrap;}
+th{background:var(--paper2);font-weight:700;position:sticky;top:0;}
+tr.total td{background:#f6f0dc;font-weight:700;}
+td.name{font-weight:700;}
+td.win{color:var(--seal);font-weight:700;}
+tr.row-problem td{background:var(--bad-bg);}
+tr.row-exists td{color:#999;}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:700;}
+.pill.new{background:#dcefdc;color:var(--ok);}
+.pill.exists{background:#eee;color:#777;}
+.pill.problem{background:var(--bad-bg);color:var(--seal);}
+.tabs{display:flex;gap:4px;margin:4px 0 10px;flex-wrap:wrap;}
+.tabs button{padding:5px 12px;border:1px solid var(--line);background:#fffdf7;border-radius:14px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--ink);}
+.tabs button.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+#adminCard{border:2px solid var(--wood);}
+.local-banner{background:#fff3c4;border:1px solid #e0c060;border-radius:8px;padding:8px 12px;font-size:13px;margin:10px 0;}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:1000;padding:16px;}
+.modal-box{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:24px 26px;width:100%;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,.25);}
+.modal-box h2{margin:0 0 6px;font-size:18px;}
+.modal-box label{display:block;font-size:13px;margin:12px 0 4px;color:var(--ink-soft);}
+.modal-box input{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:6px;font-size:14px;}
+.login-error{margin-top:10px;font-size:13px;color:var(--seal);min-height:1.2em;}
+@media (max-width:600px){
+  .page-header h1{font-size:20px;}
+  .card{padding:14px;}
+  th,td{padding:5px 7px;font-size:12.5px;}
+}
+</style>
+</head>
+<body>
+<header class="page-header">
+  <h1>海峰棋院　對局成績查詢</h1>
+  <div class="sub">2016 年起的職業棋士對局紀錄・勝率統計</div>
+</header>
+<div class="toolbar">
+  <div class="toolbar-status" id="dataStatus">資料載入中…</div>
+  <div class="toolbar-actions">
+    <button type="button" class="btn secondary" id="loginBtn" onclick="openLogin()">🔑 管理登入</button>
+    <button type="button" class="btn secondary" id="logoutBtn" style="display:none;" onclick="doLogout()">登出</button>
+  </div>
+</div>
+<main>
+  <div id="localBanner" class="local-banner" style="display:none;">⚠️ 本機測試模式：資料只存在這台電腦的瀏覽器裡，不會連到雲端。</div>
+
+  <section class="card" id="queryCard">
+    <h2>查詢</h2>
+    <div class="grid">
+      <div class="field"><label for="qPlayer">棋士（完整姓名）</label><input type="text" id="qPlayer" list="dlPlayers" autocomplete="off" placeholder="空白＝列出所有棋士"></div>
+      <div class="field"><label for="qOpp">對手（完整姓名）</label><input type="text" id="qOpp" list="dlPlayers" autocomplete="off"></div>
+      <div class="field"><label for="qYearFrom">起始年</label><select id="qYearFrom"></select></div>
+      <div class="field"><label for="qYearTo">結束年</label><select id="qYearTo"></select></div>
+      <div class="field"><label for="qCat1">大類</label><select id="qCat1"><option value="">全部</option><option>國內</option><option>國際</option></select></div>
+      <div class="field"><label>小類（不勾＝全部）</label>
+        <div class="checks" id="qCat2Box">
+          <label><input type="checkbox" value="正式">正式</label>
+          <label><input type="checkbox" value="限制">限制</label>
+          <label><input type="checkbox" value="交流">交流</label>
+        </div>
+      </div>
+      <div class="field"><label for="qEvent">賽名（可只打一部分）</label><input type="text" id="qEvent" list="dlEvents" autocomplete="off"></div>
+      <div class="field"><label for="qStage">階段（可只打一部分）</label><input type="text" id="qStage" autocomplete="off"></div>
+      <div class="field"><label for="qMoves">目數（可只打一部分）</label><input type="text" id="qMoves" autocomplete="off" placeholder="例如 中盤、0.5目"></div>
+    </div>
+    <datalist id="dlPlayers"></datalist>
+    <datalist id="dlEvents"></datalist>
+    <div class="actions">
+      <label style="display:flex;align-items:center;gap:5px;font-size:14px;cursor:pointer;"><input type="checkbox" id="qDetails">顯示明細</label>
+      <button type="button" class="btn" id="queryBtn" onclick="runQuery()">查詢</button>
+      <button type="button" class="btn secondary" onclick="clearQuery()">清除條件</button>
+    </div>
+  </section>
+
+  <section class="card" id="resultCard" style="display:none;">
+    <h2 id="resultTitle">查詢結果</h2>
+    <div id="summaryArea"></div>
+    <div id="detailArea"></div>
+  </section>
+
+  <section class="card" id="adminCard" style="display:none;">
+    <h2>🛠 管理功能</h2>
+
+    <h3>1. 上傳比賽資料（Excel）</h3>
+    <p class="hint">格式跟辨識工具寫出來的一樣：欄位「年份、日期、大類、小類、賽名、階段、執黑、執白、勝方、目數」，分頁名稱不拘，一個檔案可以有很多分頁。<br>已經在系統裡的同一局（年份＋日期＋賽名＋階段＋執黑＋執白都一樣）會自動略過，所以同一份檔案重複上傳也不會變兩筆。</p>
+    <input type="file" id="upFile" accept=".xlsx,.xls">
+    <div id="upPreview"></div>
+
+    <h3>2. 下載比賽資料</h3>
+    <p class="hint">下載成 Excel，分頁名稱是「年份-賽名」，欄位跟上傳格式一樣。</p>
+    <div class="actions" style="margin-top:6px;">
+      <button type="button" class="btn secondary" onclick="downloadAll()">⬇ 下載全部比賽資料</button>
+      <button type="button" class="btn secondary" id="dlQueryBtn" onclick="downloadQueryResult()" disabled>⬇ 下載目前查詢的明細</button>
+    </div>
+
+    <h3>3. 刪除單一比賽資料</h3>
+    <p class="hint">選年份跟賽名，會刪掉那一屆那個比賽的全部對局。刪除後救不回來，建議先按上面「下載全部比賽資料」備份一份。</p>
+    <div class="grid" style="max-width:560px;">
+      <div class="field"><label for="delYear">年份</label><select id="delYear" onchange="refreshDelEvents()"></select></div>
+      <div class="field"><label for="delEvent">賽名</label><select id="delEvent"></select></div>
+    </div>
+    <div class="actions"><button type="button" class="btn danger" onclick="deleteEvent()">刪除這個比賽</button><span id="delStatus" class="hint"></span></div>
+  </section>
+</main>
+
+<div id="loginModal" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <h2>管理登入</h2>
+    <p class="hint">用賽程表同一組帳號登入，登入後才能上傳／下載／刪除。查詢不用登入。</p>
+    <label for="loginEmail">帳號（Email）</label>
+    <input type="email" id="loginEmail" autocomplete="username">
+    <label for="loginPw">密碼</label>
+    <input type="password" id="loginPw" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    <div class="login-error" id="loginError"></div>
+    <div class="actions">
+      <button type="button" class="btn" id="loginSubmit" onclick="doLogin()">登入</button>
+      <button type="button" class="btn secondary" onclick="closeLogin()">取消</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script>
+/* ============ 海峰棋院成績系統（基本款，2026-09-30）============
+   取代外包的 haifonggo.azurewebsites.net。資料放在跟賽程表同一個 Firebase 專案（test-5cfc9）的
+   Firestore：
+     results/meta   { version, counts:{年份:局數}, updatedAt }   ← 公開頁每次只讀這一份，版本沒變就用瀏覽器快取
+     results/y2016… { year, rows:"JSON字串" }                   ← 每年一份；rows 是 [日期,大類,小類,賽名,階段,執黑,執白,勝方,目數] 陣列
+   每年一份文件、內容存成 JSON 字串：1 萬多局也只有十幾份文件，讀取次數極少，免費額度綽綽有餘；
+   Firestore 單一文件上限 1MB，一年 1,500 局大約 150KB，還有很大空間。
+   網址加 ?local=1 是本機測試模式：不連 Firebase，資料只存在這台瀏覽器的 localStorage。 */
+const firebaseConfig = {
+  apiKey: "AIzaSyAZAxRuD6MFG4i_FcOf5OX_qzrHunGXqnk",
+  authDomain: "test-5cfc9.firebaseapp.com",
+  projectId: "test-5cfc9",
+  storageBucket: "test-5cfc9.firebasestorage.app",
+  messagingSenderId: "892169332286",
+  appId: "1:892169332286:web:c16a82a686d1f3e024536f"
+};
+const LOCAL_MODE = new URLSearchParams(location.search).get('local') === '1';
+const CACHE_KEY = 'haifong-results-cache-v1';
+const LOCAL_DB_KEY = 'haifong-results-localdb-v1';
+const HEADERS = ['年份','日期','大類','小類','賽名','階段','執黑','執白','勝方','目數'];
+const DOC_SIZE_LIMIT = 900000; // Firestore 上限 1MB，留一點餘裕
+
+let GAMES = [];          // [{y,d,c1,c2,ev,st,b,w,win,mv}]
+let dataVersion = 0;
+let isAdmin = false;
+let lastQueryGames = [];
+let fb = null;           // {auth, db}
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function norm(s){ return String(s==null?'':s).replace(/\s+/g,'').trim(); }
+function rowToGame(y, r){ return { y:String(y), d:r[0]||'', c1:r[1]||'', c2:r[2]||'', ev:r[3]||'', st:r[4]||'', b:r[5]||'', w:r[6]||'', win:r[7]||'', mv:r[8]||'' }; }
+function gameToRow(g){ return [g.d,g.c1,g.c2,g.ev,g.st,g.b,g.w,g.win,g.mv]; }
+function gameKey(g){ return [g.y,g.d,g.ev,g.st,g.b,g.w].map(norm).join('|'); }
+function sortGames(list){
+  return list.sort((a,b)=> (b.y+b.d).localeCompare(a.y+a.d) || a.ev.localeCompare(b.ev,'zh-Hant') || a.st.localeCompare(b.st,'zh-Hant'));
+}
+
+/* ============ 資料存取：Firebase 或本機測試 ============ */
+function groupByYear(games){
+  const by = {};
+  games.forEach(g=>{ (by[g.y] = by[g.y] || []).push(g); });
+  return by;
+}
+async function loadData(forceServer){
+  if(LOCAL_MODE){
+    let saved = null;
+    try{ saved = JSON.parse(localStorage.getItem(LOCAL_DB_KEY) || 'null'); }catch(e){}
+    GAMES = [];
+    if(saved){ Object.keys(saved.years).forEach(y=>{ saved.years[y].forEach(r=>GAMES.push(rowToGame(y,r))); }); dataVersion = saved.version; }
+    return;
+  }
+  const col = fb.db.collection('results');
+  const metaSnap = await col.doc('meta').get(forceServer ? {source:'server'} : undefined);
+  const meta = metaSnap.exists ? metaSnap.data() : null;
+  if(!meta){ GAMES = []; dataVersion = 0; return; }
+  if(!forceServer){
+    try{
+      const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+      if(cache && cache.version === meta.version){
+        GAMES = [];
+        Object.keys(cache.years).forEach(y=>{ cache.years[y].forEach(r=>GAMES.push(rowToGame(y,r))); });
+        dataVersion = meta.version;
+        return;
+      }
+    }catch(e){}
+  }
+  const snap = await col.get(forceServer ? {source:'server'} : undefined);
+  const years = {};
+  GAMES = [];
+  snap.forEach(doc=>{
+    if(doc.id === 'meta') return;
+    const d = doc.data();
+    const rows = JSON.parse(d.rows || '[]');
+    years[d.year] = rows;
+    rows.forEach(r=>GAMES.push(rowToGame(d.year, r)));
+  });
+  dataVersion = meta.version;
+  try{ localStorage.setItem(CACHE_KEY, JSON.stringify({version:dataVersion, years})); }catch(e){}
+}
+/* 把「這些年份」整年的資料寫回去（上傳／刪除共用）。changedYears 裡的年份如果已經沒有任何對局，就刪掉那份文件。 */
+async function saveYears(changedYears){
+  const by = groupByYear(GAMES);
+  const version = Date.now();
+  const counts = {};
+  Object.keys(by).forEach(y=>{ counts[y] = by[y].length; });
+  if(LOCAL_MODE){
+    const years = {};
+    Object.keys(by).forEach(y=>{ years[y] = sortGames(by[y]).map(gameToRow); });
+    localStorage.setItem(LOCAL_DB_KEY, JSON.stringify({version, years}));
+    dataVersion = version;
+    return;
+  }
+  const col = fb.db.collection('results');
+  const batch = fb.db.batch();
+  changedYears.forEach(y=>{
+    const list = by[y];
+    if(!list || list.length===0){ batch.delete(col.doc('y'+y)); return; }
+    const json = JSON.stringify(sortGames(list).map(gameToRow));
+    if(new Blob([json]).size > DOC_SIZE_LIMIT) throw new Error(y+' 年的資料太大（超過單一文件上限），請聯絡維護的人調整存法');
+    batch.set(col.doc('y'+y), { year:String(y), rows:json });
+  });
+  batch.set(col.doc('meta'), { version, counts, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+  await batch.commit();
+  dataVersion = version;
+  try{ localStorage.removeItem(CACHE_KEY); }catch(e){}
+}
+
+/* ============ 畫面：年份選單、名單、狀態列 ============ */
+function allYears(){
+  const ys = new Set(GAMES.map(g=>g.y));
+  ys.add(String(new Date().getFullYear()));
+  return [...ys].filter(y=>/^\d{4}$/.test(y)).sort();
+}
+function refreshControls(){
+  const years = allYears();
+  const from = document.getElementById('qYearFrom'), to = document.getElementById('qYearTo');
+  const fv = from.value, tv = to.value;
+  from.innerHTML = '<option value="">（不限）</option>' + years.map(y=>'<option>'+y+'</option>').join('');
+  to.innerHTML = '<option value="">（不限）</option>' + years.map(y=>'<option>'+y+'</option>').join('');
+  from.value = fv; to.value = tv;
+  const cnt = {};
+  GAMES.forEach(g=>{ cnt[g.b]=(cnt[g.b]||0)+1; cnt[g.w]=(cnt[g.w]||0)+1; });
+  const names = Object.keys(cnt).filter(Boolean).sort((a,b)=>cnt[b]-cnt[a]);
+  document.getElementById('dlPlayers').innerHTML = names.map(n=>'<option value="'+esc(n)+'">').join('');
+  const evs = [...new Set(GAMES.map(g=>g.ev))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'zh-Hant'));
+  document.getElementById('dlEvents').innerHTML = evs.map(n=>'<option value="'+esc(n)+'">').join('');
+  const st = document.getElementById('dataStatus');
+  if(GAMES.length===0){ st.textContent = '目前系統裡還沒有資料'; }
+  else{
+    const ys = years.filter(y=>GAMES.some(g=>g.y===y));
+    st.textContent = '共 '+GAMES.length.toLocaleString()+' 局（'+ys[0]+'～'+ys[ys.length-1]+'）・'+names.length+' 位棋士' + (dataVersion ? '・最後更新 '+new Date(dataVersion).toLocaleString('zh-TW',{hour12:false}) : '');
+  }
+  refreshDelYears();
+}
+
+/* ============ 查詢 ============
+   規則照舊系統：棋士／對手要完整姓名；賽名、階段、目數打一部分就算；小類不勾＝全部。
+   有填棋士：第一列是這段期間的合計，下面逐年列出（新到舊）。沒填棋士：列出所有符合條件的棋士，依對局數排序。
+   跟舊系統唯一的差別：舊系統會把「勝方欄填了第三個人」的錯誤資料也算進那個人的對局，這裡只算真正下的那兩個人。 */
+function readFilters(){
+  const c2 = [...document.querySelectorAll('#qCat2Box input:checked')].map(i=>i.value);
+  return {
+    player: norm(document.getElementById('qPlayer').value),
+    opp: norm(document.getElementById('qOpp').value),
+    yFrom: document.getElementById('qYearFrom').value,
+    yTo: document.getElementById('qYearTo').value,
+    c1: document.getElementById('qCat1').value,
+    c2,
+    ev: norm(document.getElementById('qEvent').value),
+    st: norm(document.getElementById('qStage').value),
+    mv: norm(document.getElementById('qMoves').value),
+    details: document.getElementById('qDetails').checked
+  };
+}
+function baseFilter(f){
+  return GAMES.filter(g=>{
+    if(f.yFrom && g.y < f.yFrom) return false;
+    if(f.yTo && g.y > f.yTo) return false;
+    if(f.c1 && g.c1 !== f.c1) return false;
+    if(f.c2.length && f.c2.indexOf(g.c2) < 0) return false;
+    if(f.ev && norm(g.ev).indexOf(f.ev) < 0) return false;
+    if(f.st && norm(g.st).indexOf(f.st) < 0) return false;
+    if(f.mv && norm(g.mv).indexOf(f.mv) < 0) return false;
+    return true;
+  });
+}
+function newStat(){ return {n:0, win:0, bn:0, bwin:0, wn:0, wwin:0}; }
+function addStat(s, g, p){
+  const isB = norm(g.b)===p;
+  const won = norm(g.win)===p;
+  s.n++; if(won) s.win++;
+  if(isB){ s.bn++; if(won) s.bwin++; } else { s.wn++; if(won) s.wwin++; }
+}
+function pct(a, n){ return n ? (a*100/n).toFixed(1)+'%' : '—'; }
+function statCells(s){
+  return '<td>'+s.n+'</td><td>'+s.win+'</td><td>'+(s.n-s.win)+'</td><td class="win">'+pct(s.win,s.n)+'</td><td>'+pct(s.bwin,s.bn)+'</td><td>'+pct(s.wwin,s.wn)+'</td><td>'+s.bn+'</td><td>'+s.bwin+'</td><td>'+s.wn+'</td><td>'+s.wwin+'</td>';
+}
+const STAT_HEAD = '<th>對局數</th><th>勝</th><th>敗</th><th>勝率</th><th>執黑勝率</th><th>執白勝率</th><th>執黑局數</th><th>執黑勝</th><th>執白局數</th><th>執白勝</th>';
+
+function runQuery(){
+  const f = readFilters();
+  const base = baseFilter(f);
+  const rangeLabel = (f.yFrom||f.yTo) ? ((f.yFrom||'')+'～'+(f.yTo||'')) : '全部年份';
+  let html = '';
+  let detailGames = [];
+  if(f.player){
+    const games = base.filter(g=>{
+      const b=norm(g.b), w=norm(g.w);
+      if(b!==f.player && w!==f.player) return false;
+      if(f.opp){ const other = b===f.player ? w : b; if(other!==f.opp) return false; }
+      return true;
+    });
+    detailGames = games;
+    const total = newStat(), byYear = {};
+    games.forEach(g=>{ addStat(total,g,f.player); addStat(byYear[g.y]=byYear[g.y]||newStat(), g, f.player); });
+    const title = esc(document.getElementById('qPlayer').value.trim()) + (f.opp ? '　對　'+esc(document.getElementById('qOpp').value.trim()) : '');
+    document.getElementById('resultTitle').innerHTML = '查詢結果：'+title;
+    if(games.length===0){
+      html = '<p class="hint">找不到符合條件的對局。棋士姓名要打完整（可以從輸入框的下拉清單選）。</p>';
+    } else {
+      html = '<div class="table-wrap"><table><tr><th>棋士</th><th>年份</th>'+STAT_HEAD+'</tr>';
+      html += '<tr class="total"><td class="name">'+esc(document.getElementById('qPlayer').value.trim())+'</td><td>'+rangeLabel+'</td>'+statCells(total)+'</tr>';
+      Object.keys(byYear).sort().reverse().forEach(y=>{
+        html += '<tr><td class="name">'+esc(document.getElementById('qPlayer').value.trim())+'</td><td>'+y+'</td>'+statCells(byYear[y])+'</tr>';
+      });
+      html += '</table></div>';
+    }
+  } else {
+    /* 沒填棋士：每一局的兩位選手各記一筆；有填對手的話，只看「跟這位對手下的」那些人 */
+    const stats = {};
+    const used = [];
+    base.forEach(g=>{
+      [[g.b,g.w],[g.w,g.b]].forEach(pair=>{
+        const p = norm(pair[0]), other = norm(pair[1]);
+        if(!p) return;
+        if(f.opp && other!==f.opp) return;
+        addStat(stats[p] = stats[p] || newStat(), g, p);
+      });
+      if(!f.opp || norm(g.b)===f.opp || norm(g.w)===f.opp) used.push(g);
+    });
+    detailGames = used;
+    const names = Object.keys(stats).sort((a,b)=> stats[b].n-stats[a].n || stats[b].win-stats[a].win || a.localeCompare(b,'zh-Hant'));
+    document.getElementById('resultTitle').innerHTML = '查詢結果：'+(f.opp ? '所有跟 '+esc(document.getElementById('qOpp').value.trim())+' 下過的棋士' : '所有棋士')+'（'+names.length+' 位）';
+    if(names.length===0){
+      html = '<p class="hint">找不到符合條件的對局。</p>';
+    } else {
+      html = '<div class="table-wrap"><table><tr><th>#</th><th>棋士</th><th>年份</th>'+STAT_HEAD+'</tr>';
+      names.forEach((n,i)=>{ html += '<tr><td>'+(i+1)+'</td><td class="name"><a href="#" onclick="return quickPlayer(this.textContent)">'+esc(n)+'</a></td><td>'+rangeLabel+'</td>'+statCells(stats[n])+'</tr>'; });
+      html += '</table></div>';
+    }
+  }
+  document.getElementById('summaryArea').innerHTML = html;
+  lastQueryGames = sortGames(detailGames.slice());
+  document.getElementById('dlQueryBtn').disabled = lastQueryGames.length===0;
+  renderDetails(f.details ? lastQueryGames : null);
+  document.getElementById('resultCard').style.display = '';
+  document.getElementById('resultCard').scrollIntoView({behavior:'smooth', block:'start'});
+}
+const DETAIL_LIMIT = 3000;
+function fmtDate(g){
+  const m = String(g.d).match(/^(\d{1,2})[.\/-](\d{1,2})$/);
+  return m ? g.y+'/'+m[1].padStart(2,'0')+'/'+m[2].padStart(2,'0') : (g.y+' '+g.d);
+}
+function renderDetails(list){
+  const area = document.getElementById('detailArea');
+  if(!list){ area.innerHTML=''; return; }
+  if(list.length===0){ area.innerHTML=''; return; }
+  const shown = list.slice(0, DETAIL_LIMIT);
+  let html = '<h3 style="margin-top:18px;">對局明細（'+list.length.toLocaleString()+' 局'+(list.length>DETAIL_LIMIT?'，畫面只列出最新 '+DETAIL_LIMIT+' 局，全部請用「下載目前查詢的明細」':'')+'）</h3>';
+  html += '<div class="table-wrap" style="max-height:70vh;"><table><tr><th>日期</th><th>大類</th><th>小類</th><th>賽名</th><th>階段</th><th>執黑</th><th>執白</th><th>勝方</th><th>目數</th></tr>';
+  shown.forEach(g=>{
+    const bw = norm(g.win)===norm(g.b), ww = norm(g.win)===norm(g.w);
+    html += '<tr><td>'+fmtDate(g)+'</td><td>'+esc(g.c1)+'</td><td>'+esc(g.c2)+'</td><td>'+esc(g.ev)+'</td><td>'+esc(g.st)+'</td><td'+(bw?' class="win"':'')+'>'+esc(g.b)+'</td><td'+(ww?' class="win"':'')+'>'+esc(g.w)+'</td><td>'+esc(g.win)+'</td><td>'+esc(g.mv)+'</td></tr>';
+  });
+  html += '</table></div>';
+  area.innerHTML = html;
+}
+function quickPlayer(name){
+  document.getElementById('qPlayer').value = name;
+  runQuery();
+  return false;
+}
+function clearQuery(){
+  ['qPlayer','qOpp','qEvent','qStage','qMoves'].forEach(id=>document.getElementById(id).value='');
+  ['qYearFrom','qYearTo','qCat1'].forEach(id=>document.getElementById(id).value='');
+  document.querySelectorAll('#qCat2Box input').forEach(i=>i.checked=false);
+  document.getElementById('qDetails').checked=false;
+}
+
+/* ============ Excel 下載 ============ */
+function safeSheetName(name, used){
+  let s = String(name).replace(/[:\\\/?*\[\]]/g,'_').slice(0,31) || '工作表';
+  let base = s, k = 2;
+  while(used.has(s)){ const suf='('+(k++)+')'; s = base.slice(0,31-suf.length)+suf; }
+  used.add(s);
+  return s;
+}
+function gamesToWorkbook(list){
+  const wb = XLSX.utils.book_new();
+  const groups = new Map();
+  sortGames(list.slice()).forEach(g=>{
+    const k = g.y+'-'+g.ev;
+    if(!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(g);
+  });
+  const used = new Set();
+  groups.forEach((gs, k)=>{
+    const aoa = [HEADERS].concat(gs.map(g=>[g.y,g.d,g.c1,g.c2,g.ev,g.st,g.b,g.w,g.win,g.mv]));
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    XLSX.utils.book_append_sheet(wb, ws, safeSheetName(k, used));
+  });
+  if(groups.size===0) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([HEADERS]), '比賽資料');
+  return wb;
+}
+function todayStamp(){ const d=new Date(); return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0'); }
+function downloadAll(){
+  if(GAMES.length===0){ alert('目前沒有資料可以下載'); return; }
+  XLSX.writeFile(gamesToWorkbook(GAMES), '全部比賽資料(年份-賽名)_'+todayStamp()+'.xlsx');
+}
+function downloadQueryResult(){
+  if(lastQueryGames.length===0){ alert('請先查詢'); return; }
+  XLSX.writeFile(gamesToWorkbook(lastQueryGames), '查詢結果明細_'+todayStamp()+'.xlsx');
+}
+
+/* ============ Excel 上傳 ============
+   每一列分成三種：新的（會匯入）、系統裡已經有（略過）、有問題（預設不匯入，可以勾選照樣匯入）。
+   「有問題」的檢查：必填欄位空白、黑白同一人、勝方不是黑也不是白、目數寫的顏色跟勝方對不上、
+   同一個檔案裡同一局出現兩次、年份不是四位數、日期不是「月.日」格式。 */
+let pendingUpload = null;
+function cellStr(v){
+  if(v==null) return '';
+  if(v instanceof Date) return String(v.getMonth()+1).padStart(2,'0')+'.'+String(v.getDate()).padStart(2,'0');
+  return String(v).trim();
+}
+/* 日期欄：Excel 可能把「09.20」自動變成數字 9.2，這裡轉回「09.20」 */
+function normDate(v){
+  if(typeof v === 'number' && isFinite(v) && v>0 && v<13){
+    const m = Math.floor(v), d = Math.round((v-m)*100);
+    return String(m).padStart(2,'0')+'.'+String(d).padStart(2,'0');
+  }
+  const s = cellStr(v);
+  const m = s.match(/^(\d{1,2})[.\/-](\d{1,2})$/);
+  return m ? m[1].padStart(2,'0')+'.'+m[2].padStart(2,'0') : s;
+}
+function checkGame(g){
+  const p = [];
+  if(!g.y || !g.ev || !g.b || !g.w || !g.win) p.push('必填欄位空白');
+  if(g.y && !/^\d{4}$/.test(g.y)) p.push('年份不是四位數');
+  if(g.d && !/^\d{2}\.\d{2}$/.test(g.d)) p.push('日期格式不是「月.日」');
+  if(g.b && g.w && norm(g.b)===norm(g.w)) p.push('黑白是同一個人');
+  else if(g.win && norm(g.win)!==norm(g.b) && norm(g.win)!==norm(g.w)) p.push('勝方不是執黑也不是執白');
+  else if(g.win){
+    const color = g.mv.charAt(0);
+    if(color==='黑' && norm(g.win)!==norm(g.b)) p.push('目數寫黑勝，勝方卻是執白');
+    if(color==='白' && norm(g.win)!==norm(g.w)) p.push('目數寫白勝，勝方卻是執黑');
+  }
+  return p;
+}
+document.getElementById('upFile').addEventListener('change', async function(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const area = document.getElementById('upPreview');
+  area.innerHTML = '<p class="hint">讀取中…</p>';
+  try{
+    const buf = await file.arrayBuffer();
+    analyzeUpload(XLSX.read(buf, {type:'array', cellDates:true}), file.name);
+  }catch(err){
+    console.error(err);
+    area.innerHTML = '<p class="status-bad">讀不了這個檔案：'+esc(err.message||err)+'</p>';
+  }
+});
+function analyzeUpload(wb, fileName){
+  const existing = new Set(GAMES.map(gameKey));
+  const inFile = new Map();
+  const items = [];
+  const skippedSheets = [];
+  wb.SheetNames.forEach(sn=>{
+    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sn], {header:1, raw:true, defval:null});
+    const hIdx = aoa.findIndex(r=>r && r.some(c=>cellStr(c)==='執黑') && r.some(c=>cellStr(c)==='執白'));
+    if(hIdx<0){ if(aoa.some(r=>r && r.some(c=>c!=null && c!==''))) skippedSheets.push(sn); return; }
+    const col = {};
+    aoa[hIdx].forEach((c,i)=>{ const k=cellStr(c); if(HEADERS.indexOf(k)>=0 && col[k]==null) col[k]=i; });
+    for(let r=hIdx+1; r<aoa.length; r++){
+      const row = aoa[r];
+      if(!row || row.every(c=>c==null || String(c).trim()==='')) continue;
+      const get = k => col[k]==null ? '' : row[col[k]];
+      const g = { y:cellStr(get('年份')).replace(/\.0$/,''), d:normDate(get('日期')), c1:cellStr(get('大類')), c2:cellStr(get('小類')), ev:cellStr(get('賽名')), st:cellStr(get('階段')), b:cellStr(get('執黑')), w:cellStr(get('執白')), win:cellStr(get('勝方')), mv:cellStr(get('目數')) };
+      const it = { g, sheet:sn, rowNo:r+1, problems:checkGame(g) };
+      const key = gameKey(g);
+      if(existing.has(key)) it.status='exists';
+      else {
+        if(inFile.has(key)) it.problems.push('跟同一個檔案裡的第 '+inFile.get(key)+' 列重複');
+        else inFile.set(key, sn+' 第'+(r+1)+'列');
+        it.status = it.problems.length ? 'problem' : 'new';
+      }
+      items.push(it);
+    }
+  });
+  pendingUpload = { items, fileName };
+  renderUploadPreview(skippedSheets);
+}
+let upTab = 'problem';
+function renderUploadPreview(skippedSheets){
+  const area = document.getElementById('upPreview');
+  const items = pendingUpload.items;
+  const c = {new:0, exists:0, problem:0};
+  items.forEach(it=>c[it.status]++);
+  if(!c.problem && upTab==='problem') upTab='new';
+  let html = '<p style="margin:10px 0 4px;">「'+esc(pendingUpload.fileName)+'」共 '+items.length+' 局：'+
+    '<span class="pill new">新的 '+c.new+'</span> <span class="pill exists">系統裡已經有 '+c.exists+'</span> <span class="pill problem">有問題 '+c.problem+'</span></p>';
+  if(skippedSheets && skippedSheets.length) html += '<p class="hint">這幾個分頁找不到「執黑／執白」欄位，已略過：'+skippedSheets.map(esc).join('、')+'</p>';
+  html += '<div class="tabs">'+['problem','new','exists'].map(t=>'<button type="button" class="'+(upTab===t?'on':'')+'" onclick="upTab=\''+t+'\';renderUploadPreview()">'+({problem:'有問題',new:'新的',exists:'已經有'})[t]+'（'+c[t]+'）</button>').join('')+'</div>';
+  const list = items.filter(it=>it.status===upTab).slice(0,500);
+  if(list.length){
+    html += '<div class="table-wrap" style="max-height:340px;"><table><tr>'+(upTab==='problem'?'<th>問題</th>':'')+'<th>執黑</th><th>執白</th><th>勝方</th><th>目數</th><th>年份</th><th>日期</th><th>賽名</th><th>階段</th><th>分頁</th><th>列</th></tr>';
+    list.forEach(it=>{
+      const g=it.g;
+      html += '<tr class="row-'+it.status+'">'+(upTab==='problem'?'<td style="text-align:left;">'+esc(it.problems.join('；'))+'</td>':'')+'<td>'+esc(g.b)+'</td><td>'+esc(g.w)+'</td><td>'+esc(g.win)+'</td><td>'+esc(g.mv)+'</td><td>'+esc(g.y)+'</td><td>'+esc(g.d)+'</td><td>'+esc(g.ev)+'</td><td>'+esc(g.st)+'</td><td>'+esc(it.sheet)+'</td><td>'+it.rowNo+'</td></tr>';
+    });
+    html += '</table></div>';
+    if(items.filter(it=>it.status===upTab).length>500) html += '<p class="hint">只列出前 500 筆</p>';
+  }
+  html += '<div class="actions">';
+  if(c.problem) html += '<label style="display:flex;align-items:center;gap:5px;font-size:14px;cursor:pointer;"><input type="checkbox" id="upIncludeProblem">有問題的 '+c.problem+' 局也照樣匯入（例如搬舊資料時先全部搬過來）</label>';
+  html += '<button type="button" class="btn" id="upConfirm" onclick="confirmUpload()"'+(c.new+c.problem===0?' disabled':'')+'>確定匯入</button>';
+  html += '<button type="button" class="btn secondary" onclick="cancelUpload()">取消</button><span id="upStatus" class="hint"></span></div>';
+  area.innerHTML = html;
+}
+function cancelUpload(){
+  pendingUpload = null;
+  document.getElementById('upPreview').innerHTML='';
+  document.getElementById('upFile').value='';
+}
+async function confirmUpload(){
+  if(!pendingUpload) return;
+  const inc = document.getElementById('upIncludeProblem');
+  const includeProblem = !!(inc && inc.checked);
+  const btn = document.getElementById('upConfirm'), st = document.getElementById('upStatus');
+  btn.disabled = true; st.textContent = '匯入中…';
+  try{
+    /* 寫入前先抓一次雲端最新資料，避免蓋掉別台電腦剛上傳的內容 */
+    await loadData(true);
+    const existing = new Set(GAMES.map(gameKey));
+    const add = [];
+    pendingUpload.items.forEach(it=>{
+      if(it.status==='new' || (it.status==='problem' && includeProblem)){
+        const k = gameKey(it.g);
+        if(existing.has(k) && it.status==='new') return;
+        add.push(it.g);
+      }
+    });
+    if(add.length===0){ st.textContent='沒有需要匯入的新資料'; btn.disabled=false; return; }
+    GAMES = GAMES.concat(add);
+    await saveYears([...new Set(add.map(g=>g.y))]);
+    refreshControls();
+    document.getElementById('upPreview').innerHTML = '<p class="status-ok">✅ 已匯入 '+add.length+' 局</p>';
+    document.getElementById('upFile').value='';
+    pendingUpload = null;
+  }catch(err){
+    console.error(err);
+    st.innerHTML = '<span class="status-bad">匯入失敗：'+esc(err.message||err)+'</span>';
+    btn.disabled = false;
+    await loadData(true).catch(()=>{});
+    refreshControls();
+  }
+}
+
+/* ============ 刪除單一比賽 ============ */
+function refreshDelYears(){
+  const sel = document.getElementById('delYear');
+  const v = sel.value;
+  const ys = [...new Set(GAMES.map(g=>g.y))].sort().reverse();
+  sel.innerHTML = ys.map(y=>'<option>'+y+'</option>').join('');
+  if(ys.indexOf(v)>=0) sel.value = v;
+  refreshDelEvents();
+}
+function refreshDelEvents(){
+  const y = document.getElementById('delYear').value;
+  const cnt = {};
+  GAMES.forEach(g=>{ if(g.y===y) cnt[g.ev]=(cnt[g.ev]||0)+1; });
+  document.getElementById('delEvent').innerHTML = Object.keys(cnt).sort((a,b)=>a.localeCompare(b,'zh-Hant')).map(ev=>'<option value="'+esc(ev)+'">'+esc(ev)+'（'+cnt[ev]+' 局）</option>').join('');
+}
+async function deleteEvent(){
+  const y = document.getElementById('delYear').value, ev = document.getElementById('delEvent').value;
+  if(!y || !ev){ alert('請先選年份跟賽名'); return; }
+  const n = GAMES.filter(g=>g.y===y && g.ev===ev).length;
+  const typed = prompt('確定要刪除「'+y+' '+ev+'」全部 '+n+' 局嗎？刪除後救不回來。\n\n請輸入賽名「'+ev+'」確認：');
+  if(typed===null) return;
+  if(typed.trim()!==ev){ alert('輸入的賽名不一樣，沒有刪除'); return; }
+  const st = document.getElementById('delStatus');
+  st.textContent='刪除中…';
+  try{
+    await loadData(true);
+    const before = GAMES.length;
+    GAMES = GAMES.filter(g=>!(g.y===y && g.ev===ev));
+    await saveYears([y]);
+    refreshControls();
+    st.innerHTML = '<span class="status-ok">已刪除 '+(before-GAMES.length)+' 局</span>';
+  }catch(err){
+    console.error(err);
+    st.innerHTML = '<span class="status-bad">刪除失敗：'+esc(err.message||err)+'</span>';
+    await loadData(true).catch(()=>{});
+    refreshControls();
+  }
+}
+
+/* ============ 登入 ============ */
+function setAdmin(on){
+  isAdmin = on;
+  document.getElementById('adminCard').style.display = on ? '' : 'none';
+  document.getElementById('loginBtn').style.display = (on || LOCAL_MODE) ? 'none' : '';
+  document.getElementById('logoutBtn').style.display = (on && !LOCAL_MODE) ? '' : 'none';
+}
+function openLogin(){
+  document.getElementById('loginError').textContent='';
+  document.getElementById('loginModal').style.display='flex';
+  document.getElementById('loginEmail').focus();
+}
+function closeLogin(){ document.getElementById('loginModal').style.display='none'; }
+async function doLogin(){
+  const email = document.getElementById('loginEmail').value.trim(), pw = document.getElementById('loginPw').value;
+  const errEl = document.getElementById('loginError'), btn = document.getElementById('loginSubmit');
+  if(!email || !pw){ errEl.textContent='請輸入帳號和密碼'; return; }
+  btn.disabled = true; errEl.textContent='';
+  try{
+    await fb.auth.signInWithEmailAndPassword(email, pw);
+    document.getElementById('loginPw').value='';
+    closeLogin();
+  }catch(err){
+    const code = err && err.code || '';
+    errEl.textContent = (code.indexOf('invalid')>=0 || code.indexOf('wrong-password')>=0 || code.indexOf('user-not-found')>=0) ? '帳號或密碼不對' : ('登入失敗：'+(err.message||code));
+  }finally{ btn.disabled = false; }
+}
+function doLogout(){ fb.auth.signOut(); }
+
+/* ============ 啟動 ============ */
+(async function init(){
+  if(LOCAL_MODE){
+    document.getElementById('localBanner').style.display='';
+    setAdmin(true);
+  } else {
+    firebase.initializeApp(firebaseConfig);
+    fb = { auth: firebase.auth(), db: firebase.firestore() };
+    fb.auth.onAuthStateChanged(user=>setAdmin(!!user));
+  }
+  try{
+    await loadData(false);
+  }catch(err){
+    console.error(err);
+    document.getElementById('dataStatus').innerHTML = '<span class="status-bad">資料載入失敗：'+esc(err.message||err)+'（請重新整理再試一次）</span>';
+    return;
+  }
+  refreshControls();
+})();
+</script>
+</body>
+</html>
