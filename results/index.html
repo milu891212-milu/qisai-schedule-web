@@ -204,7 +204,7 @@ table.grid a{color:#000;}
   <div class="admin-box">
     <div class="arow"><div class="lbl">起始日期</div><div class="datesel" id="dlFrom"></div></div>
     <div class="arow"><div class="lbl">結束日期</div><div class="datesel" id="dlTo"></div></div>
-    <div class="arow"><div class="lbl">比賽名稱</div><div class="acts"><div class="ac-wrap" style="max-width:320px;"><input type="text" id="dlEvent" autocomplete="off" placeholder="空白＝全部比賽" style="width:100%;"></div><span class="hint">比賽名稱可只打一部分</span></div></div>
+    <div class="arow"><div class="lbl">比賽名稱</div><div class="acts"><div class="ac-wrap" style="max-width:320px;"><input type="text" id="dlEvent" autocomplete="off" style="width:100%;"></div><span class="hint">比賽名稱可只打一部分</span></div></div>
     <div class="arow"><div class="lbl">功能 2</div>
       <div class="acts">
         <button type="button" class="btn" onclick="downloadRange('year')">下載比賽資料 (年份-賽名)</button>
@@ -223,7 +223,6 @@ table.grid a{color:#000;}
           <button type="button" class="btn" onclick="downloadDanPlayers()">下載段位資料</button>
           <button type="button" class="btn" onclick="document.getElementById('danUpFile').click()">上傳段位資料 (Excel)</button>
           <input type="file" id="danUpFile" accept=".xlsx,.xls" style="display:none;">
-          <span class="hint">上傳＝用檔案「整份取代」系統裡的段位資料（欄位：姓名、目前段位、結算日期、結算日期已達成之勝場數量）</span>
         </div>
         <div id="danUpPreview"></div>
       </div>
@@ -524,7 +523,15 @@ function fillDateSel(id, y, m, d){
   if(years.indexOf(cy)<0) years.push(cy);
   const el = document.getElementById(id);
   const opt = (arr, v)=>arr.map(x=>'<option'+(String(x)===String(v)?' selected':'')+'>'+x+'</option>').join('');
-  el.innerHTML = '<select>'+opt(years,y)+'</select><select>'+opt([...Array(12)].map((_,i)=>i+1),m)+'</select><select>'+opt([...Array(31)].map((_,i)=>i+1),d)+'</select>';
+  el.innerHTML = '<select autocomplete="off">'+opt(years,y)+'</select><select autocomplete="off">'+opt([...Array(12)].map((_,i)=>i+1),m)+'</select><select autocomplete="off">'+opt([...Array(31)].map((_,i)=>i+1),d)+'</select>';
+  forceDateSel(id, y, m, d);
+}
+/* Edge 重新整理時會把下拉選單「恢復成上一次的選擇」（使用者遇到：預設今年卻一直變成 2016），
+   所以 select 都加 autocomplete="off"，而且建好之後再強制設一次值，等頁面載入完也再設一次。 */
+function forceDateSel(id, y, m, d){
+  const set = ()=>{ const s = document.querySelectorAll('#'+id+' select'); if(s.length<3) return; s[0].value=String(y); s[1].value=String(m); s[2].value=String(d); };
+  set();
+  if(document.readyState!=='complete') window.addEventListener('load', ()=>setTimeout(set,0), {once:true});
 }
 function readDateSel(id){ const s = document.querySelectorAll('#'+id+' select'); return Number(s[0].value)*10000+Number(s[1].value)*100+Number(s[2].value); }
 function refreshControls(){
@@ -919,16 +926,44 @@ async function confirmUpload(){
 
 /* ============ 刪除（功能 5、6）============
    功能 6 跟舊系統一樣用「比賽名稱」刪（名稱要完全一樣），另外可以只刪某一年；預設「全部年份」。
-   兩種刪除都要打字確認，不小心按到不會直接刪。 */
+   防呆（使用者 2026-10-02 要求）：兩種刪除都要「再輸入一次登入密碼」才會刪，密碼由 Firebase 重新驗證，
+   不會存在任何地方。本機測試模式沒有登入，密碼隨便打都算通過。 */
+function askPasswordToDelete(title, messageHtml){
+  return new Promise(resolve=>{
+    let done = false;
+    const finish = v=>{ if(done) return; done = true; closeDanModal(); resolve(v); };
+    const submit = async ()=>{
+      const pw = document.getElementById('pwConfirm').value;
+      if(!pw){ danModalError('請輸入密碼'); return; }
+      try{
+        if(!LOCAL_MODE){
+          const u = fb.auth.currentUser;
+          if(!u){ danModalError('登入狀態已失效，請重新登入'); return; }
+          await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, pw));
+        }
+        finish(true);
+      }catch(err){
+        const code = (err && err.code) || '';
+        danModalError(/wrong-password|invalid-credential|invalid-login/.test(code) ? '密碼不對，沒有刪除' :
+                      /too-many-requests/.test(code) ? '密碼錯太多次，請稍後再試' : '驗證失敗：'+(err.message||code));
+      }
+    };
+    openDanModal(title, '<div class="dan-detail">'+messageHtml+'</div>'+
+      '<div class="row" style="margin-top:14px;"><div class="lbl">密碼</div><input type="password" id="pwConfirm" class="inp" autocomplete="current-password"></div>'+
+      '<p class="hint">請再輸入一次登入密碼，確認是你本人要刪除。刪除後救不回來。</p>',
+      [{text:'確定刪除', cls:'red', onclick:submit}, {text:'取消', cls:'gray', onclick:()=>finish(false)}]);
+    const inp = document.getElementById('pwConfirm');
+    inp.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); submit(); } });
+    setTimeout(()=>inp.focus(), 50);
+  });
+}
 async function deleteEvent(){
   const ev = document.getElementById('delEvent').value.trim(), y = document.getElementById('delYear').value;
   if(!ev){ alert('請先輸入比賽名稱'); return; }
   const n = GAMES.filter(g=>g.ev===ev && (!y || g.y===y)).length;
   if(n===0){ alert('找不到「'+(y?y+' ':'')+ev+'」的對局，比賽名稱要完全一樣（可以從下拉清單選）'); return; }
   const what = (y ? y+' 年的' : '所有年份的') + '「'+ev+'」';
-  const typed = prompt('確定要刪除'+what+'，共 '+n+' 局嗎？刪除後救不回來。\n\n請輸入比賽名稱「'+ev+'」確認：');
-  if(typed===null) return;
-  if(typed.trim()!==ev){ alert('輸入的比賽名稱不一樣，沒有刪除'); return; }
+  if(!await askPasswordToDelete('刪除單一比賽資料', '確定要刪除'+esc(what)+'，共 <b>'+n+'</b> 局嗎？')) return;
   const st = document.getElementById('delStatus');
   st.textContent='刪除中…';
   try{
@@ -948,9 +983,7 @@ async function deleteEvent(){
 }
 async function deleteAll(){
   if(GAMES.length===0){ alert('系統裡已經沒有資料'); return; }
-  const typed = prompt('確定要刪除系統裡「所有」比賽資料（共 '+GAMES.length+' 局）嗎？刪除後救不回來，請先用功能 3 下載備份。\n\n請輸入「刪除全部」確認：');
-  if(typed===null) return;
-  if(typed.trim()!=='刪除全部'){ alert('輸入的文字不一樣，沒有刪除'); return; }
+  if(!await askPasswordToDelete('刪除所有比賽資料', '確定要刪除系統裡<b>所有</b>比賽資料，共 <b>'+GAMES.length.toLocaleString()+'</b> 局嗎？<br>建議先用「功能 3」下載一份備份。')) return;
   try{
     await loadData(true);
     const years = dataYears();
@@ -1103,7 +1136,8 @@ function fillDateSelYears(id, y, m, d, fromYear){
   if(years.indexOf(Number(y))<0) years.push(Number(y));
   const el = document.getElementById(id);
   const opt = (arr, v, pad)=>arr.map(x=>'<option value="'+x+'"'+(Number(x)===Number(v)?' selected':'')+'>'+(pad?String(x).padStart(2,'0'):x)+'</option>').join('');
-  el.innerHTML = '<select>'+opt(years,y)+'</select><select>'+opt([...Array(12)].map((_,i)=>i+1),m,true)+'</select><select>'+opt([...Array(31)].map((_,i)=>i+1),d,true)+'</select>';
+  el.innerHTML = '<select autocomplete="off">'+opt(years,y)+'</select><select autocomplete="off">'+opt([...Array(12)].map((_,i)=>i+1),m,true)+'</select><select autocomplete="off">'+opt([...Array(31)].map((_,i)=>i+1),d,true)+'</select>';
+  forceDateSel(id, y, m, d);
 }
 
 /* 進入三個段位頁面時：讀最新的段位資料（每次都跟雲端拿，避免別台電腦剛改過） */
