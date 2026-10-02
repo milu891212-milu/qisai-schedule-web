@@ -3,8 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>海峰棋院成績查詢</title>
-<style>
+<title>海峰棋院成績查詢</title><style>
 /* 介面照舊系統（haifonggo.azurewebsites.net）的樣子：橘色選單列、藍色標籤＋淡綠輸入框、
    橘色按鈕、橘色表頭＋灰白相間的粗體表格。 */
 :root{
@@ -23,105 +22,131 @@
 }
 *{box-sizing:border-box;}
 body{margin:0;background:#fff;color:#000;font-family:var(--font);}
-.nav{position:sticky;top:0;z-index:50;background:var(--nav);box-shadow:0 2px 5px rgba(0,0,0,.2);display:flex;justify-content:center;align-items:stretch;flex-wrap:wrap;min-height:40px;padding:0 10px;}
-.nav button{background:var(--nav);color:var(--nav-text);border:none;font:700 16px var(--font);padding:5px 12px;cursor:pointer;border-right:2px solid #fff;}
+.nav{position:sticky;top:0;z-index:50;background:var(--nav);box-shadow:0 2px 5px rgba(0,0,0,.2);display:flex;justify-content:center;align-items:stretch;flex-wrap:wrap;min-height:46px;padding:0 10px;}
+.nav button{background:var(--nav);color:var(--nav-text);border:none;font:700 18px var(--font);padding:6px 14px;cursor:pointer;border-right:2px solid #fff;}
 .nav button:hover{background:#c0530f;}
 .nav button.on{text-decoration:underline;text-underline-offset:4px;}
-.nav .welcome{color:var(--welcome);font-weight:700;font-size:16px;display:flex;align-items:center;padding:0 8px;}
-.page{max-width:760px;margin:20px auto 60px;padding:0 16px;}
-.page.wide{max-width:1100px;}
+.nav #navAdminItems{display:flex;flex-wrap:wrap;}
+.nav .welcome{color:var(--welcome);font-weight:700;font-size:18px;display:flex;align-items:center;padding:0 8px;}
+/* 跟舊系統一樣撐滿畫面寬度（左右留一點邊） */
+.page{margin:20px 24px 60px;}
+.page.wide{max-width:1300px;margin-left:auto;margin-right:auto;padding:0 24px;}
+/* 查詢表單：寬螢幕兩欄（棋士｜對手、起始年｜結束年…，順序跟舊系統一樣），窄螢幕一欄 */
+.qgrid{display:grid;grid-template-columns:1fr;column-gap:16px;}
+@media (min-width:900px){ .qgrid{grid-template-columns:1fr 1fr;} }
 .box{border:1px solid #000;border-radius:5px;padding:8px 10px;box-shadow:0 2px 6px rgba(0,0,0,.2);background:#fff;}
-.row{display:grid;grid-template-columns:minmax(90px,170px) 1fr;gap:14px;align-items:center;margin:6px 0;}
-.lbl{background:var(--label);border:1px solid #000;border-radius:5px;font-weight:700;font-size:19px;text-align:center;padding:2px 4px;min-height:30px;display:flex;align-items:center;justify-content:center;}
-.inp,.row select,.row input[type=text]{width:100%;height:30px;background:var(--input);border:1px solid #000;border-radius:5px;font:19px var(--font);padding:0 8px;color:#000;}
-.inp.checks{display:flex;align-items:center;justify-content:center;gap:16px;height:auto;min-height:30px;padding:2px 8px;font-size:17px;flex-wrap:wrap;}
+.row{display:grid;grid-template-columns:minmax(100px,190px) 1fr;gap:14px;align-items:center;margin:7px 0;}
+.lbl{background:var(--label);border:1px solid #000;border-radius:5px;font-weight:700;font-size:22px;text-align:center;padding:2px 4px;min-height:36px;display:flex;align-items:center;justify-content:center;}
+.inp,.row select,.row input[type=text]{width:100%;height:36px;background:var(--input);border:1px solid #000;border-radius:5px;font:22px var(--font);padding:0 8px;color:#000;}
+.row input[type=text]:focus,.row select:focus{outline:none;background:#A6F3A6;border-width:2px;}
+/* 打字時跳出的名字清單：照舊系統，貼在輸入框正下方、同寬的長方形清單（不用瀏覽器內建的 datalist，那個外觀改不了） */
+.ac-wrap{position:relative;width:100%;}
+.ac-list{position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #888;border-top:none;z-index:60;max-height:260px;overflow-y:auto;box-shadow:0 2px 6px rgba(0,0,0,.15);}
+.ac-list div{padding:4px 10px;font-size:21px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ac-list div.on,.ac-list div:hover{background:#dbeafe;}
+.inp.checks{display:flex;align-items:center;justify-content:center;gap:16px;height:auto;min-height:36px;padding:2px 8px;font-size:20px;flex-wrap:wrap;}
 .inp.checks label{display:flex;align-items:center;gap:4px;cursor:pointer;}
-.inp.checks input{width:17px;height:17px;}
-.btn{display:inline-flex;align-items:center;justify-content:center;background:var(--btn);color:#fff;border:1px solid #333;border-radius:5px;font:700 16px var(--font);padding:6px 14px;min-height:36px;box-shadow:0 2px 4px rgba(0,0,0,.2);cursor:pointer;}
+.inp.checks input{width:21px;height:21px;}
+.btn{display:inline-flex;align-items:center;justify-content:center;background:var(--btn);color:#fff;border:1px solid #333;border-radius:5px;font:700 19px var(--font);padding:7px 16px;min-height:42px;box-shadow:0 2px 4px rgba(0,0,0,.2);cursor:pointer;}
 .btn:hover{filter:brightness(1.07);}
 .btn:disabled{opacity:.5;cursor:default;filter:none;}
-.btn.wide{width:200px;}
+.btn.wide{width:230px;}
 .btn.gray{background:#888;}
 .center{text-align:center;margin:10px 0;}
-.status{font-size:14px;color:#444;text-align:center;margin:8px 0 0;}
+.status{font-size:16px;color:#444;text-align:center;margin:8px 0 0;}
 .status-ok{color:var(--ok);font-weight:700;}
 .status-bad{color:var(--bad);font-weight:700;}
-.hint{font-size:13px;color:#555;margin:4px 0;}
+.hint{font-size:15px;color:#555;margin:4px 0;}
 .grid-wrap{overflow-x:auto;margin-top:16px;}
 table.grid{border-collapse:collapse;width:100%;font-weight:700;}
-table.grid th{background:var(--th);color:#fff;border:1px solid var(--border);padding:6px;font-size:15px;white-space:nowrap;}
+table.grid th{background:var(--th);color:#fff;border:1px solid var(--border);padding:7px;font-size:18px;white-space:nowrap;}
 table.grid th.sortable{cursor:pointer;text-decoration:underline;text-underline-offset:3px;}
-table.grid td{border:1px solid var(--border);padding:4px 5px;text-align:center;font-size:16px;white-space:nowrap;}
+table.grid td{border:1px solid var(--border);padding:5px 6px;text-align:center;font-size:19px;white-space:nowrap;}
 table.grid tr:nth-child(even) td{background:var(--zebra);}
-table.grid.detail td{font-size:15px;}
-table.grid.detail td.small{font-size:12px;}
-table.grid td.win{color:#c0392b;}
+/* 表格字型完全照舊系統的條件：舊系統的表格「沒有指定任何字型」、網頁語言標成英文（lang="en"），
+   所以瀏覽器用預設字型：英文數字 Times New Roman、中文由 Edge 自動配新細明體並自動加粗。
+   這裡用 font-family:initial（＝回到瀏覽器預設字型）＋表格標 lang="en"（見 renderSummary／renderDetails）重現同樣效果。
+   試過指定「新細明體」或改用思源宋體，使用者都覺得不像（2026-10-02）。 */
+table.grid{font-family:initial;font-weight:bold;}
+/* 滑鼠移到哪一列，那一列變橘色（舊系統也是這樣），對照長表格比較不會看錯行 */
+table.grid tr:not(:first-child):hover td{background:#FFB020;}
+/* 明細欄寬照舊系統的比例：日期、大類、小類固定很短，留給賽名、階段最多空間 */
+table.grid.detail{table-layout:auto;}
+table.grid.detail col.c-date{width:8%;}
+table.grid.detail col.c-cat{width:3.5%;}
+table.grid.detail col.c-ev{width:26%;}
+table.grid.detail col.c-st{width:24%;}
+table.grid.detail col.c-name{width:8%;}
+table.grid.detail col.c-mv{width:10%;}
+table.grid.detail th{font-size:20px;}
+table.grid.detail td{font-size:21px;padding:6px 8px;}
+table.grid.detail td.small{font-size:18px;}
 table.grid td.left{text-align:left;white-space:normal;}
 table.grid a{color:#000;}
-.result-title{font-weight:700;font-size:18px;margin:22px 0 0;scroll-margin-top:56px;}
+.result-title{font-weight:700;font-size:22px;margin:22px 0 0;scroll-margin-top:56px;}
 /* 管理功能頁：照舊系統 ImportData 頁的「功能1～6」排法 */
 .admin-box{border:1px solid #000;border-radius:8px;padding:10px;margin-bottom:18px;}
 .arow{display:grid;grid-template-columns:minmax(90px,200px) 1fr;gap:10px;align-items:start;margin:8px 0;}
-.arow .lbl{min-height:46px;font-size:20px;}
+.arow .lbl{min-height:50px;font-size:22px;}
 .acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
-.acts .btn{min-height:46px;font-size:18px;}
-.acts select,.acts input[type=text],.acts input[type=password]{height:42px;background:var(--input);border:1px solid #000;border-radius:5px;font:17px var(--font);padding:0 8px;min-width:90px;}
+.acts .btn{min-height:50px;font-size:20px;}
+.acts select,.acts input[type=text],.acts input[type=password]{height:46px;background:var(--input);border:1px solid #000;border-radius:5px;font:20px var(--font);padding:0 8px;min-width:90px;}
 .datesel{display:flex;gap:6px;flex-wrap:wrap;}
-.datesel select{flex:1;min-width:80px;height:42px;background:var(--input);border:1px solid #000;border-radius:5px;font:17px var(--font);padding:0 8px;}
-.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:13px;font-weight:700;border:1px solid #333;}
+.datesel select{flex:1;min-width:80px;height:46px;background:var(--input);border:1px solid #000;border-radius:5px;font:20px var(--font);padding:0 8px;}
+.pill{display:inline-block;padding:2px 9px;border-radius:12px;font-size:15px;font-weight:700;border:1px solid #333;}
 .pill.new{background:#dcfce7;}
 .pill.exists{background:#eee;}
 .pill.problem{background:#fde2e2;}
 .tabs{display:flex;gap:6px;margin:8px 0;flex-wrap:wrap;}
-.tabs button{border:1px solid #333;background:#fff;border-radius:14px;padding:4px 12px;font:700 14px var(--font);cursor:pointer;}
+.tabs button{border:1px solid #333;background:#fff;border-radius:16px;padding:5px 14px;font:700 16px var(--font);cursor:pointer;}
 .tabs button.on{background:var(--th);color:#fff;}
-.local-banner{background:#fff3c4;border:1px solid #e0c060;border-radius:6px;padding:6px 10px;font-size:14px;margin:10px auto 0;max-width:760px;}
+.local-banner{background:#fff3c4;border:1px solid #e0c060;border-radius:6px;padding:6px 10px;font-size:16px;margin:10px auto 0;max-width:760px;}
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;}
-.modal-box{background:#fff;border:1px solid #000;border-radius:8px;padding:20px;width:100%;max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,.25);}
-.modal-box h2{margin:0 0 10px;font-size:20px;}
-.login-error{margin-top:8px;font-size:14px;color:var(--bad);min-height:1.2em;}
+.modal-box{background:#fff;border:1px solid #000;border-radius:8px;padding:22px;width:100%;max-width:440px;box-shadow:0 8px 32px rgba(0,0,0,.25);}
+.modal-box h2{margin:0 0 10px;font-size:23px;}
+.login-error{margin-top:8px;font-size:16px;color:var(--bad);min-height:1.2em;}
 @media (max-width:560px){
   .row{grid-template-columns:96px 1fr;gap:8px;}
-  .lbl{font-size:16px;}
-  .inp,.row select,.row input[type=text]{font-size:16px;}
+  .lbl{font-size:18px;}
+  .inp,.row select,.row input[type=text]{font-size:18px;}
   .arow{grid-template-columns:1fr;}
-  .nav button{font-size:14px;padding:5px 8px;}
-  table.grid td{font-size:14px;}
+  .nav button{font-size:16px;padding:5px 9px;}
+  table.grid td{font-size:16px;}
+  table.grid.detail td{font-size:17px;}
+  table.grid.detail td.small{font-size:14px;}
 }
 </style>
 </head>
 <body>
 <nav class="nav">
-  <button type="button" id="navQuery" class="on" onclick="showView('query')">海峰棋院成績查詢</button>
-  <button type="button" id="navAdmin" style="display:none;" onclick="showView('admin')">管理功能</button>
-  <button type="button" id="navLogin" onclick="openLogin()">管理登入</button>
-  <button type="button" id="navLogout" style="display:none;" onclick="doLogout()">登出</button>
+  <button type="button" id="navQuery" class="on" onclick="showView('query')">HAIFONGGO首頁</button>
+  <span id="navAdminItems" style="display:none;">
+    <button type="button" id="navAdmin" onclick="showView('admin')">比賽資料</button>
+    <button type="button" onclick="notYet('批次修改')">批次修改</button>
+    <button type="button" onclick="notYet('查詢段位勝場')">查詢段位勝場</button>
+    <button type="button" onclick="notYet('升段提醒')">升段提醒</button>
+    <button type="button" onclick="notYet('段位設定')">段位設定</button>
+    <button type="button" onclick="notYet('帳號管理')">帳號管理</button>
+  </span>
+  <button type="button" id="navLogin" onclick="reLogin()">重新登入</button>
   <span class="welcome" id="welcome">歡迎~~ 使用者</span>
 </nav>
 <div id="localBanner" class="local-banner" style="display:none;">⚠️ 本機測試模式：資料只存在這台電腦的瀏覽器裡，不會連到雲端。</div>
 
 <!-- ============ 查詢頁 ============ -->
 <div id="viewQuery" class="page">
-  <div class="box">
-    <div class="row"><div class="lbl">棋士</div><input type="text" id="qPlayer" list="dlPlayers" autocomplete="off" placeholder="空白＝列出所有棋士"></div>
-    <div class="row"><div class="lbl">對手</div><input type="text" id="qOpp" list="dlPlayers" autocomplete="off"></div>
+  <div class="box qgrid">
+    <div class="row"><div class="lbl">棋士</div><div class="ac-wrap"><input type="text" id="qPlayer" autocomplete="off"></div></div>
+    <div class="row"><div class="lbl">對手</div><div class="ac-wrap"><input type="text" id="qOpp" autocomplete="off"></div></div>
     <div class="row"><div class="lbl">起始年</div><select id="qYearFrom"></select></div>
     <div class="row"><div class="lbl">結束年</div><select id="qYearTo"></select></div>
     <div class="row"><div class="lbl">大類</div><select id="qCat1"><option value=""></option><option>國內</option><option>國際</option></select></div>
-    <div class="row"><div class="lbl">小類</div>
-      <div class="inp checks" id="qCat2Box">
-        <label><input type="checkbox" value="交流">交流</label>
-        <label><input type="checkbox" value="正式">正式</label>
-        <label><input type="checkbox" value="限制">限制</label>
-      </div>
-    </div>
-    <div class="row"><div class="lbl">賽名</div><input type="text" id="qEvent" list="dlEvents" autocomplete="off"></div>
+    <div class="row"><div class="lbl">小類</div><select id="qCat2"><option value=""></option><option>交流</option><option>正式</option><option>限制</option></select></div>
+    <div class="row"><div class="lbl">賽名</div><div class="ac-wrap"><input type="text" id="qEvent" autocomplete="off"></div></div>
     <div class="row"><div class="lbl">階段</div><input type="text" id="qStage" autocomplete="off"></div>
     <div class="row"><div class="lbl">目數</div><input type="text" id="qMoves" autocomplete="off"></div>
     <div class="row"><div class="lbl">顯示明細</div><div class="inp checks"><input type="checkbox" id="qDetails"></div></div>
   </div>
-  <datalist id="dlPlayers"></datalist>
-  <datalist id="dlEvents"></datalist>
   <div class="center"><button type="button" class="btn wide" onclick="runQuery()">查詢</button></div>
   <div class="status" id="dataStatus">資料載入中…</div>
 
@@ -152,7 +177,7 @@ table.grid a{color:#000;}
   <div class="admin-box">
     <div class="arow"><div class="lbl">起始日期</div><div class="datesel" id="dlFrom"></div></div>
     <div class="arow"><div class="lbl">結束日期</div><div class="datesel" id="dlTo"></div></div>
-    <div class="arow"><div class="lbl">比賽名稱</div><div class="acts"><input type="text" id="dlEvent" list="dlEvents" placeholder="空白＝全部比賽" style="flex:1;max-width:320px;"></div></div>
+    <div class="arow"><div class="lbl">比賽名稱</div><div class="acts"><div class="ac-wrap" style="max-width:320px;"><input type="text" id="dlEvent" autocomplete="off" placeholder="空白＝全部比賽" style="width:100%;"></div><span class="hint">比賽名稱可只打一部分</span></div></div>
     <div class="arow"><div class="lbl">功能 2</div>
       <div class="acts">
         <button type="button" class="btn" onclick="downloadRange('year')">下載比賽資料 (年份-賽名)</button>
@@ -178,7 +203,7 @@ table.grid a{color:#000;}
       <div>
         <div class="acts">
           <button type="button" class="btn" onclick="deleteEvent()">刪除單一比賽資料</button>
-          <input type="text" id="delEvent" list="dlEvents" placeholder="比賽名稱" style="max-width:240px;">
+          <div class="ac-wrap" style="max-width:240px;"><input type="text" id="delEvent" autocomplete="off" placeholder="比賽名稱" style="width:100%;"></div>
           <select id="delYear"><option value="">全部年份</option></select>
         </div>
         <div class="hint" id="delStatus"></div>
@@ -315,6 +340,64 @@ async function saveYears(changedYears){
   try{ localStorage.removeItem(CACHE_KEY); }catch(e){}
 }
 
+/* ============ 輸入框下方的名字清單（自動完成）============
+   照舊系統：打字後，輸入框正下方出現同寬的長方形清單，列出符合的名字；開頭相符的排前面，
+   再來是中間有出現的。可以用滑鼠點，也可以用上下鍵＋Enter 選，Esc 關掉。 */
+let PLAYER_NAMES = [], EVENT_NAMES = [];
+function attachAutocomplete(id, getOptions){
+  const input = document.getElementById(id);
+  const wrap = input.parentElement;
+  const box = document.createElement('div');
+  box.className = 'ac-list';
+  box.style.display = 'none';
+  wrap.appendChild(box);
+  let items = [], active = -1;
+  function close(){ box.style.display='none'; active=-1; }
+  function pick(v){ input.value = v; close(); input.dispatchEvent(new Event('change')); }
+  function highlight(){
+    [...box.children].forEach((el,i)=>el.classList.toggle('on', i===active));
+    if(active>=0 && box.children[active]) box.children[active].scrollIntoView({block:'nearest'});
+  }
+  function update(){
+    const q = norm(input.value);
+    if(!q){ close(); return; }
+    const all = getOptions();
+    const starts = all.filter(n=>norm(n).startsWith(q));
+    const mid = all.filter(n=>!norm(n).startsWith(q) && norm(n).indexOf(q)>=0);
+    items = starts.concat(mid).slice(0,50);
+    if(items.length===0 || (items.length===1 && norm(items[0])===q)){ close(); return; }
+    box.innerHTML = items.map(n=>'<div>'+esc(n)+'</div>').join('');
+    [...box.children].forEach((el,i)=>el.addEventListener('mousedown', e=>{ e.preventDefault(); pick(items[i]); }));
+    active = -1;
+    box.style.display = '';
+  }
+  input.addEventListener('input', update);
+  input.addEventListener('focus', update);
+  input.addEventListener('blur', ()=>setTimeout(close, 120));
+  input.addEventListener('keydown', e=>{
+    if(box.style.display==='none') return;
+    if(e.key==='ArrowDown'){ e.preventDefault(); active = Math.min(active+1, items.length-1); highlight(); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); active = Math.max(active-1, 0); highlight(); }
+    else if(e.key==='Enter' && active>=0){ e.preventDefault(); pick(items[active]); }
+    else if(e.key==='Escape'){ close(); }
+  });
+}
+/* 查詢頁的文字框按 Enter 直接查詢（清單開著時，Enter 是選清單裡的名字，不會查詢） */
+document.querySelectorAll('#viewQuery input[type=text]').forEach(inp=>{
+  inp.addEventListener('keydown', e=>{
+    if(e.key!=='Enter' || e.defaultPrevented) return;
+    const list = inp.parentElement.querySelector('.ac-list');
+    if(list && list.style.display!=='none' && list.querySelector('.on')) return;
+    if(list) list.style.display='none';
+    e.preventDefault(); runQuery();
+  });
+});
+attachAutocomplete('qPlayer', ()=>PLAYER_NAMES);
+attachAutocomplete('qOpp', ()=>PLAYER_NAMES);
+attachAutocomplete('qEvent', ()=>EVENT_NAMES);
+attachAutocomplete('dlEvent', ()=>EVENT_NAMES);
+attachAutocomplete('delEvent', ()=>EVENT_NAMES);
+
 /* ============ 畫面切換、選單 ============ */
 function showView(v){
   if(v==='admin' && !isAdmin) v='query';
@@ -343,9 +426,10 @@ function refreshControls(){
   const cnt = {};
   GAMES.forEach(g=>{ cnt[g.b]=(cnt[g.b]||0)+1; cnt[g.w]=(cnt[g.w]||0)+1; });
   const names = Object.keys(cnt).filter(Boolean).sort((a,b)=>cnt[b]-cnt[a]);
-  document.getElementById('dlPlayers').innerHTML = names.map(n=>'<option value="'+esc(n)+'">').join('');
-  const evs = [...new Set(GAMES.map(g=>g.ev))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'zh-Hant'));
-  document.getElementById('dlEvents').innerHTML = evs.map(n=>'<option value="'+esc(n)+'">').join('');
+  PLAYER_NAMES = names;
+  const evCnt = {};
+  GAMES.forEach(g=>{ if(g.ev) evCnt[g.ev]=(evCnt[g.ev]||0)+1; });
+  EVENT_NAMES = Object.keys(evCnt).sort((a,b)=>evCnt[b]-evCnt[a]);
   const st = document.getElementById('dataStatus');
   if(GAMES.length===0){ st.textContent = '目前系統裡還沒有資料'; }
   else{
@@ -367,7 +451,8 @@ function refreshControls(){
    表頭可以點來排序（跟舊系統一樣）；有填棋士時，合計那一列固定在最上面。
    跟舊系統唯一的差別：舊系統會把「勝方欄填了第三個人」的錯誤資料也算進那個人的對局，這裡只算真正下的那兩個人。 */
 function readFilters(){
-  const c2 = [...document.querySelectorAll('#qCat2Box input:checked')].map(i=>i.value);
+  const c2v = document.getElementById('qCat2').value;
+  const c2 = c2v ? [c2v] : [];
   return {
     player: norm(document.getElementById('qPlayer').value),
     opp: norm(document.getElementById('qOpp').value),
@@ -427,7 +512,7 @@ function renderSummary(){
     rows.sort((a,b)=>{ const x=k(a), y=k(b); return (typeof x==='string' ? String(x).localeCompare(String(y),'zh-Hant') : x-y)*dir; });
   }
   if(st.pinned) rows.unshift(st.pinned);
-  let html = '<div class="grid-wrap"><table class="grid"><tr>'+SUM_COLS.map((c,i)=>'<th class="sortable" onclick="sortSummary('+i+')">'+c.t+(st.sortCol===i?(st.sortDir>0?' ▲':' ▼'):'')+'</th>').join('')+'</tr>';
+  let html = '<div class="grid-wrap"><table class="grid" lang="en"><tr>'+SUM_COLS.map((c,i)=>'<th class="sortable" onclick="sortSummary('+i+')">'+c.t+(st.sortCol===i?(st.sortDir>0?' ▲':' ▼'):'')+'</th>').join('')+'</tr>';
   rows.forEach(r=>{
     const s = r.s;
     const name = st.linkNames ? '<a href="#" onclick="return quickPlayer(this.textContent)">'+esc(r.name)+'</a>' : esc(r.name);
@@ -512,10 +597,9 @@ function renderDetails(list){
   if(!list || list.length===0){ area.innerHTML=''; return; }
   const shown = list.slice(0, DETAIL_LIMIT);
   let html = (list.length>DETAIL_LIMIT ? '<p class="hint">共 '+list.length.toLocaleString()+' 局，畫面只列出最新 '+DETAIL_LIMIT+' 局；全部明細請登入後用「管理功能」下載。</p>' : '');
-  html += '<div class="grid-wrap"><table class="grid detail"><tr><th>日期</th><th>大類</th><th>小類</th><th>賽名</th><th>階段</th><th>執黑</th><th>執白</th><th>勝方</th><th>目數</th></tr>';
+  html += '<div class="grid-wrap"><table class="grid detail" lang="en"><colgroup><col class="c-date"><col class="c-cat"><col class="c-cat"><col class="c-ev"><col class="c-st"><col class="c-name"><col class="c-name"><col class="c-name"><col class="c-mv"></colgroup><tr><th>日期</th><th>大類</th><th>小類</th><th>賽名</th><th>階段</th><th>執黑</th><th>執白</th><th>勝方</th><th>目數</th></tr>';
   shown.forEach(g=>{
-    const bw = norm(g.win)===norm(g.b), ww = norm(g.win)===norm(g.w);
-    html += '<tr><td class="small">'+fmtDate(g)+'</td><td class="small">'+esc(g.c1)+'</td><td class="small">'+esc(g.c2)+'</td><td>'+esc(g.ev)+'</td><td>'+esc(g.st)+'</td><td'+(bw?' class="win"':'')+'>'+esc(g.b)+'</td><td'+(ww?' class="win"':'')+'>'+esc(g.w)+'</td><td>'+esc(g.win)+'</td><td>'+esc(g.mv)+'</td></tr>';
+    html += '<tr><td class="small">'+fmtDate(g)+'</td><td class="small">'+esc(g.c1)+'</td><td class="small">'+esc(g.c2)+'</td><td>'+esc(g.ev)+'</td><td>'+esc(g.st)+'</td><td>'+esc(g.b)+'</td><td>'+esc(g.w)+'</td><td>'+esc(g.win)+'</td><td>'+esc(g.mv)+'</td></tr>';
   });
   html += '</table></div>';
   area.innerHTML = html;
@@ -668,7 +752,7 @@ function renderUploadPreview(skippedSheets){
   html += '<div class="tabs">'+['problem','new','exists'].map(t=>'<button type="button" class="'+(upTab===t?'on':'')+'" onclick="upTab=\''+t+'\';renderUploadPreview()">'+({problem:'有問題',new:'新的',exists:'已經有'})[t]+'（'+c[t]+'）</button>').join('')+'</div>';
   const list = items.filter(it=>it.status===upTab).slice(0,500);
   if(list.length){
-    html += '<div class="grid-wrap" style="max-height:340px;overflow:auto;margin-top:4px;"><table class="grid detail"><tr>'+(upTab==='problem'?'<th>問題</th>':'')+'<th>執黑</th><th>執白</th><th>勝方</th><th>目數</th><th>年份</th><th>日期</th><th>賽名</th><th>階段</th><th>分頁</th><th>列</th></tr>';
+    html += '<div class="grid-wrap" style="max-height:340px;overflow:auto;margin-top:4px;"><table class="grid detail" lang="en"><tr>'+(upTab==='problem'?'<th>問題</th>':'')+'<th>執黑</th><th>執白</th><th>勝方</th><th>目數</th><th>年份</th><th>日期</th><th>賽名</th><th>階段</th><th>分頁</th><th>列</th></tr>';
     list.forEach(it=>{
       const g=it.g;
       html += '<tr>'+(upTab==='problem'?'<td class="left" style="color:#c0392b;">'+esc(it.problems.join('；'))+'</td>':'')+'<td>'+esc(g.b)+'</td><td>'+esc(g.w)+'</td><td>'+esc(g.win)+'</td><td>'+esc(g.mv)+'</td><td>'+esc(g.y)+'</td><td>'+esc(g.d)+'</td><td>'+esc(g.ev)+'</td><td>'+esc(g.st)+'</td><td class="small">'+esc(it.sheet)+'</td><td>'+it.rowNo+'</td></tr>';
@@ -772,13 +856,21 @@ async function deleteAll(){
 }
 
 /* ============ 登入 ============ */
+/* 選單照舊系統：沒登入只有「HAIFONGGO首頁｜重新登入」；登入後多出比賽資料～帳號管理。
+   歡迎文字：之後「帳號管理」做好會讓每個帳號各自設定名稱，在那之前先顯示帳號 @ 前面那段。 */
 function setAdmin(on, email){
   isAdmin = on;
-  document.getElementById('navAdmin').style.display = on ? '' : 'none';
-  document.getElementById('navLogin').style.display = (on || LOCAL_MODE) ? 'none' : '';
-  document.getElementById('navLogout').style.display = (on && !LOCAL_MODE) ? '' : 'none';
-  document.getElementById('welcome').textContent = '歡迎~~ ' + (on ? (LOCAL_MODE ? '本機測試' : (email||'管理者')) : '使用者');
+  document.getElementById('navAdminItems').style.display = on ? '' : 'none';
+  document.getElementById('navLogin').style.display = LOCAL_MODE ? 'none' : '';
+  const name = LOCAL_MODE ? '本機測試' : (email ? String(email).split('@')[0] : '管理者');
+  document.getElementById('welcome').textContent = '歡迎~~ ' + (on ? name : '使用者');
   if(!on) showView('query');
+}
+function notYet(name){ alert('「'+name+'」功能尚未開放，之後會陸續加上。'); }
+/* 「重新登入」跟舊系統一樣：已登入就先登出，再跳出登入視窗（登入視窗按取消＝維持登出） */
+async function reLogin(){
+  if(isAdmin && fb){ try{ await fb.auth.signOut(); }catch(e){} }
+  openLogin();
 }
 function openLogin(){
   document.getElementById('loginError').textContent='';
@@ -801,7 +893,6 @@ async function doLogin(){
     errEl.textContent = (code.indexOf('invalid')>=0 || code.indexOf('wrong-password')>=0 || code.indexOf('user-not-found')>=0) ? '帳號或密碼不對' : ('登入失敗：'+(err.message||code));
   }finally{ btn.disabled = false; }
 }
-function doLogout(){ fb.auth.signOut(); }
 
 /* ============ 啟動 ============ */
 (async function init(){
