@@ -25,7 +25,31 @@ body{margin:0;background:#fff;color:#000;font-family:var(--font);}
 .nav{position:sticky;top:0;z-index:50;background:var(--nav);box-shadow:0 2px 5px rgba(0,0,0,.2);display:flex;justify-content:center;align-items:stretch;flex-wrap:wrap;min-height:46px;padding:0 10px;}
 .nav button{background:var(--nav);color:var(--nav-text);border:none;font:700 18px var(--font);padding:6px 14px;cursor:pointer;border-right:2px solid #fff;}
 .nav button:hover{background:#c0530f;}
-.nav button.on{text-decoration:underline;text-underline-offset:4px;}
+.nav button.on{background:#FF7F50;}
+.btn.blue{background:#0a7cff;border-color:#0a5fc0;}
+.btn.red{background:#ff1a1a;border-color:#b30000;}
+.btn.small{min-height:34px;font-size:16px;padding:4px 14px;}
+.modal-box.wide{max-width:640px;}
+.modal-box .row{grid-template-columns:150px 1fr;}
+/* 批次修改頁：照舊系統，標題文字在上、欄位在下，一行一個，「確定修改」橫跨整排 */
+.batch-box{padding:18px 22px;}
+.blabel{display:block;font-weight:700;font-size:20px;margin:16px 0 6px;}
+.blabel:first-child{margin-top:4px;}
+.bfield{width:100%;height:46px;border:1px solid #000;border-radius:5px;font:20px var(--font);padding:0 10px;background:var(--input);}
+.bfield.plain{background:#fff;border-color:#ccc;}
+.bfield.plain:focus{outline:none;border-color:#000;background:#A6F3A6;}
+#bxCount{background:#f7f7f7;}
+.btn.bxgo{width:100%;margin-top:24px;min-height:48px;font-size:21px;}
+/* 段位三頁（查詢段位勝場／升段提醒／段位設定）：照舊系統，字和格子都比查詢頁更大 */
+#viewDanPlayers .lbl,#viewDanRemind .lbl{font-size:26px;min-height:46px;}
+#viewDanPlayers .row input[type=text],#viewDanRemind .row input[type=text],#viewDanRemind .row select,#viewDanRemind .datesel select{height:46px;font-size:24px;}
+#viewDanPlayers .row,#viewDanRemind .row{grid-template-columns:minmax(120px,240px) 1fr;margin:9px 0;}
+#viewDanPlayers .btn,#viewDanRemind .btn,#viewDanRules .btn{font-size:21px;min-height:48px;padding:8px 18px;}
+table.grid.dan th{font-size:22px;padding:10px 6px;}
+table.grid.dan td{font-size:25px;padding:5px 6px;}
+table.grid.dan .btn.small{font-size:19px;min-height:38px;padding:3px 18px;}
+.dan-detail{font-size:19px;line-height:1.7;}
+.dan-detail b{color:#c0392b;}
 .nav #navAdminItems{display:flex;flex-wrap:wrap;}
 .nav .welcome{color:var(--welcome);font-weight:700;font-size:18px;display:flex;align-items:center;padding:0 8px;}
 /* 跟舊系統一樣撐滿畫面寬度（左右留一點邊） */
@@ -112,6 +136,9 @@ table.grid a{color:#000;}
   .arow{grid-template-columns:1fr;}
   .nav button{font-size:16px;padding:5px 9px;}
   table.grid td{font-size:16px;}
+  table.grid.dan td{font-size:19px;}
+  table.grid.dan th{font-size:17px;}
+  #viewDanPlayers .lbl,#viewDanRemind .lbl{font-size:20px;}
   table.grid.detail td{font-size:17px;}
   table.grid.detail td.small{font-size:14px;}
 }
@@ -122,10 +149,10 @@ table.grid a{color:#000;}
   <button type="button" id="navQuery" class="on" onclick="showView('query')">HAIFONGGO首頁</button>
   <span id="navAdminItems" style="display:none;">
     <button type="button" id="navAdmin" onclick="showView('admin')">比賽資料</button>
-    <button type="button" onclick="notYet('批次修改')">批次修改</button>
-    <button type="button" onclick="notYet('查詢段位勝場')">查詢段位勝場</button>
-    <button type="button" onclick="notYet('升段提醒')">升段提醒</button>
-    <button type="button" onclick="notYet('段位設定')">段位設定</button>
+    <button type="button" id="navBatch" onclick="showView('batch')">批次修改</button>
+    <button type="button" id="navDanPlayers" onclick="showView('danPlayers')">查詢段位勝場</button>
+    <button type="button" id="navDanRemind" onclick="showView('danRemind')">升段提醒</button>
+    <button type="button" id="navDanRules" onclick="showView('danRules')">段位設定</button>
     <button type="button" onclick="notYet('帳號管理')">帳號管理</button>
   </span>
   <button type="button" id="navLogin" onclick="reLogin()">重新登入</button>
@@ -191,7 +218,15 @@ table.grid a{color:#000;}
       </div>
     </div>
     <div class="arow"><div class="lbl">功能 4</div>
-      <div class="acts"><button type="button" class="btn gray" disabled>下載段位資料</button><span class="hint">段位功能還沒做，之後加上</span></div>
+      <div>
+        <div class="acts">
+          <button type="button" class="btn" onclick="downloadDanPlayers()">下載段位資料</button>
+          <button type="button" class="btn" onclick="document.getElementById('danUpFile').click()">上傳段位資料 (Excel)</button>
+          <input type="file" id="danUpFile" accept=".xlsx,.xls" style="display:none;">
+          <span class="hint">上傳＝用檔案「整份取代」系統裡的段位資料（欄位：姓名、目前段位、結算日期、結算日期已達成之勝場數量）</span>
+        </div>
+        <div id="danUpPreview"></div>
+      </div>
     </div>
     <div class="arow"><div class="lbl">功能 5</div>
       <div class="acts">
@@ -209,6 +244,71 @@ table.grid a{color:#000;}
         <div class="hint" id="delStatus"></div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ============ 批次修改（照舊系統：改錯字、選手改名） ============ -->
+<div id="viewBatch" class="page" style="display:none;">
+  <div class="box batch-box">
+    <label class="blabel" for="bxType">請選擇 類別</label>
+    <select id="bxType" class="bfield" onchange="batchCount()">
+      <option value="player">選手名稱</option>
+      <option value="ev">賽名</option>
+      <option value="st">階段</option>
+    </select>
+    <label class="blabel" for="bxFrom">請輸入 原始名稱</label>
+    <div class="ac-wrap"><input type="text" id="bxFrom" class="bfield plain" autocomplete="off"></div>
+    <label class="blabel">符合的資料 有幾筆</label>
+    <input type="text" id="bxCount" class="bfield plain" readonly>
+    <label class="blabel" for="bxTo">請輸入 修改後名稱</label>
+    <input type="text" id="bxTo" class="bfield plain" autocomplete="off">
+    <button type="button" class="btn bxgo" onclick="runBatch()">確定修改</button>
+    <div class="status" id="bxStatus"></div>
+  </div>
+</div>
+
+<!-- ============ 查詢段位勝場（照舊系統：查詢／新增／編輯／刪除每位棋士的段位紀錄） ============ -->
+<div id="viewDanPlayers" class="page" style="display:none;">
+  <div class="box">
+    <div class="row"><div class="lbl">棋士</div><div class="ac-wrap"><input type="text" id="dpName" autocomplete="off"></div></div>
+  </div>
+  <div class="center">
+    <button type="button" class="btn" onclick="runDanPlayers()">查詢棋士段位</button>
+    <button type="button" class="btn" onclick="openDanPlayerModal(-1)">新增棋士段位</button>
+  </div>
+  <div class="status" id="dpStatus"></div>
+  <div id="dpResult"></div>
+</div>
+
+<!-- ============ 升段提醒（照舊系統：依結算日期算出每位棋士升段還差幾勝，由少到多排序） ============ -->
+<div id="viewDanRemind" class="page" style="display:none;">
+  <div class="box">
+    <div class="row"><div class="lbl">棋士</div><div class="ac-wrap"><input type="text" id="drName" autocomplete="off"></div></div>
+    <div class="row"><div class="lbl">結算日期</div><div class="datesel" id="drDate"></div></div>
+    <div class="row"><div class="lbl">段位</div><select id="drDan"></select></div>
+  </div>
+  <div class="center"><button type="button" class="btn" onclick="runDanRemind()">查詢可升段棋士</button></div>
+  <div class="status" id="drStatus"></div>
+  <div id="drResult"></div>
+</div>
+
+<!-- ============ 段位設定（各段位升段需要的勝場數） ============ -->
+<div id="viewDanRules" class="page" style="display:none;">
+  <div class="center">
+    <button type="button" class="btn" onclick="runDanRules()">現有段位設定</button>
+    <button type="button" class="btn" onclick="openDanRuleModal(-1)">新增段位設定</button>
+  </div>
+  <div class="status" id="rlStatus"></div>
+  <div id="rlResult"></div>
+</div>
+
+<!-- 段位相關共用的彈出視窗（新增／編輯／升段明細） -->
+<div id="danModal" class="modal-overlay" style="display:none;">
+  <div class="modal-box wide">
+    <h2 id="danModalTitle"></h2>
+    <div id="danModalBody"></div>
+    <div class="login-error" id="danModalError"></div>
+    <div class="center" id="danModalActions"></div>
   </div>
 </div>
 
@@ -303,7 +403,8 @@ async function loadData(forceServer){
   const years = {};
   GAMES = [];
   snap.forEach(doc=>{
-    if(doc.id === 'meta') return;
+    /* 只讀「y2016、y2017…」這種年份文件；meta、danPlayers（段位資料）、danRules（段位設定）不是對局 */
+    if(!/^y\d{4}$/.test(doc.id)) return;
     const d = doc.data();
     const rows = JSON.parse(d.rows || '[]');
     years[d.year] = rows;
@@ -399,13 +500,23 @@ attachAutocomplete('dlEvent', ()=>EVENT_NAMES);
 attachAutocomplete('delEvent', ()=>EVENT_NAMES);
 
 /* ============ 畫面切換、選單 ============ */
+const VIEWS = {
+  query:      {page:'viewQuery',      nav:'navQuery'},
+  admin:      {page:'viewAdmin',      nav:'navAdmin',      admin:true},
+  batch:      {page:'viewBatch',      nav:'navBatch',      admin:true},
+  danPlayers: {page:'viewDanPlayers', nav:'navDanPlayers', admin:true},
+  danRemind:  {page:'viewDanRemind',  nav:'navDanRemind',  admin:true},
+  danRules:   {page:'viewDanRules',   nav:'navDanRules',   admin:true}
+};
 function showView(v){
-  if(v==='admin' && !isAdmin) v='query';
-  document.getElementById('viewQuery').style.display = v==='query' ? '' : 'none';
-  document.getElementById('viewAdmin').style.display = v==='admin' ? '' : 'none';
-  document.getElementById('navQuery').classList.toggle('on', v==='query');
-  document.getElementById('navAdmin').classList.toggle('on', v==='admin');
+  if(!VIEWS[v] || (VIEWS[v].admin && !isAdmin)) v='query';
+  Object.keys(VIEWS).forEach(k=>{
+    document.getElementById(VIEWS[k].page).style.display = k===v ? '' : 'none';
+    document.getElementById(VIEWS[k].nav).classList.toggle('on', k===v);
+  });
   window.scrollTo(0,0);
+  if(v==='danPlayers' || v==='danRemind' || v==='danRules') enterDanView(v);
+  if(v==='batch') loadDan().then(batchCount).catch(()=>{});   // 用來提示「段位資料裡也有這個人」
 }
 function dataYears(){ return [...new Set(GAMES.map(g=>g.y))].filter(y=>/^\d{4}$/.test(y)).sort(); }
 function fillDateSel(id, y, m, d){
@@ -853,6 +964,395 @@ async function deleteAll(){
     await loadData(true).catch(()=>{});
     refreshControls();
   }
+}
+
+/* ============ 批次修改（2026-10-02，照舊系統：改錯字、選手改名）============
+   選類別（選手名稱／賽名／階段）→ 輸入原始名稱（要完全一樣）→ 自動算出符合幾筆 → 輸入修改後名稱 → 確定。
+   選手名稱會同時改「執黑、執白、勝方」三欄；段位資料裡如果也有這個人，一起改名，免得升段提醒找不到人。 */
+const BATCH_FIELDS = { player:['b','w','win'], ev:['ev'], st:['st'] };
+const BATCH_LABEL = { player:'選手名稱', ev:'賽名', st:'階段' };
+function batchMatches(type, name){
+  const n = norm(name);
+  if(!n) return [];
+  return GAMES.filter(g=>BATCH_FIELDS[type].some(f=>norm(g[f])===n));
+}
+function batchCount(){
+  const type = document.getElementById('bxType').value, from = document.getElementById('bxFrom').value;
+  const list = batchMatches(type, from);
+  let txt = from.trim() ? list.length+' 局' : '';
+  if(from.trim() && type==='player' && DAN_PLAYERS && DAN_PLAYERS.some(r=>norm(r[0])===norm(from))) txt += '（段位資料裡也有這個人，會一起改名）';
+  document.getElementById('bxCount').value = txt;
+}
+function batchOptions(){
+  const type = document.getElementById('bxType').value;
+  if(type==='player') return PLAYER_NAMES;
+  if(type==='ev') return EVENT_NAMES;
+  const c = {}; GAMES.forEach(g=>{ if(g.st) c[g.st]=(c[g.st]||0)+1; });
+  return Object.keys(c).sort((a,b)=>c[b]-c[a]);
+}
+attachAutocomplete('bxFrom', batchOptions);
+document.getElementById('bxFrom').addEventListener('input', batchCount);
+document.getElementById('bxFrom').addEventListener('change', batchCount);
+document.getElementById('bxType').addEventListener('change', ()=>{ document.getElementById('bxFrom').value=''; batchCount(); });
+async function runBatch(){
+  const type = document.getElementById('bxType').value;
+  const from = document.getElementById('bxFrom').value.trim(), to = document.getElementById('bxTo').value.trim();
+  const st = document.getElementById('bxStatus');
+  if(!from){ alert('請輸入原始名稱'); return; }
+  if(!to){ alert('請輸入修改後名稱'); return; }
+  if(norm(from)===norm(to)){ alert('修改前後的名稱一樣'); return; }
+  const list = batchMatches(type, from);
+  if(list.length===0){ alert('找不到「'+from+'」的資料，名稱要完全一樣（可以從下拉清單選）'); return; }
+  let msg = '確定要把'+BATCH_LABEL[type]+'「'+from+'」改成「'+to+'」嗎？\n共 '+list.length+' 局會被修改。';
+  const already = batchMatches(type, to).length;
+  if(already) msg += '\n\n⚠️ 注意：「'+to+'」系統裡原本就有 '+already+' 局，改完後會變成同一個'+(type==='player'?'人':BATCH_LABEL[type])+'。';
+  if(!confirm(msg)) return;
+  st.textContent = '修改中…';
+  try{
+    await loadData(true);
+    const n = norm(from), years = new Set();
+    let changed = 0;
+    GAMES.forEach(g=>{
+      let hit = false;
+      BATCH_FIELDS[type].forEach(f=>{ if(norm(g[f])===n){ g[f] = to; hit = true; } });
+      if(hit){ changed++; years.add(g.y); }
+    });
+    await saveYears([...years]);
+    let danMsg = '';
+    if(type==='player'){
+      await loadDan();
+      const i = DAN_PLAYERS.findIndex(r=>norm(r[0])===n);
+      if(i>=0){
+        if(DAN_PLAYERS.some(r=>norm(r[0])===norm(to))) danMsg = '（段位資料裡「'+to+'」已經存在，所以段位資料沒有自動改，請到「查詢段位勝場」自己確認）';
+        else { DAN_PLAYERS[i][0] = to; await saveDanPlayers(); danMsg = '，段位資料也一起改名了'; }
+      }
+    }
+    refreshControls();
+    st.innerHTML = '<span class="status-ok">已把「'+esc(from)+'」改成「'+esc(to)+'」，共 '+changed+' 局'+esc(danMsg)+'</span>';
+    document.getElementById('bxFrom').value=''; document.getElementById('bxTo').value=''; batchCount();
+  }catch(err){
+    console.error(err);
+    st.innerHTML = '<span class="status-bad">修改失敗：'+esc(err.message||err)+'</span>';
+    await loadData(true).catch(()=>{}); refreshControls();
+  }
+}
+
+/* ============ 段位／升段（2026-10-02，照舊系統「查詢段位勝場／升段提醒／段位設定」三頁）============
+   資料（跟對局一樣放在 Firestore 的 results 底下，登入才能寫）：
+     results/danPlayers { players:"JSON字串" }  每位棋士 [姓名, 目前段位, 結算日期'YYYY-MM-DD', 結算日期已達成之勝場數量]
+     results/danRules   { rules:"JSON字串" }    各段位 [段位, 升段需要的勝場數]；還沒存過就用舊系統的預設值
+   欄位名稱刻意不用 rows：舊版成績頁會把 results 底下每份有 rows 的文件都當成某一年的對局。
+   升段剩餘勝場 ＝ 需要勝場 －（結算日期已達成的勝場 ＋ 結算日期「之後」到查詢日期「當天」的勝場）。
+   算勝場的規則（使用者 2026-10-02 確認，並用周平強升七段、吳彥諶升三段兩份公告驗算過）：
+     國內、國際都算；正式、限制都算；交流賽不算。達標後系統只提醒，升段由人工到「查詢段位勝場」編輯。 */
+const DAN_ORDER = ['初段','二段','三段','四段','五段','六段','七段','八段','九段'];
+const DEFAULT_DAN_RULES = [['初段',20],['二段',30],['三段',50],['四段',60],['五段',70],['六段',100],['七段',110],['八段',120],['九段',150]];
+const LOCAL_DAN_KEY = 'haifong-results-localdan-v1';
+let DAN_PLAYERS = null;   // [[姓名, 段位, 'YYYY-MM-DD', 勝場數]]
+let DAN_RULES = null;     // [[段位, 需要勝場數]]
+let danRulesSaved = false;
+
+function danRank(d){ const i = DAN_ORDER.indexOf(d); return i<0 ? 99 : i; }
+function sortDanRules(){ DAN_RULES.sort((a,b)=>danRank(a[0])-danRank(b[0]) || String(a[0]).localeCompare(String(b[0]),'zh-Hant')); }
+function sortDanPlayers(){ DAN_PLAYERS.sort((a,b)=>danRank(a[1])-danRank(b[1]) || Number(b[3])-Number(a[3]) || a[0].localeCompare(b[0],'zh-Hant')); }
+function danNeed(dan){ const r = DAN_RULES.find(x=>x[0]===dan); return r ? Number(r[1]) : null; }
+function dateStrNum(s){ const m = String(s).match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/); return m ? Number(m[1])*10000+Number(m[2])*100+Number(m[3]) : 0; }
+function numDateStr(n){ n=String(n); return n.slice(0,4)+'-'+n.slice(4,6)+'-'+n.slice(6,8); }
+function slashDate(s){ return String(s).replace(/-/g,'/'); }
+/* 某位棋士在 (fromExclusive, toInclusive] 這段期間「算升段」的勝局（交流賽不算），由舊到新 */
+function danWinGames(name, fromExclusive, toInclusive){
+  const p = norm(name);
+  return GAMES.filter(g=>norm(g.win)===p && g.c2!=='交流' && dateNum(g)>fromExclusive && dateNum(g)<=toInclusive)
+              .sort((a,b)=>dateNum(a)-dateNum(b));
+}
+
+async function loadDan(){
+  if(LOCAL_MODE){
+    let s = null; try{ s = JSON.parse(localStorage.getItem(LOCAL_DAN_KEY)||'null'); }catch(e){}
+    DAN_PLAYERS = (s && s.players) || [];
+    DAN_RULES = (s && s.rules) || DEFAULT_DAN_RULES.map(x=>x.slice());
+    danRulesSaved = !!(s && s.rules);
+  } else {
+    const col = fb.db.collection('results');
+    const [p, r] = await Promise.all([col.doc('danPlayers').get({source:'server'}), col.doc('danRules').get({source:'server'})]);
+    DAN_PLAYERS = p.exists ? JSON.parse(p.data().players||'[]') : [];
+    DAN_RULES = r.exists ? JSON.parse(r.data().rules||'[]') : DEFAULT_DAN_RULES.map(x=>x.slice());
+    danRulesSaved = r.exists;
+  }
+  sortDanRules(); sortDanPlayers();
+}
+function saveLocalDan(){ localStorage.setItem(LOCAL_DAN_KEY, JSON.stringify({players:DAN_PLAYERS, rules: danRulesSaved ? DAN_RULES : null})); }
+async function saveDanPlayers(){
+  sortDanPlayers();
+  if(LOCAL_MODE){ saveLocalDan(); return; }
+  await fb.db.collection('results').doc('danPlayers').set({ players: JSON.stringify(DAN_PLAYERS), updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+}
+async function saveDanRules(){
+  sortDanRules();
+  danRulesSaved = true;
+  if(LOCAL_MODE){ saveLocalDan(); return; }
+  await fb.db.collection('results').doc('danRules').set({ rules: JSON.stringify(DAN_RULES), updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+}
+function danOptionsHtml(selected, withBlank){
+  const dans = [...new Set(DAN_ORDER.concat((DAN_RULES||[]).map(r=>r[0])))];
+  return (withBlank?'<option value=""></option>':'') + dans.map(d=>'<option'+(d===selected?' selected':'')+'>'+esc(d)+'</option>').join('');
+}
+function fillDateSelYears(id, y, m, d, fromYear){
+  const cy = new Date().getFullYear(), years = [];
+  for(let k=cy+1; k>=fromYear; k--) years.push(k);
+  if(years.indexOf(Number(y))<0) years.push(Number(y));
+  const el = document.getElementById(id);
+  const opt = (arr, v, pad)=>arr.map(x=>'<option value="'+x+'"'+(Number(x)===Number(v)?' selected':'')+'>'+(pad?String(x).padStart(2,'0'):x)+'</option>').join('');
+  el.innerHTML = '<select>'+opt(years,y)+'</select><select>'+opt([...Array(12)].map((_,i)=>i+1),m,true)+'</select><select>'+opt([...Array(31)].map((_,i)=>i+1),d,true)+'</select>';
+}
+
+/* 進入三個段位頁面時：讀最新的段位資料（每次都跟雲端拿，避免別台電腦剛改過） */
+async function enterDanView(v){
+  const st = {danPlayers:'dpStatus', danRemind:'drStatus', danRules:'rlStatus'}[v];
+  document.getElementById(st).textContent = '讀取段位資料中…';
+  try{ await loadDan(); }catch(err){ console.error(err); document.getElementById(st).innerHTML = '<span class="status-bad">讀取段位資料失敗：'+esc(err.message||err)+'</span>'; return; }
+  document.getElementById(st).textContent = '段位資料共 '+DAN_PLAYERS.length+' 位棋士' + (danRulesSaved ? '' : '（段位設定目前是預設值）');
+  if(v==='danRemind' && !document.querySelector('#drDate select')){
+    const t = new Date(); fillDateSelYears('drDate', t.getFullYear(), t.getMonth()+1, t.getDate(), 2016);
+  }
+  if(v==='danRemind'){ const sel = document.getElementById('drDan'), cur = sel.value; sel.innerHTML = danOptionsHtml(cur, true); }
+  if(v==='danRules') runDanRules();
+}
+function danNames(){ return (DAN_PLAYERS||[]).map(r=>r[0]); }
+attachAutocomplete('dpName', danNames);
+attachAutocomplete('drName', danNames);
+['dpName','drName'].forEach(id=>document.getElementById(id).addEventListener('keydown', e=>{
+  if(e.key!=='Enter' || e.defaultPrevented) return;
+  const list = document.getElementById(id).parentElement.querySelector('.ac-list');
+  if(list && list.style.display!=='none' && list.querySelector('.on')) return;
+  if(list) list.style.display='none';
+  e.preventDefault(); (id==='dpName' ? runDanPlayers : runDanRemind)();
+}));
+
+/* ---------- 共用彈出視窗 ---------- */
+function openDanModal(title, bodyHtml, buttons){
+  document.getElementById('danModalTitle').textContent = title;
+  document.getElementById('danModalBody').innerHTML = bodyHtml;
+  document.getElementById('danModalError').textContent = '';
+  const act = document.getElementById('danModalActions'); act.innerHTML = '';
+  buttons.forEach(b=>{ const el=document.createElement('button'); el.type='button'; el.className='btn'+(b.cls?' '+b.cls:''); el.textContent=b.text; el.onclick=b.onclick; act.appendChild(el); act.appendChild(document.createTextNode(' ')); });
+  document.getElementById('danModal').style.display='flex';
+}
+function closeDanModal(){ document.getElementById('danModal').style.display='none'; }
+function danModalError(msg){ document.getElementById('danModalError').textContent = msg; }
+
+/* ---------- 查詢段位勝場（棋士段位紀錄） ---------- */
+function runDanPlayers(){
+  if(!DAN_PLAYERS) return;
+  const q = norm(document.getElementById('dpName').value);
+  const list = DAN_PLAYERS.map((r,i)=>({r,i})).filter(x=>!q || norm(x.r[0]).indexOf(q)>=0);
+  const area = document.getElementById('dpResult');
+  if(list.length===0){ area.innerHTML = '<p class="hint" style="text-align:center;">找不到這位棋士的段位資料，可以按「新增棋士段位」新增</p>'; return; }
+  let html = '<div class="grid-wrap"><table class="grid dan" lang="en"><tr><th>姓名</th><th>目前段位</th><th>結算日期</th><th>結算日期已達成之勝場數量</th><th>編輯</th><th>刪除</th></tr>';
+  list.forEach(x=>{
+    html += '<tr><td>'+esc(x.r[0])+'</td><td>'+esc(x.r[1])+'</td><td>'+esc(slashDate(x.r[2]))+'</td><td>'+esc(x.r[3])+'</td>'+
+      '<td><button type="button" class="btn blue small" onclick="openDanPlayerModal('+x.i+')">編輯</button></td>'+
+      '<td><button type="button" class="btn red small" onclick="deleteDanPlayer('+x.i+')">刪除</button></td></tr>';
+  });
+  html += '</table></div>';
+  area.innerHTML = html;
+}
+function openDanPlayerModal(i){
+  if(!DAN_PLAYERS) return;
+  const isNew = i<0;
+  const r = isNew ? [document.getElementById('dpName').value.trim(), '初段', numDateStr(todayNum()), '0'] : DAN_PLAYERS[i];
+  const dn = dateStrNum(r[2]) || todayNum();
+  openDanModal(isNew ? '新增棋士段位' : '編輯棋士段位',
+    '<div class="row"><div class="lbl">姓名</div><input type="text" id="dmName" value="'+esc(r[0])+'"></div>'+
+    '<div class="row"><div class="lbl">目前段位</div><select id="dmDan">'+danOptionsHtml(r[1])+'</select></div>'+
+    '<div class="row"><div class="lbl">結算日期</div><div class="datesel" id="dmDate"></div></div>'+
+    '<div class="row"><div class="lbl">已達成勝場</div><input type="text" id="dmWins" inputmode="numeric" value="'+esc(r[3])+'"></div>'+
+    '<p class="hint">升段時：段位改成新段位、結算日期改成升段那一天、已達成勝場改成 0。<br>'+
+    '（結算日期「當天」的勝局都算在舊段位；如果達標之後同一天又贏了，那幾局要自己加進「已達成勝場」。）</p>',
+    [{text:'儲存', onclick:()=>saveDanPlayerModal(i)}, {text:'取消', cls:'gray', onclick:closeDanModal}]);
+  fillDateSelYears('dmDate', Math.floor(dn/10000), Math.floor(dn/100)%100, dn%100, 2000);
+}
+function todayNum(){ const t=new Date(); return t.getFullYear()*10000+(t.getMonth()+1)*100+t.getDate(); }
+async function saveDanPlayerModal(i){
+  const name = document.getElementById('dmName').value.trim();
+  const dan = document.getElementById('dmDan').value;
+  const date = numDateStr(readDateSel('dmDate'));
+  const wins = document.getElementById('dmWins').value.trim();
+  if(!name){ danModalError('請輸入姓名'); return; }
+  if(!/^\d+$/.test(wins)){ danModalError('已達成勝場要填 0 以上的整數'); return; }
+  const dup = DAN_PLAYERS.findIndex((r,k)=>k!==i && norm(r[0])===norm(name));
+  if(dup>=0){ danModalError('「'+name+'」已經有段位資料了，請用編輯修改'); return; }
+  const row = [name, dan, date, String(Number(wins))];
+  const backup = DAN_PLAYERS.map(r=>r.slice());
+  if(i<0) DAN_PLAYERS.push(row); else DAN_PLAYERS[i] = row;
+  try{
+    await saveDanPlayers();
+    closeDanModal();
+    document.getElementById('dpName').value = name;
+    runDanPlayers();
+    document.getElementById('dpStatus').innerHTML = '<span class="status-ok">已儲存「'+esc(name)+'」</span>';
+  }catch(err){ console.error(err); DAN_PLAYERS = backup; danModalError('儲存失敗：'+(err.message||err)); }
+}
+async function deleteDanPlayer(i){
+  const r = DAN_PLAYERS[i];
+  if(!confirm('確定要刪除「'+r[0]+'」的段位資料嗎？')) return;
+  const backup = DAN_PLAYERS.map(x=>x.slice());
+  DAN_PLAYERS.splice(i,1);
+  try{ await saveDanPlayers(); runDanPlayers(); document.getElementById('dpStatus').innerHTML = '<span class="status-ok">已刪除「'+esc(r[0])+'」</span>'; }
+  catch(err){ console.error(err); DAN_PLAYERS = backup; alert('刪除失敗：'+(err.message||err)); }
+}
+
+/* ---------- 升段提醒 ---------- */
+let lastRemind = null;
+function runDanRemind(){
+  if(!DAN_PLAYERS) return;
+  const q = norm(document.getElementById('drName').value);
+  const dan = document.getElementById('drDan').value;
+  const until = readDateSel('drDate');
+  const rows = [];
+  DAN_PLAYERS.forEach(r=>{
+    if(q && norm(r[0]).indexOf(q)<0) return;
+    if(dan && r[1]!==dan) return;
+    const base = dateStrNum(r[2]), baseWins = Number(r[3])||0;
+    const wins = danWinGames(r[0], base, until);
+    const need = danNeed(r[1]);
+    rows.push({ name:r[0], dan:r[1], base, baseWins, wins, need, remain: need==null ? null : need-(baseWins+wins.length) });
+  });
+  /* 剩餘勝場由少到多；一樣多時段位高的排前面（跟舊系統順序一樣） */
+  rows.sort((a,b)=> (a.remain==null)-(b.remain==null) || (a.remain-b.remain) || danRank(b.dan)-danRank(a.dan) || a.name.localeCompare(b.name,'zh-Hant'));
+  lastRemind = { rows, until };
+  const area = document.getElementById('drResult');
+  if(rows.length===0){ area.innerHTML = '<p class="hint" style="text-align:center;">沒有符合條件的棋士</p>'; return; }
+  let html = '<p class="hint" style="text-align:center;">結算到 '+slashDate(numDateStr(until))+'（點姓名可以看算進去的勝局）</p>';
+  html += '<div class="grid-wrap"><table class="grid dan" lang="en"><tr><th>姓名</th><th>目前段位</th><th>升段剩餘勝場數量</th></tr>';
+  rows.forEach((x,i)=>{
+    html += '<tr><td><a href="#" onclick="return showDanDetail('+i+')">'+esc(x.name)+'</a></td><td>'+esc(x.dan)+'</td><td>'+(x.remain==null ? '（段位設定沒有這個段位）' : x.remain)+'</td></tr>';
+  });
+  html += '</table></div>';
+  area.innerHTML = html;
+}
+/* 點姓名：列出算進去的勝局，並整理成跟升段公告一樣的「各年幾局」 */
+function showDanDetail(i){
+  const x = lastRemind.rows[i];
+  const byYear = {};
+  x.wins.forEach(g=>{ byYear[g.y]=(byYear[g.y]||0)+1; });
+  const total = x.baseWins + x.wins.length;
+  let reach = null;
+  if(x.need!=null && x.baseWins < x.need && total >= x.need) reach = x.wins[x.need - x.baseWins - 1];
+  let html = '<div class="dan-detail">'+esc(x.dan)+'，結算日期 '+slashDate(numDateStr(x.base))+' 已達成 '+x.baseWins+' 勝；'+
+    '之後到 '+slashDate(numDateStr(lastRemind.until))+' 又贏 '+x.wins.length+' 局'+
+    (x.wins.length ? '（'+Object.keys(byYear).sort().map(y=>y+'年'+byYear[y]+'局').join('、')+'）' : '')+
+    '，共 <b>'+total+'</b> 勝。';
+  if(x.need!=null) html += '<br>升段需要 '+x.need+' 勝，'+(x.remain>0 ? '還差 <b>'+x.remain+'</b> 勝。' : '<b>已達標</b>'+(x.remain<0?'（超過 '+(-x.remain)+' 勝）':'')+'。');
+  if(reach) html += '<br>達標那一局：<b>'+fmtDate(reach)+'</b> '+esc(reach.ev)+' '+esc(reach.st)+'，'+esc(norm(reach.b)===norm(x.name)?'持黑':'持白')+'勝 '+esc(norm(reach.b)===norm(x.name)?reach.w:reach.b)+'（'+esc(reach.mv)+'）';
+  html += '</div>';
+  if(x.wins.length){
+    html += '<div class="grid-wrap" style="max-height:45vh;overflow:auto;"><table class="grid detail" lang="en"><tr><th>#</th><th>日期</th><th>賽名</th><th>階段</th><th>對手</th><th>目數</th></tr>';
+    x.wins.forEach((g,k)=>{
+      const opp = norm(g.b)===norm(x.name) ? g.w : g.b;
+      html += '<tr><td>'+(x.baseWins+k+1)+'</td><td class="small">'+fmtDate(g)+'</td><td>'+esc(g.ev)+'</td><td>'+esc(g.st)+'</td><td>'+esc(opp)+'</td><td>'+esc(g.mv)+'</td></tr>';
+    });
+    html += '</table></div><p class="hint">「#」是累積到第幾勝（從結算日期已達成的勝場往下數）。交流賽不算。</p>';
+  }
+  openDanModal(x.name+'　升段勝場明細', html, [{text:'關閉', cls:'gray', onclick:closeDanModal}]);
+  return false;
+}
+
+/* ---------- 段位設定 ---------- */
+function runDanRules(){
+  if(!DAN_RULES) return;
+  let html = danRulesSaved ? '' : '<p class="hint" style="text-align:center;">目前顯示的是舊系統的設定值（還沒存到新系統）；按任何一個「編輯」或「新增段位設定」存檔後，就會正式存進來。</p>';
+  html += '<div class="grid-wrap"><table class="grid dan" lang="en"><tr><th>段位</th><th>勝場需求數量</th><th>操作</th><th>刪除</th></tr>';
+  DAN_RULES.forEach((r,i)=>{
+    html += '<tr><td>'+esc(r[0])+'</td><td>'+esc(r[1])+'</td><td><button type="button" class="btn blue small" onclick="openDanRuleModal('+i+')">編輯</button></td><td><button type="button" class="btn red small" onclick="deleteDanRule('+i+')">刪除</button></td></tr>';
+  });
+  html += '</table></div>';
+  document.getElementById('rlResult').innerHTML = html;
+}
+function openDanRuleModal(i){
+  if(!DAN_RULES) return;
+  const isNew = i<0, r = isNew ? ['', ''] : DAN_RULES[i];
+  openDanModal(isNew ? '新增段位設定' : '編輯段位設定',
+    '<div class="row"><div class="lbl">段位</div><input type="text" id="rmDan" value="'+esc(r[0])+'" placeholder="例如 九段"'+(isNew?'':' readonly style="background:#eee;"')+'></div>'+
+    '<div class="row"><div class="lbl">勝場需求數量</div><input type="text" id="rmNeed" inputmode="numeric" value="'+esc(r[1])+'"></div>',
+    [{text:'儲存', onclick:()=>saveDanRuleModal(i)}, {text:'取消', cls:'gray', onclick:closeDanModal}]);
+}
+async function saveDanRuleModal(i){
+  const dan = document.getElementById('rmDan').value.trim(), need = document.getElementById('rmNeed').value.trim();
+  if(!dan){ danModalError('請輸入段位'); return; }
+  if(!/^\d+$/.test(need)){ danModalError('勝場需求數量要填整數'); return; }
+  if(i<0 && DAN_RULES.some(r=>r[0]===dan)){ danModalError('已經有「'+dan+'」的設定了，請用編輯修改'); return; }
+  const backup = DAN_RULES.map(r=>r.slice()), wasSaved = danRulesSaved;
+  if(i<0) DAN_RULES.push([dan, Number(need)]); else DAN_RULES[i] = [dan, Number(need)];
+  try{ await saveDanRules(); closeDanModal(); runDanRules(); document.getElementById('rlStatus').innerHTML = '<span class="status-ok">已儲存「'+esc(dan)+'」</span>'; }
+  catch(err){ console.error(err); DAN_RULES = backup; danRulesSaved = wasSaved; danModalError('儲存失敗：'+(err.message||err)); }
+}
+async function deleteDanRule(i){
+  const r = DAN_RULES[i];
+  if(!confirm('確定要刪除「'+r[0]+'」的段位設定嗎？刪除後，這個段位的棋士在升段提醒裡會算不出剩餘勝場。')) return;
+  const backup = DAN_RULES.map(x=>x.slice()), wasSaved = danRulesSaved;
+  DAN_RULES.splice(i,1);
+  try{ await saveDanRules(); runDanRules(); }
+  catch(err){ console.error(err); DAN_RULES = backup; danRulesSaved = wasSaved; alert('刪除失敗：'+(err.message||err)); }
+}
+
+/* ---------- 功能 4：下載／上傳段位資料（格式跟舊系統下載的「棋士段位資料.xlsx」一樣） ---------- */
+async function downloadDanPlayers(){
+  try{ await loadDan(); }catch(err){ alert('讀取段位資料失敗：'+(err.message||err)); return; }
+  if(DAN_PLAYERS.length===0){ alert('系統裡還沒有段位資料，可以先用「上傳段位資料」把舊系統下載的檔案傳上來'); return; }
+  const aoa = [['姓名','目前段位','結算日期','結算日期已達成之勝場數量']].concat(DAN_PLAYERS.map(r=>[r[0], r[1], r[2], String(r[3])]));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), '段位資料');
+  XLSX.writeFile(wb, todayStamp()+'_棋士段位資料.xlsx');
+}
+function todayStamp(){ return String(todayNum()); }
+let pendingDanUpload = null;
+document.getElementById('danUpFile').addEventListener('change', async function(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const area = document.getElementById('danUpPreview');
+  try{
+    await loadDan();
+    const wb = XLSX.read(await file.arrayBuffer(), {type:'array', cellDates:true});
+    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, raw:true, defval:null});
+    const h = aoa.findIndex(r=>r && r.some(c=>cellStr(c)==='姓名'));
+    if(h<0) throw new Error('第一個分頁找不到「姓名」欄位');
+    const col = {}; aoa[h].forEach((c,i)=>{ col[cellStr(c)] = i; });
+    const need = ['姓名','目前段位','結算日期','結算日期已達成之勝場數量'];
+    const miss = need.filter(k=>col[k]==null); if(miss.length) throw new Error('缺少欄位：'+miss.join('、'));
+    const rows = [], probs = [], seen = new Set();
+    for(let r=h+1; r<aoa.length; r++){
+      const row = aoa[r]; if(!row || !cellStr(row[col['姓名']])) continue;
+      const name = cellStr(row[col['姓名']]), dan = cellStr(row[col['目前段位']]);
+      const dv = row[col['結算日期']];
+      const date = dv instanceof Date ? numDateStr(dv.getFullYear()*10000+(dv.getMonth()+1)*100+dv.getDate()) : (dateStrNum(cellStr(dv)) ? numDateStr(dateStrNum(cellStr(dv))) : '');
+      const wins = cellStr(row[col['結算日期已達成之勝場數量']]).replace(/\.0$/,'');
+      if(!date) probs.push(name+'：結算日期看不懂（'+cellStr(dv)+'）');
+      if(!/^\d+$/.test(wins)) probs.push(name+'：勝場數不是整數（'+wins+'）');
+      if(DAN_ORDER.indexOf(dan)<0 && !DAN_RULES.some(x=>x[0]===dan)) probs.push(name+'：段位「'+dan+'」不在段位設定裡');
+      if(seen.has(norm(name))) probs.push(name+'：重複出現');
+      seen.add(norm(name));
+      rows.push([name, dan, date, wins]);
+    }
+    pendingDanUpload = rows;
+    area.innerHTML = '<p style="font-weight:700;margin:10px 0 4px;">「'+esc(file.name)+'」共 '+rows.length+' 位棋士（系統裡目前 '+DAN_PLAYERS.length+' 位）。確定後會用這份檔案「整份取代」系統裡的段位資料。</p>'+
+      (probs.length ? '<p class="status-bad">有 '+probs.length+' 個問題，請先修正檔案再上傳：<br>'+probs.map(esc).join('<br>')+'</p>' : '')+
+      '<div class="acts"><button type="button" class="btn" onclick="confirmDanUpload()"'+(probs.length||!rows.length?' disabled':'')+'>確定取代</button><button type="button" class="btn gray" onclick="cancelDanUpload()">取消</button><span class="hint" id="danUpStatus"></span></div>';
+  }catch(err){
+    console.error(err);
+    area.innerHTML = '<p class="status-bad">讀不了這個檔案：'+esc(err.message||err)+'</p>';
+  }
+});
+function cancelDanUpload(){ pendingDanUpload = null; document.getElementById('danUpPreview').innerHTML=''; document.getElementById('danUpFile').value=''; }
+async function confirmDanUpload(){
+  if(!pendingDanUpload) return;
+  const backup = DAN_PLAYERS;
+  DAN_PLAYERS = pendingDanUpload.map(r=>r.slice());
+  try{
+    await saveDanPlayers();
+    document.getElementById('danUpPreview').innerHTML = '<p class="status-ok">✅ 已匯入 '+DAN_PLAYERS.length+' 位棋士的段位資料</p>';
+    document.getElementById('danUpFile').value=''; pendingDanUpload = null;
+  }catch(err){ console.error(err); DAN_PLAYERS = backup; document.getElementById('danUpStatus').innerHTML = '<span class="status-bad">匯入失敗：'+esc(err.message||err)+'</span>'; }
 }
 
 /* ============ 登入 ============ */
