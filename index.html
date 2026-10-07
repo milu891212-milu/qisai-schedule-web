@@ -6163,6 +6163,14 @@ function setupExportPanel(){
   panel.style.display='flex';
 }
 
+/* 番棋決賽：同兩人在最後一輪要連下好幾局，列印成績表時改用一頁4局的長版
+   （printSeriesScoreSheet）。中環碁聖賽的三局各有獨立的match（zh69_game0~2，賽程圖上每局
+   各自記勝負）；玄樂盃決賽在賽程圖上只有一場（使用者要求只改列印、賽程圖不拆局），
+   所以五局都印同一組兩人。 */
+const SERIES_FINALS = {
+  zhonghuan69: { games: 3, gameIds: ['zh69_game0','zh69_game1','zh69_game2'] },
+  xuanleMain48: { games: 5 }
+};
 function printRoundScoreSheet(){
   if(!currentBracket){ alert('請先產生賽程表'); return; }
   const idx=parseInt(document.getElementById('exportRoundSelect').value,10);
@@ -6192,14 +6200,19 @@ function printRoundScoreSheet(){
   const round=currentBracket.rounds[idx];
   if(!round){ alert('找不到這一輪的資料'); return; }
   const stageId=currentBracket.stageId;
-  /* 中環碁聖賽第14屆的「決賽」是三戰兩勝，不是普通的一場比賽——round資料裡的「決賽」
-     其實是兩位準決賽勝者匯流進來的那一場虛擬對戰（zh69_136），印出來只會看到1局，
-     跟畫面上實際的「決賽三番戰」三局對不起來。這裡改成直接印三局（zh69_game0/1/2），
-     每局的序號/姓名照畫面上的資料自動帶入，勝負/成績結果/終局時間留白讓現場手寫。 */
-  const isZh69Final = (currentStConfig && currentStConfig.customBracket==='zhonghuan69' && idx===currentBracket.rounds.length-1);
-  const matches = isZh69Final
-    ? ['zh69_game0','zh69_game1','zh69_game2'].map(function(gid){ return {id:gid, slots:[{isBye:false},{isBye:false}]}; })
-    : round.filter(function(m){ return !(m.slots[0].isBye || m.slots[1].isBye); });
+  const series = currentStConfig && SERIES_FINALS[currentStConfig.customBracket];
+  if(series && idx===currentBracket.rounds.length-1){
+    const games=[];
+    for(let g=0; g<series.games; g++){
+      const mid = series.gameIds ? series.gameIds[g] : round[0].id;
+      games.push({ n0:getSlotName(stageId,mid,0), n1:getSlotName(stageId,mid,1) });
+    }
+    const label=roundLabelFor(idx);
+    const N=['','一','二','三','四','五','六','七','八','九'][series.games];
+    printSeriesScoreSheet(currentBracket.title+'　'+currentBracket.stageName+'　'+label+N+'番勝負　成績紀錄表', label, games);
+    return;
+  }
+  const matches = round.filter(function(m){ return !(m.slots[0].isBye || m.slots[1].isBye); });
   if(matches.length===0){ alert('這一輪沒有需要記錄成績的對局（可能都是輪空）'); return; }
   const label=roundLabelFor(idx);
   /* 使用者要求資格賽的成績登記表標題要加上屆數（跟循環圈/挑戰賽那兩份列印一樣有「第19屆」
@@ -6366,7 +6379,15 @@ function printQiwang19ChallengeScoreSheet(){
     matches.push({ n0:getSlotName(stageId,mid,0), n1:getSlotName(stageId,mid,1) });
   }
   if(!matches.some(function(m){ return m.n0 || m.n1; })){ alert('請先產生賽程表並填入兩位選手姓名'); return; }
+  printSeriesScoreSheet('第19屆'+currentBracket.title+currentBracket.stageName+'七番勝負　成績紀錄表', currentBracket.stageName, matches);
+}
 
+/* 番棋（同兩人連下好幾局）共用的長版成績紀錄表：一頁4局、每局一個寬表格，欄位「持」＋
+   「讀秒時間」、每局各自的日期空格（每局常在不同天下）。原本是棋王挑戰賽七番勝負專用，
+   2026-10-07抽出來給中環碁聖賽決賽三番戰、玄樂盃決賽五番棋共用（之後國手挑戰賽也用這個）。
+   games：[{n0, n1}, ...]，一個元素一局。 */
+function printSeriesScoreSheet(titleText, subName, games){
+  const matches = games;
   function gameBlock(m, gameNo){
     return '<div class="ss-game ss-game-wide"><div class="ss-game-title">（第'+gameNo+'局）'+
       '<span class="ss-date">日期：＿＿＿＿年＿＿月＿＿日</span></div>'+
@@ -6386,8 +6407,8 @@ function printQiwang19ChallengeScoreSheet(){
   for(let start=0; start<matches.length; start+=CHUNK){
     const chunk=matches.slice(start, start+CHUNK);
     html += '<div class="ss-page">';
-    html += '<div class="ss-header"><div class="ss-title">第19屆'+escapeHtml(currentBracket.title)+escapeHtml(currentBracket.stageName)+'七番勝負　成績紀錄表</div></div>';
-    html += '<div class="ss-sub">'+escapeHtml(currentBracket.stageName)+'（第'+(start+1)+'~'+(start+chunk.length)+'局）</div>';
+    html += '<div class="ss-header"><div class="ss-title">'+escapeHtml(titleText)+'</div></div>';
+    html += '<div class="ss-sub">'+escapeHtml(subName)+'（第'+(start+1)+(chunk.length>1 ? '~'+(start+chunk.length) : '')+'局）</div>';
     html += '<div class="ss-wide-col">';
     chunk.forEach(function(m,i){ html += gameBlock(m, start+i+1); });
     html += '</div>';
