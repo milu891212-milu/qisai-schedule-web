@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>棋賽成績表辨識工具</title>
+<style>
+  body { font-family: "Microsoft JhengHei", sans-serif; max-width: 1000px; margin: 20px auto; padding: 0 16px; color: #222; }
+  h1 { font-size: 20px; margin: 0; }
+  .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:12px; flex-wrap:wrap; }
+  .userbox { font-size:12px; color:#666; }
+  .userbox button { padding:3px 10px; font-size:12px; margin-left:6px; }
+  fieldset { border: 1px solid #ccc; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; }
+  legend { font-weight: bold; padding: 0 6px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; align-items:flex-end; }
+  .field { display: flex; flex-direction: column; }
+  .field label { font-size: 12px; color: #666; margin-bottom: 2px; }
+  .field input, .field select { padding: 6px 8px; border: 1px solid #bbb; border-radius: 4px; font-size: 14px; min-width: 90px; }
+  button { padding: 8px 18px; border: none; border-radius: 6px; background: #2563eb; color: white; font-size: 14px; cursor: pointer; }
+  button:hover { background: #1d4ed8; }
+  button:disabled { background: #aaa; cursor: not-allowed; }
+  button.secondary { background: #16a34a; }
+  button.secondary:hover { background: #15803d; }
+  button.link { background:#64748b; }
+  button.link:hover { background:#475569; }
+  table { border-collapse: collapse; width: 100%; margin-top: 12px; }
+  th, td { border: 1px solid #ddd; padding: 6px 8px; font-size: 13px; text-align: center; vertical-align: middle; }
+  th { background: #f3f4f6; }
+  tr.warn { background: #fff7e6; }
+  tr.dup { background: #fee2e2; }
+  td input[data-field] { width: 80px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; text-align: center; }
+  .warn-text { color: #b45309; font-size: 11px; }
+  .status { margin-top: 10px; font-size: 14px; }
+  .status.ok { color: #15803d; }
+  .status.err { color: #dc2626; }
+  img.thumb { max-height: 40px; }
+  #loading { display:none; color:#2563eb; font-weight:bold; }
+  .autocomplete-wrap { position: relative; }
+  .suggestions { display:none; position:absolute; top:100%; left:0; min-width:100%; background:white; border:1px solid #bbb; border-radius:4px; max-height:180px; overflow-y:auto; z-index:20; box-shadow:0 2px 6px rgba(0,0,0,0.15); }
+  .suggestions div { padding:6px 10px; cursor:pointer; font-size:14px; white-space:nowrap; }
+  .suggestions div:hover { background:#eef2ff; }
+  #qisai_banner { display:none; background:#eef6ff; border:1px solid #93c5fd; border-radius:8px; padding:10px 14px; margin-bottom:16px; font-size:14px; line-height:1.6; }
+  #excel_name { font-size:14px; padding:6px 10px; background:#f3f4f6; border-radius:6px; }
+  .hint { font-size:12px; color:#666; margin-top:6px; line-height:1.6; }
+  #login_overlay { position:fixed; inset:0; background:#f8fafc; display:none; align-items:center; justify-content:center; z-index:100; }
+  #login_box { background:white; border:1px solid #ddd; border-radius:12px; padding:24px 28px; width:320px; box-shadow:0 4px 16px rgba(0,0,0,0.08); }
+  #login_box h2 { margin:0 0 14px; font-size:18px; }
+  #login_box input { width:100%; box-sizing:border-box; margin-bottom:10px; padding:8px; border:1px solid #bbb; border-radius:6px; font-size:14px; }
+  #login_box button { width:100%; }
+</style>
+</head>
+<body>
+
+<div id="login_overlay">
+  <div id="login_box">
+    <h2>♟️ 棋賽成績表辨識工具</h2>
+    <input id="login_email" type="email" placeholder="帳號（Email）" autocomplete="username">
+    <input id="login_password" type="password" placeholder="密碼" autocomplete="current-password">
+    <button id="btn_login">登入</button>
+    <div id="login_error" class="status err"></div>
+    <div class="hint">帳號密碼跟賽程表網站一樣。</div>
+  </div>
+</div>
+
+<div id="app_root" style="display:none;">
+<div class="topbar">
+  <h1>♟️ 棋賽成績表辨識工具</h1>
+  <div class="userbox"><span id="user_email"></span><button id="btn_logout" class="link" type="button">登出</button></div>
+</div>
+<div id="qisai_banner"></div>
+<datalist id="dl_qisai_players"></datalist>
+
+<fieldset>
+  <legend>1. 這次比賽的共通資訊</legend>
+  <div class="row">
+    <div class="field"><label>年份</label><input id="f_year" value="2026"></div>
+    <div class="field"><label>日期</label><input id="f_date" placeholder="例如 09.14"></div>
+    <div class="field"><label>大類</label><input id="f_cat1" value="國內" list="dl_cat1"><datalist id="dl_cat1"></datalist></div>
+    <div class="field"><label>小類</label><input id="f_cat2" value="正式" list="dl_cat2"><datalist id="dl_cat2"></datalist></div>
+    <div class="field autocomplete-wrap"><label>賽名</label><input id="f_event" placeholder="輸入關鍵字搜尋..." autocomplete="off"><div id="f_event_suggestions" class="suggestions"></div></div>
+    <div class="field"><label>階段</label><input id="f_stage" placeholder="例如 初賽" list="dl_stage"><datalist id="dl_stage"></datalist></div>
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>2. 要寫入的 Excel 檔案</legend>
+  <div class="row">
+    <span id="excel_name">尚未選擇 Excel 檔案</span>
+    <button id="btn_pick_excel" type="button">選擇現有的 Excel…</button>
+    <button id="btn_new_excel" type="button" class="link">建立新的 Excel…</button>
+    <button id="btn_reuse_last" type="button" class="secondary" style="display:none;"></button>
+    <div class="field"><label>寫入分頁</label><select id="f_sheet"><option value="__new__">+ 建立新分頁...</option></select></div>
+  </div>
+  <div id="excel_hint" class="hint"></div>
+  <input type="file" id="f_excel_fallback" accept=".xlsx" style="display:none;">
+</fieldset>
+
+<fieldset>
+  <legend>3. 上傳成績表照片（可一次選多張，最多 4 張）</legend>
+  <input type="file" id="f_photo" accept="image/*" multiple>
+  <button id="btn_process">開始辨識</button>
+  <span id="loading">辨識中，請稍候…</span>
+  <div id="process_status" class="status"></div>
+</fieldset>
+
+<fieldset id="results_box" style="display:none;">
+  <legend>4. 確認辨識結果（有 ⚠️ 標記的請仔細檢查，可直接修改；標記「可能重複」的預設不會寫入，如需要請自行勾選）</legend>
+  <div style="overflow-x:auto;">
+  <table id="results_table">
+    <thead>
+      <tr><th>寫入</th><th>#</th><th>執黑</th><th>執白</th><th>勝方</th><th>目數</th><th>成績結果小圖</th><th>提醒</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  </div>
+  <div style="margin-top:12px;">
+    <button class="secondary" id="btn_save">寫入 Excel</button>
+    <button class="link" id="btn_resend_qisai" type="button" style="display:none;" title="不重寫 Excel，只把這張表的勝負再送一次到賽程表">重新送到賽程表</button>
+    <span id="save_status" class="status"></span>
+  </div>
+</fieldset>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script>
+// ===================== 設定 =====================
+// 辨識後端（Google Cloud Run）網址。部署完成後把真正的網址填在這裡。
+const CLOUD_API_BASE = 'https://qisai-recognize-892169332286.asia-east1.run.app';
+const IS_LOCAL = ['localhost', '127.0.0.1'].includes(location.hostname);
+const API_BASE = IS_LOCAL ? 'http://127.0.0.1:8080' : CLOUD_API_BASE;
+
+// 跟賽程表網站同一個 Firebase 專案、同一套登入（同一個網站網域下，登入狀態會自動共用）
+const firebaseConfig = {
+  apiKey: "AIzaSyAZAxRuD6MFG4i_FcOf5OX_qzrHunGXqnk",
+  authDomain: "test-5cfc9.firebaseapp.com",
+  projectId: "test-5cfc9",
+  storageBucket: "test-5cfc9.firebasestorage.app",
+  messagingSenderId: "892169332286",
+  appId: "1:892169332286:web:c16a82a686d1f3e024536f"
+};
+
+const OPTIONS = {
+  '大類': ['國內', '國際'],
+  '小類': ['正式', '限制'],
+  '賽名': ['中環天元賽', '中環國手賽', '中環碁聖賽', '名人賽', '棋王賽', '玄樂盃', '快棋爭霸戰', '海峰盃', '女子圍棋最強戰', '大森女子名人賽', '新人王賽', '龍星賽'],
+  '階段': ['初賽', '本賽16強', '本賽8強', '本賽4強', '決賽3番勝負第1局', '決賽3番勝負第2局', '決賽3番勝負第3局']
+};
+const HEADERS = ['年份', '日期', '大類', '小類', '賽名', '階段', '執黑', '執白', '勝方', '目數'];
+const DUP_KEY_FIELDS = ['賽名', '階段', '執黑', '執白'];
+
+const $ = id => document.getElementById(id);
+const escHtml = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let currentRows = [];
+
+// ===================== 登入 =====================
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+
+auth.onAuthStateChanged(user => {
+  $('login_overlay').style.display = user ? 'none' : 'flex';
+  $('app_root').style.display = user ? '' : 'none';
+  $('user_email').textContent = user ? user.email : '';
+});
+
+async function doLogin() {
+  const email = $('login_email').value.trim(), pw = $('login_password').value;
+  $('login_error').textContent = '';
+  if (!email || !pw) { $('login_error').textContent = '請輸入帳號與密碼。'; return; }
+  $('btn_login').disabled = true;
+  try {
+    await auth.signInWithEmailAndPassword(email, pw);
+  } catch (err) {
+    const wrong = ['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found'].includes(err.code);
+    $('login_error').textContent = '登入失敗：' + (wrong ? '帳號或密碼錯誤' : err.message);
+  } finally { $('btn_login').disabled = false; }
+}
+$('btn_login').addEventListener('click', doLogin);
+$('login_password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+$('btn_logout').addEventListener('click', () => auth.signOut());
+
+// ===================== 共通資訊欄位（選單） =====================
+function fillDatalist(id, values) {
+  const dl = $(id); if (!dl || !values) return;
+  dl.innerHTML = '';
+  values.forEach(v => { const o = document.createElement('option'); o.value = v; dl.appendChild(o); });
+}
+fillDatalist('dl_cat1', OPTIONS['大類']);
+fillDatalist('dl_cat2', OPTIONS['小類']);
+fillDatalist('dl_stage', OPTIONS['階段']);
+const eventOptions = OPTIONS['賽名'];
+
+function setupAutocomplete(inputId, boxId, getOptions) {
+  const input = $(inputId), box = $(boxId);
+  input.addEventListener('input', () => {
+    const q = input.value.trim();
+    if (!q) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    const matches = getOptions().filter(v => v.includes(q));
+    if (!matches.length) { box.style.display = 'none'; return; }
+    box.innerHTML = matches.map(v => `<div>${escHtml(v)}</div>`).join('');
+    box.style.display = 'block';
+    box.querySelectorAll('div').forEach(d => d.addEventListener('mousedown', () => { input.value = d.textContent; box.style.display = 'none'; }));
+  });
+  input.addEventListener('blur', () => setTimeout(() => { box.style.display = 'none'; }, 150));
+}
+setupAutocomplete('f_event', 'f_event_suggestions', () => eventOptions);
+
+function collectMeta() {
+  return {
+    年份: $('f_year').value, 日期: $('f_date').value, 大類: $('f_cat1').value,
+    小類: $('f_cat2').value, 賽名: $('f_event').value, 階段: $('f_stage').value,
+  };
+}
+
+// ===================== Excel（全部在這台電腦的瀏覽器裡完成，檔案不會上傳到任何地方） =====================
+const HAS_FS = 'showOpenFilePicker' in window && 'showSaveFilePicker' in window;
+const XLSX_TYPES = [{ description: 'Excel 檔案', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }];
+let fileHandle = null;      // Chrome/Edge：可直接讀寫的檔案
+let fallbackBuffer = null;  // 其他瀏覽器：讀進來的檔案內容（寫入時改成下載）
+let fallbackName = '';
+
+$('excel_hint').textContent = HAS_FS
+  ? '檔案只在你這台電腦處理，不會上傳。寫入時請先把這個 Excel 在 Excel 程式裡關掉。'
+  : '⚠️ 你的瀏覽器無法直接寫入電腦裡的檔案：「寫入」會改成下載一份更新後的 Excel，請自己取代原檔。建議改用 Chrome 或 Edge。';
+
+// ---- 記住上次選的檔案（瀏覽器不能記路徑，只能記「檔案控制代碼」，下次要按一下授權）----
+function idb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('recognize-tool', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('kv');
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbGet(key) { try { const db = await idb(); return await new Promise(r => { const q = db.transaction('kv').objectStore('kv').get(key); q.onsuccess = () => r(q.result); q.onerror = () => r(null); }); } catch (e) { return null; } }
+async function idbSet(key, val) { try { const db = await idb(); await new Promise(r => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(val, key); t.oncomplete = r; t.onerror = r; }); } catch (e) {} }
+
+async function ensurePermission(handle) {
+  const opts = { mode: 'readwrite' };
+  if ((await handle.queryPermission(opts)) === 'granted') return true;
+  return (await handle.requestPermission(opts)) === 'granted';
+}
+
+// ---- 活頁簿處理（純函式，方便測試）----
+function cellText(v) {
+  if (v == null) return '';
+  if (typeof v === 'object') {
+    if (v.richText) return v.richText.map(t => t.text).join('');
+    if ('result' in v) return cellText(v.result);
+    if ('text' in v) return cellText(v.text);
+    if (v instanceof Date) return v.toISOString().slice(0, 10);
+    return String(v);
+  }
+  return String(v);
+}
+function headerMap(ws) {            // {欄位名: 欄號}，表頭有空白格就跳過那一欄
+  const map = {};
+  const hv = ws.getRow(1).values || [];
+  for (let i = 1; i < hv.length; i++) { const h = cellText(hv[i]).trim(); if (h) map[h] = i; }
+  return map;
+}
+function workbookInfo(wb) {         // 分頁清單 + 最後一個分頁最後一列的內容（用來預設填入共通資訊）
+  const sheets = wb.worksheets.map(w => w.name);
+  let lastRow = null;
+  if (sheets.length) {
+    const ws = wb.worksheets[wb.worksheets.length - 1];
+    const map = headerMap(ws), last = ws.lastRow;
+    if (last && last.number >= 2) { lastRow = {}; for (const [h, i] of Object.entries(map)) lastRow[h] = cellText(last.getCell(i).value); }
+  }
+  return { sheets, lastRow };
+}
+function existingKeys(wb, sheetName) {
+  const keys = new Set();
+  const ws = wb.getWorksheet(sheetName);
+  if (!ws) return keys;
+  const map = headerMap(ws);
+  if (!DUP_KEY_FIELDS.every(f => map[f])) return keys;
+  ws.eachRow({ includeEmpty: false }, (row, n) => {
+    if (n === 1) return;
+    keys.add(DUP_KEY_FIELDS.map(f => cellText(row.getCell(map[f]).value).trim()).join('|'));
+  });
+  return keys;
+}
+function appendRows(wb, sheetName, meta, rows) {
+  let ws = wb.getWorksheet(sheetName);
+  if (!ws) { ws = wb.addWorksheet(sheetName); ws.addRow(HEADERS); }
+  rows.forEach(r => ws.addRow([
+    meta['年份'] || '', meta['日期'] || '', meta['大類'] || '', meta['小類'] || '', meta['賽名'] || '', meta['階段'] || '',
+    r['執黑'] || '', r['執白'] || '', r['勝方'] || '', r['目數'] || '',
+  ]));
+}
+function keyOf(meta, r) { return [meta['賽名'], meta['階段'], r['執黑'], r['執白']].map(x => String(x == null ? '' : x).trim()).join('|'); }
+
+async function loadWorkbook() {     // 每次用都重新讀一次檔案，避免蓋掉你在 Excel 裡剛改的內容
+  const wb = new ExcelJS.Workbook();
+  if (HAS_FS && fileHandle) {
+    const file = await fileHandle.getFile();
+    if (file.size > 0) await wb.xlsx.load(await file.arrayBuffer());
+  } else if (fallbackBuffer) {
+    await wb.xlsx.load(fallbackBuffer);
+  }
+  return wb;
+}
+
+function setSheetOptions(sheets) {
+  const sel = $('f_sheet'), prev = sel.value;
+  sel.innerHTML = '';
+  sheets.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
+  const n = document.createElement('option'); n.value = '__new__'; n.textContent = '+ 建立新分頁...'; sel.appendChild(n);
+  sel.value = sheets.includes(prev) ? prev : (sheets.length ? sheets[sheets.length - 1] : '__new__');
+}
+$('f_sheet').addEventListener('change', e => {
+  if (e.target.value !== '__new__') return;
+  const name = (prompt('請輸入新分頁名稱（最多 31 個字，不能有 : \\ / ? * [ ]）：') || '').trim();
+  if (!name) { e.target.value = e.target.options.length > 1 ? e.target.options[0].value : '__new__'; return; }
+  if (/[:\\/?*\[\]]/.test(name) || name.length > 31) { alert('分頁名稱不合規定（最多 31 個字，不能有 : \\ / ? * [ ]）'); e.target.value = e.target.options.length > 1 ? e.target.options[0].value : '__new__'; return; }
+  const o = document.createElement('option'); o.value = name; o.textContent = name;
+  e.target.insertBefore(o, e.target.lastChild); e.target.value = name;
+});
+
+async function refreshFromExcel() {
+  try {
+    const wb = await loadWorkbook();
+    const { sheets, lastRow } = workbookInfo(wb);
+    setSheetOptions(sheets);
+    if (lastRow) {
+      if (lastRow['年份']) $('f_year').value = lastRow['年份'];
+      if (lastRow['大類']) $('f_cat1').value = lastRow['大類'];
+      if (lastRow['小類']) $('f_cat2').value = lastRow['小類'];
+      if (lastRow['賽名']) $('f_event').value = lastRow['賽名'];
+      if (lastRow['階段']) $('f_stage').value = lastRow['階段'];
+    }
+    return true;
+  } catch (err) {
+    alert('讀取這個 Excel 檔案失敗：' + err.message + '\n請確認檔案沒有損壞、也沒有被其他程式鎖住。');
+    return false;
+  }
+}
+
+async function useHandle(h) {
+  fileHandle = h; fallbackBuffer = null;
+  $('excel_name').textContent = '📄 ' + h.name;
+  await idbSet('lastExcelHandle', h);
+  await refreshFromExcel();
+}
+$('btn_pick_excel').addEventListener('click', async () => {
+  if (HAS_FS) {
+    try {
+      const [h] = await showOpenFilePicker({ types: XLSX_TYPES, multiple: false });
+      if (!(await ensurePermission(h))) { alert('需要允許寫入權限，才能把結果寫進這個檔案。'); return; }
+      await useHandle(h);
+    } catch (e) { if (e.name !== 'AbortError') alert('開啟檔案失敗：' + e.message); }
+  } else { $('f_excel_fallback').click(); }
+});
+$('f_excel_fallback').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  fallbackBuffer = await f.arrayBuffer(); fallbackName = f.name; fileHandle = null;
+  $('excel_name').textContent = '📄 ' + f.name + '（讀取用；寫入時會下載新檔）';
+  await refreshFromExcel();
+});
+$('btn_new_excel').addEventListener('click', async () => {
+  if (HAS_FS) {
+    try {
+      const h = await showSaveFilePicker({ types: XLSX_TYPES, suggestedName: '2026 職業比賽資料.xlsx' });
+      await useHandle(h);
+    } catch (e) { if (e.name !== 'AbortError') alert('建立檔案失敗：' + e.message); }
+  } else {
+    fallbackBuffer = null; fallbackName = '2026 職業比賽資料.xlsx'; fileHandle = null;
+    $('excel_name').textContent = '📄 新的 Excel（寫入時會下載）';
+    setSheetOptions([]);
+  }
+});
+(async function restoreLast() {
+  if (!HAS_FS) return;
+  const h = await idbGet('lastExcelHandle');
+  if (!h) return;
+  const btn = $('btn_reuse_last');
+  btn.textContent = '沿用上次：' + h.name; btn.style.display = '';
+  btn.addEventListener('click', async () => {
+    try {
+      if (!(await ensurePermission(h))) { alert('需要允許存取，才能沿用上次的檔案。'); return; }
+      await useHandle(h); btn.style.display = 'none';
+    } catch (e) { alert('沿用上次的檔案失敗（檔案可能被移動或刪除了），請重新選擇。\n' + e.message); }
+  });
+})();
+
+async function writeWorkbook(wb) {
+  const buffer = await wb.xlsx.writeBuffer();
+  if (HAS_FS && fileHandle) {
+    const w = await fileHandle.createWritable();
+    await w.write(buffer); await w.close();
+    return '已寫入';
+  }
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = fallbackName || '2026 職業比賽資料.xlsx';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  return '已下載更新後的 Excel（請用它取代原檔）';
+}
+
+// ===================== 照片上傳前縮圖 =====================
+// 縮到最長邊 1600px：上傳比較快，也跟我調校、測試過的照片大小（LINE 傳的約 1500px）相近。
+// 同時把手機照片的轉向（EXIF）直接轉正，辨識程式就不用處理轉向。
+async function shrinkImage(file, maxSide = 1600) {
+  try {
+    const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const scale = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+    const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale);
+    const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(bmp, 0, 0, w, h);
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.92));
+    return blob ? new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }) : file;
+  } catch (e) { return file; }   // 瀏覽器讀不了的格式（例如 HEIC）就原檔送出
+}
+
+// ===================== 辨識 =====================
+$('btn_process').addEventListener('click', async () => {
+  const files = [...$('f_photo').files];
+  if (!files.length) { alert('請先選擇照片'); return; }
+  if (files.length > 4) { alert('一次最多 4 張照片'); return; }
+  if (!auth.currentUser) { alert('請先登入'); return; }
+  
+  $('loading').style.display = 'inline'; $('process_status').textContent = ''; $('btn_process').disabled = true;
+  try {
+    const sheet = $('f_sheet').value, meta = collectMeta();
+    const token = await auth.currentUser.getIdToken();
+    const fd = new FormData();
+    for (const f of files) { const s = await shrinkImage(f); fd.append('photo', s, s.name); }
+    const resp = await fetch(API_BASE + '/api/process', { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: fd });
+    let res; try { res = await resp.json(); } catch (e) { res = { error: '伺服器回應異常（HTTP ' + resp.status + '）' }; }
+    if (!resp.ok || res.error) {
+      $('process_status').className = 'status err';
+      $('process_status').textContent = '辨識失敗：' + (res.error || ('HTTP ' + resp.status));
+      return;
+    }
+    // 跟 Excel 裡現有的資料比對重複（在你自己的電腦上比對）
+    let existing = new Set();
+    if (sheet && sheet !== '__new__' && (fileHandle || fallbackBuffer)) {
+      try { existing = existingKeys(await loadWorkbook(), sheet); } catch (e) {}
+    }
+    const seen = new Set();
+    res.rows.forEach(r => {
+      const k = keyOf(meta, r);
+      r.is_duplicate = existing.has(k) || seen.has(k);
+      seen.add(k);
+      if (r.is_duplicate) (r.warnings = r.warnings || []).push('這局資料可能跟現有資料重複（相同賽名/階段/執黑/執白）');
+    });
+    currentRows = res.rows; renderResults(); $('results_box').style.display = 'block';
+    $('process_status').className = 'status ok';
+    let msg = `辨識完成，共 ${res.n_games} 局（本次 API 費用約 US$${(res.cost_usd || 0).toFixed(4)}，約台幣${((res.cost_usd || 0) * 32).toFixed(2)}元）`;
+    if (res.errors && res.errors.length) msg += `　⚠️ ${res.errors.length} 張照片處理失敗：` + res.errors.join('；');
+    $('process_status').textContent = msg;
+  } catch (err) {
+    $('process_status').className = 'status err';
+    $('process_status').textContent = '發生錯誤：' + err + '（請確認網路連線）';
+  } finally { $('loading').style.display = 'none'; $('btn_process').disabled = false; }
+});
+
+function renderResults() {
+  const tbody = document.querySelector('#results_table tbody');
+  tbody.innerHTML = '';
+  currentRows.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    if (r.is_duplicate) tr.className = 'dup'; else if (allWarnings(r).length) tr.className = 'warn';
+    const thumbSrc = r['成績結果小圖_b64'] ? `data:image/png;base64,${r['成績結果小圖_b64']}` : '';
+    const srcTag = r['source_photo'] ? `<div style="font-size:10px;color:#888;">${escHtml(r['source_photo'])}</div>` : '';
+    tr.innerHTML = `
+      <td><input type="checkbox" data-role="write" ${r.is_duplicate ? '' : 'checked'}></td>
+      <td>${i + 1}${srcTag}</td>
+      <td><input data-field="執黑" list="dl_qisai_players" value="${escHtml(r['執黑'])}"></td>
+      <td><input data-field="執白" list="dl_qisai_players" value="${escHtml(r['執白'])}"></td>
+      <td><input data-field="勝方" list="dl_qisai_players" value="${escHtml(r['勝方'])}"></td>
+      <td><input data-field="目數" value="${escHtml(r['目數'])}"></td>
+      <td>${thumbSrc ? `<img class="thumb" src="${thumbSrc}">` : ''}</td>
+      <td class="warn-text" data-role="warn">${allWarnings(r).map(escHtml).join('<br>')}</td>`;
+    tr.querySelectorAll('input[data-field]').forEach(inp => inp.addEventListener('input', () => {
+      currentRows[i][inp.dataset.field] = inp.value;
+      const w = allWarnings(currentRows[i]);
+      tr.querySelector('[data-role="warn"]').innerHTML = w.map(escHtml).join('<br>');
+      if (!currentRows[i].is_duplicate) tr.className = w.length ? 'warn' : '';
+    }));
+    tr.querySelector('input[data-role="write"]').addEventListener('change', e => { currentRows[i]['_write'] = e.target.checked; });
+    currentRows[i]['_write'] = !r.is_duplicate;
+    tbody.appendChild(tr);
+  });
+}
+
+$('btn_save').addEventListener('click', async () => {
+  const sheet = $('f_sheet').value;
+  if (!sheet || sheet === '__new__') { alert('請先選擇或建立要寫入的分頁'); return; }
+  if (HAS_FS && !fileHandle) { alert('請先在上方「2. 要寫入的 Excel 檔案」選擇或建立一個 Excel 檔案'); return; }
+  const rowsToWrite = currentRows.filter(r => r['_write'] !== false);
+  if (!rowsToWrite.length) { alert('目前沒有勾選任何要寫入的局'); return; }
+  const st = $('save_status'); st.className = 'status'; st.textContent = '寫入中…';
+  try {
+    if (HAS_FS && !(await ensurePermission(fileHandle))) throw new Error('沒有寫入權限，請重新選擇檔案並允許');
+    const wb = await loadWorkbook();
+    appendRows(wb, sheet, collectMeta(), rowsToWrite);
+    const how = await writeWorkbook(wb);
+    st.className = 'status ok';
+    st.textContent = `${how}：${rowsToWrite.length} 筆資料 → 分頁「${sheet}」`;
+    if (sendResultsToQisai(rowsToWrite)) st.textContent += '，並已送回賽程表（請切回賽程表視窗查看勝負與下載的檔案）';
+    await refreshFromExcel();
+  } catch (err) {
+    st.className = 'status err';
+    const locked = /lock|busy|NoModificationAllowed|being used/i.test(String(err.name + err.message));
+    st.textContent = '寫入失敗：' + err.message + (locked ? '（這個 Excel 可能還開在 Excel 程式裡，請先關閉再試一次）' : '');
+  }
+});
+
+// ===================== 跟線上賽程表串接（沿用本機版 2026-09-30 的做法）=====================
+// 賽程表按「📷 匯入成績照片」會用 window.open 開啟這個工具。這裡跟賽程表之間只用 postMessage 傳資料。
+// 直接開這個頁面（不是從賽程表開）時，這段完全不作用。
+let qisaiCtx = null, qisaiOrigin = null, qisaiWin = null;
+function isQisaiOrigin(o) { return o === 'https://milu891212-milu.github.io' || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o); }
+function normName(s) { return String(s == null ? '' : s).replace(/\s+/g, ''); }
+
+window.addEventListener('message', ev => {
+  if (!isQisaiOrigin(ev.origin) || !window.opener || ev.source !== window.opener) return;
+  const d = ev.data;
+  if (!d || d.type !== 'qisai-context') return;
+  qisaiCtx = d; qisaiOrigin = ev.origin; qisaiWin = ev.source;
+  const banner = $('qisai_banner');
+  banner.innerHTML = `🔗 已連上賽程表：<b>${escHtml(d.title)}　${escHtml(d.stageName)}　${escHtml(d.roundLabel)}</b>（${(d.pairs || []).length} 局）<br>`
+    + '核對完按「寫入 Excel」，勝負會自動送回賽程表晉級，並下載賽程圖與下輪對陣。<br>'
+    + '<span style="color:#666;font-size:12px;">請確認上面的「賽名／階段」是 Excel 要的寫法（賽程表只會幫忙填賽名，階段請自己確認）。</span>';
+  banner.style.display = 'block';
+  $('btn_resend_qisai').style.display = '';
+  fillDatalist('dl_qisai_players', d.players || []);
+  applyQisaiEventHint();
+  if (currentRows.length) renderResults();
+});
+function applyQisaiEventHint() {
+  if (!qisaiCtx) return;
+  const title = normName(qisaiCtx.title);
+  let best = '';
+  eventOptions.forEach(o => { if (o && title.includes(normName(o)) && o.length > best.length) best = o; });
+  if (best) $('f_event').value = best;
+}
+function qisaiWarnings(r) {
+  if (!qisaiCtx) return [];
+  const players = (qisaiCtx.players || []).map(normName);
+  const b = normName(r['執黑']), w = normName(r['執白']), win = normName(r['勝方']);
+  const out = [];
+  if (b && !players.includes(b)) out.push(`「${r['執黑']}」不在賽程表這一輪的名單裡`);
+  if (w && !players.includes(w)) out.push(`「${r['執白']}」不在賽程表這一輪的名單裡`);
+  if (b && w && players.includes(b) && players.includes(w)) {
+    const paired = (qisaiCtx.pairs || []).some(p => { const x = normName(p[0]), y = normName(p[1]); return (x === b && y === w) || (x === w && y === b); });
+    if (!paired) out.push('賽程表這一輪沒有這兩位的對局');
+  }
+  if (win && win !== b && win !== w) out.push('勝方跟執黑/執白都不一樣');
+  return out;
+}
+function allWarnings(r) { return (r.warnings || []).concat(qisaiWarnings(r)); }
+function sendResultsToQisai(rows) {
+  if (!qisaiCtx || !qisaiWin || qisaiWin.closed) return false;
+  qisaiWin.postMessage({ type: 'qisai-results', games: rows.map(r => ({ black: r['執黑'] || '', white: r['執白'] || '', winner: r['勝方'] || '' })) }, qisaiOrigin);
+  try { qisaiWin.focus(); } catch (e) {}
+  return true;
+}
+$('btn_resend_qisai').addEventListener('click', () => {
+  const rows = currentRows.filter(r => r['_write'] !== false);
+  if (!rows.length) { alert('目前沒有勾選任何局'); return; }
+  if (!sendResultsToQisai(rows)) { alert('找不到賽程表視窗。請回到賽程表重新按「📷 匯入成績照片」，這個視窗會重新連上。'); return; }
+  $('save_status').className = 'status ok';
+  $('save_status').textContent = `已把 ${rows.length} 局重新送到賽程表（Excel 沒有重寫）`;
+});
+if (window.opener) { try { window.opener.postMessage({ type: 'qisai-tool-ready' }, '*'); } catch (e) {} }
+</script>
+</body>
+</html>
