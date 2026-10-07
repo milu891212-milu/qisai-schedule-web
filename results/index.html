@@ -747,6 +747,9 @@ function gamesToWorkbook(list, mode){
   });
   const used = new Set();
   groups.forEach((gs, k)=>{
+    /* 分頁順序維持「新的比賽在前面」（跟舊系統一樣）；但分頁裡的對局由舊到新排，
+       例如 9/4 在最上面、接著 9/11…（使用者 2026-10-07 要求，舊系統原本是新到舊） */
+    gs = gs.slice().sort((a,b)=> dateNum(a)-dateNum(b) || a.ev.localeCompare(b.ev,'zh-Hant') || a.st.localeCompare(b.st,'zh-Hant'));
     const aoa = [HEADERS].concat(gs.map(g=>[g.y,g.d,g.c1,g.c2,g.ev,g.st,g.b,g.w,g.win,g.mv]));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), safeSheetName(k, used));
   });
