@@ -5786,8 +5786,9 @@ function roundLabelFor(idx){
    5. 自動下載賽程圖（downloadBracketSVG）＋下輪對陣文字（.txt）
    只有名字對不上/勝方不明時才會跳視窗讓使用者挑。兩個視窗之間只用 postMessage 傳資料、
    不走網路請求，以後辨識工具搬上網路，只要改 SCORE_TOOL_URL/SCORE_TOOL_ORIGINS 就能沿用。 */
-const SCORE_TOOL_URL = 'http://127.0.0.1:5000/';
-const SCORE_TOOL_ORIGINS = ['http://127.0.0.1:5000', 'http://localhost:5000'];
+// 2026-10-07 起改用線上版（Cloud Run 後端＋本網站 recognize/）。要退回本機版就把網址改回 'http://127.0.0.1:5000/'
+const SCORE_TOOL_URL = 'https://milu891212-milu.github.io/qisai-schedule-web/recognize/';
+const SCORE_TOOL_ORIGINS = ['https://milu891212-milu.github.io', 'http://127.0.0.1:5000', 'http://localhost:5000'];
 let scoreImportSession = null;
 
 function normPlayerName(s){ return String(s==null?'':s).replace(/\s+/g,''); }
