@@ -39,6 +39,17 @@ main{max-width:1440px;margin:0 auto;padding:0 20px 70px;}
 .toolbar{max-width:1440px;margin:0 auto;padding:10px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;background:var(--paper);border-bottom:1px solid var(--line);}
 .toolbar-status{font-size:12px;color:var(--ink-soft);}
 .toolbar-actions{display:flex;gap:8px;flex-wrap:wrap;}
+/* 工具列的下拉群組（例如「存檔」）：滑鼠移上去就展開，用平板/觸控時點一下也能開關。
+   選單用padding-top跟按鈕接起來（不用margin），滑鼠從按鈕往下移到選單途中才不會斷掉。 */
+.tool-menu{position:relative;display:inline-block;}
+.tool-menu-list{display:none;position:absolute;top:100%;left:0;padding-top:6px;z-index:60;}
+.tool-menu:hover .tool-menu-list, .tool-menu.open .tool-menu-list{display:block;}
+.tool-menu-inner{display:flex;flex-direction:column;gap:6px;padding:8px;background:var(--paper);border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.15);}
+.tool-menu-inner .btn{white-space:nowrap;text-align:left;}
+/* 標題列右上角：連到其他系統的連結（目前只有成績查詢），不放在下面的工具列 */
+.header-links{position:absolute;top:14px;right:20px;display:flex;gap:8px;z-index:1;}
+.header-links .btn{text-decoration:none;display:inline-block;}
+@media (max-width:760px){ .header-links{position:relative;top:auto;right:auto;justify-content:center;margin-bottom:10px;} }
 
 #loginOverlay{position:fixed;inset:0;background:var(--paper2);display:flex;align-items:center;justify-content:center;z-index:999;padding:20px;}
 #loginOverlay .login-box{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:32px 36px;width:100%;max-width:340px;box-shadow:0 6px 24px rgba(0,0,0,.12);}
@@ -315,6 +326,9 @@ table.ss-table.ss-table-wide.ss-table-challenge col.c-notary{width:13.5%;}
 
 <div id="appRoot" style="display:none;">
 <header class="page-header">
+  <div class="header-links no-print">
+    <a class="btn secondary small" href="results/" target="_blank" rel="noopener">📊 成績查詢</a>
+  </div>
   <h1>棋賽賽程操作台</h1>
   <div class="sub">選比賽 → 填入選手與籤號 → 記錄成績，自動晉級下一輪</div>
 </header>
@@ -326,14 +340,18 @@ table.ss-table.ss-table-wide.ss-table-challenge col.c-notary{width:13.5%;}
   </div>
   <div class="toolbar-actions">
     <button type="button" class="btn secondary small" onclick="goHome()">🏠 回首頁</button>
-    <button type="button" class="btn secondary small" onclick="syncWithCloud(true)">☁ 從雲端重新載入</button>
-    <button type="button" class="btn secondary small" onclick="exportSaveFile()">⬇ 匯出存檔</button>
-    <button type="button" class="btn secondary small" onclick="document.getElementById('importFileInput').click()">⬆ 匯入存檔</button>
+    <div class="tool-menu" id="saveMenu">
+      <button type="button" class="btn secondary small" onclick="toggleToolMenu('saveMenu')">💾 存檔 ▾</button>
+      <div class="tool-menu-list"><div class="tool-menu-inner">
+        <button type="button" class="btn secondary small" onclick="closeToolMenus();syncWithCloud(true)">☁ 從雲端重新載入</button>
+        <button type="button" class="btn secondary small" onclick="closeToolMenus();exportSaveFile()">⬇ 匯出存檔</button>
+        <button type="button" class="btn secondary small" onclick="closeToolMenus();document.getElementById('importFileInput').click()">⬆ 匯入存檔</button>
+      </div></div>
+    </div>
     <input type="file" id="importFileInput" accept="application/json" style="display:none;" onchange="importSaveFile(this.files[0])">
     <button type="button" class="btn secondary small" onclick="renderArchivedFolder()">📦 封存資料夾</button>
     <button type="button" class="btn secondary small" onclick="openPlayerRanksModal()">🎖 選手段位名單</button>
-    <button type="button" class="btn secondary small" onclick="window.open('results/','_blank','noopener')">📊 成績查詢</button>
-    <button type="button" class="btn secondary small" onclick="toggleZhDebugCenterline()">🔍 除錯模式（暫時用，找偏移問題）</button>
+    <button type="button" class="btn secondary small" onclick="toggleZhDebugCenterline()">🔍 除錯模式</button>
     <button type="button" class="btn secondary small" onclick="doCloudLogout()">登出</button>
   </div>
 </div>
@@ -5618,6 +5636,20 @@ function getSlotSeed(stageId,matchId,idx){
   const el=document.getElementById(seedBadgeId(stageId,matchId,idx));
   return el ? el.textContent.trim() : '';
 }
+
+/* ============ 工具列下拉群組 ============ */
+function closeToolMenus(){
+  document.querySelectorAll('.tool-menu.open').forEach(function(m){ m.classList.remove('open'); });
+}
+function toggleToolMenu(id){
+  const m = document.getElementById(id);
+  const willOpen = !m.classList.contains('open');
+  closeToolMenus();
+  if(willOpen) m.classList.add('open');
+}
+document.addEventListener('click', function(e){
+  if(!e.target.closest || !e.target.closest('.tool-menu')) closeToolMenus();
+});
 
 /* ============ 選手段位名單（全部比賽共用） ============ */
 /* 使用者要求排序方式：有頭銜（碁聖/棋王/名人...這種不是「X段」格式的封號）的人排最上面，
