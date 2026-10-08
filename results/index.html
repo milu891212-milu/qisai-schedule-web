@@ -759,7 +759,7 @@ function gamesToWorkbook(list, mode){
 function modeLabel(mode){ return mode==='event' ? '(賽名)' : '(年份-賽名)'; }
 function downloadAll(mode){
   if(GAMES.length===0){ alert('目前沒有資料可以下載'); return; }
-  XLSX.writeFile(gamesToWorkbook(GAMES, mode), '全部比賽資料'+modeLabel(mode)+'.xlsx');
+  XLSX.writeFile(gamesToWorkbook(GAMES, mode), '全部比賽資料'+modeLabel(mode)+'.xlsx', {compression:true});
 }
 function downloadRange(mode){
   const from = readDateSel('dlFrom'), to = readDateSel('dlTo');
@@ -768,7 +768,7 @@ function downloadRange(mode){
   const list = GAMES.filter(g=>{ const n=dateNum(g); return n>=from && n<=to && (!ev || norm(g.ev).indexOf(ev)>=0); });
   if(list.length===0){ alert('這段期間'+(ev?'、這個比賽':'')+'沒有任何對局'); return; }
   const fmt = n=>String(n);
-  XLSX.writeFile(gamesToWorkbook(list, mode), fmt(from)+'~'+fmt(to)+'_比賽資料'+modeLabel(mode)+'.xlsx');
+  XLSX.writeFile(gamesToWorkbook(list, mode), fmt(from)+'~'+fmt(to)+'_比賽資料'+modeLabel(mode)+'.xlsx', {compression:true});
 }
 
 /* ============ Excel 上傳（功能 1）============
@@ -1340,7 +1340,7 @@ async function downloadDanPlayers(){
   const aoa = [['姓名','目前段位','結算日期','結算日期已達成之勝場數量']].concat(DAN_PLAYERS.map(r=>[r[0], r[1], r[2], String(r[3])]));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), '段位資料');
-  XLSX.writeFile(wb, todayStamp()+'_棋士段位資料.xlsx');
+  XLSX.writeFile(wb, todayStamp()+'_棋士段位資料.xlsx', {compression:true});
 }
 function todayStamp(){ return String(todayNum()); }
 let pendingDanUpload = null;

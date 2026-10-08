@@ -568,6 +568,19 @@ const PRESET_TOURNAMENTS = [
       { name:'初賽', type:'single', defaultCount:39, pairing:'sequential', advance:'', customBracket:'kuaiqi7prelimImg' },
       { name:'本賽（48強）', type:'single', defaultCount:48, pairing:'sequential', advance:'' }
     ]
+  },
+  {
+    /* 2026-10-08 使用者要測「賽程表→📷辨識工具→自動晉級＋寫進新成績系統」整段流程，但正式比賽是全院共用的
+       雲端資料，不能拿來測，所以加一個專門測試用的比賽：一般16人單淘汰（名單照貼的順序兩兩對戰），
+       資料存在雲端時用自己的 id（test），跟正式比賽完全分開。測完可以在這個階段按「重新輸入名單」清掉，
+       或用右下角「封存」收起來；之後不需要了，把 hidden 改成 true 就會從選單消失。 */
+    id: 'test',
+    label: '🧪 測試用比賽（不是正式比賽）',
+    title: '測試賽',
+    org: '海峰棋院',
+    stages: [
+      { name:'測試階段', type:'single', defaultCount:16, pairing:'sequential', advance:'' }
+    ]
   }
 ];
 
