@@ -5829,11 +5829,52 @@ let scoreImportSession = null;
 
 function normPlayerName(s){ return String(s==null?'':s).replace(/\s+/g,''); }
 
+/* 2026-10-08：不用先選輪次，改用「對陣」自動判斷（使用者：Excel 可能寫「初賽」，賽程表上卻叫「3回戰」，
+   用對陣認最準）。
+   - 開辨識工具時：把「整個階段裡兩邊名字都有、還沒分勝負」的對局全部送過去當名單（名字提醒才不會因為輪次選錯而亂報），
+     標題的輪次＝第一個還有未完成對局的輪次（只是顯示用）。
+   - 收到成績後：看實際標了勝方的是哪幾場、屬於哪一輪，下輪對陣就照那一輪的下一輪產生（不再依下拉選單）。
+   「選擇要輸出的輪次」下拉選單仍保留給列印成績登記表／對陣文字用。 */
+function stageRoundInfos(){
+  const sel=document.getElementById('exportRoundSelect');
+  const n = sel ? sel.options.length : 0;
+  const list=[];
+  for(let idx=0; idx<n; idx++){
+    const info=buildMatchupPairs(idx);
+    if(info && info.ids) list.push({ idx:idx, label:info.label, titlePrefix:info.titlePrefix, ids:info.ids });
+  }
+  return list;
+}
+function openMatchIdsOfRound(stageId, ids){
+  return ids.filter(function(mid){ return getSlotName(stageId,mid,0) && getSlotName(stageId,mid,1) && !matchIsDecided(stageId,mid); });
+}
+/* 整個階段還沒比完的對局（依輪次順序、不重複），以及第一個還有未完成對局的輪次 */
+function stageOpenMatches(stageId){
+  const rounds=stageRoundInfos();
+  const ids=[], seen={};
+  let firstOpen=null;
+  rounds.forEach(function(r){
+    const open=openMatchIdsOfRound(stageId, r.ids);
+    if(open.length && firstOpen===null) firstOpen=r;
+    open.forEach(function(mid){ if(!seen[mid]){ seen[mid]=true; ids.push(mid); } });
+  });
+  return { rounds:rounds, ids:ids, firstOpen:firstOpen };
+}
+/* 這批標了勝方的對局屬於哪一輪：取最後面（最晚）的那一輪；同一場出現在好幾個輪次清單時以最前面的為準 */
+function detectRoundOfMatches(rounds, matchIds){
+  let best=-1;
+  matchIds.forEach(function(mid){
+    const r=rounds.find(function(x){ return x.ids.indexOf(mid)>=0; });
+    if(r && r.idx>best) best=r.idx;
+  });
+  return best;
+}
+
 function openScorePhotoImport(){
   if(!currentBracket){ alert('請先產生賽程表'); return; }
-  const idx=parseInt(document.getElementById('exportRoundSelect').value,10);
-  const info=buildMatchupPairs(idx);
-  if(!info || !info.ids || info.ids.length===0){ alert('這一輪沒有可以匯入成績的對局'); return; }
+  const so=stageOpenMatches(currentBracket.stageId);
+  if(so.ids.length===0){ alert('這個階段目前沒有「兩位選手都確定、還沒分勝負」的對局，沒有成績可以匯入'); return; }
+  const idx=so.firstOpen ? so.firstOpen.idx : parseInt(document.getElementById('exportRoundSelect').value,10);
   const win=window.open(SCORE_TOOL_URL, 'qisaiScoreTool');
   if(!win){ alert('瀏覽器擋下了彈出視窗。請在網址列右邊允許這個網站開啟彈出視窗，再按一次「📷 匯入成績照片」。'); return; }
   if(scoreImportSession && scoreImportSession.readyTimer) clearTimeout(scoreImportSession.readyTimer);
@@ -5848,16 +5889,17 @@ function openScorePhotoImport(){
 
 function sendScoreContext(sess, targetWin, targetOrigin){
   if(!currentBracket || currentBracket.stageId!==sess.stageId) return;
-  const info=buildMatchupPairs(sess.roundIdx);
-  if(!info) return;
-  const pairs=info.pairs.filter(function(p){ return p[0] && p[1]; });
+  const stageId=sess.stageId;
+  const so=stageOpenMatches(stageId);
+  const pairs=so.ids.map(function(mid){ return [getSlotName(stageId,mid,0), getSlotName(stageId,mid,1)]; });
   const players=[];
   pairs.forEach(function(p){ p.forEach(function(n){ if(players.indexOf(n)<0) players.push(n); }); });
+  const head=so.firstOpen || (so.rounds[0]||{});
   targetWin.postMessage({
     type:'qisai-context',
-    title:(info.titlePrefix||'')+currentBracket.title,
+    title:(head.titlePrefix||'')+currentBracket.title,
     stageName:currentBracket.stageName,
-    roundLabel:info.label,
+    roundLabel:(head.label||'')+'（依對陣自動判斷輪次）',
     pairs:pairs,
     players:players
   }, targetOrigin);
@@ -5941,8 +5983,9 @@ function handleScoreResults(sess, games){
   }
   if(games.length===0){ alert('辨識工具送來的成績是空的'); return; }
   const stageId=sess.stageId;
-  const info=buildMatchupPairs(sess.roundIdx);
-  const ids=(info && info.ids) || [];
+  /* 整個階段所有輪次的對局（依輪次順序）；找對局時優先用還沒分勝負的那一場，所以不用知道是哪一輪 */
+  const ids=[], seenIds={};
+  stageRoundInfos().forEach(function(r){ r.ids.forEach(function(mid){ if(!seenIds[mid]){ seenIds[mid]=true; ids.push(mid); } }); });
   const res=matchScoreGames(stageId, ids, games);
   const problems=res.items.filter(function(it){ return it.status==='problem'; });
   if(problems.length===0){ applyScoreItems(sess, res.items); return; }
@@ -6064,7 +6107,11 @@ function applyScoreItems(sess, items){
 
   /* 下輪對陣：下一個輪次/場次存在才產生，順便把「選擇要輸出的輪次」切到下一輪，方便接著印成績登記表 */
   const sel=document.getElementById('exportRoundSelect');
-  const nextIdx=sess.roundIdx+1;
+  /* 依「實際標了勝方的對局」判斷這批是哪一輪（2026-10-08），判斷不出來才退回開工具時的輪次 */
+  const doneIds=items.filter(function(it){ return (it.status==='applied' || it.status==='already') && it.matchId; }).map(function(it){ return it.matchId; });
+  const roundDetected=detectRoundOfMatches(stageRoundInfos(), doneIds);
+  const thisIdx = roundDetected>=0 ? roundDetected : sess.roundIdx;
+  const nextIdx=thisIdx+1;
   let nextText='', nextNote='';
   if(sel && nextIdx < sel.options.length){
     const built=buildMatchupText(nextIdx);
@@ -6086,6 +6133,7 @@ function applyScoreItems(sess, items){
   if(already) html+='　（'+already+' 局之前就標過了，沒有重複動作）';
   if(skipped) html+='<br>⏭ 跳過：<b>'+skipped+'</b> 局，請自己在賽程表上手動點';
   html+='</p>';
+  if(roundDetected>=0 && sel && sel.options[roundDetected]) html+='<p class="hint">🔎 依對陣判斷，這批成績是「'+escapeHtml(sel.options[roundDetected].text)+'」</p>';
   if(applied>0) html+='<p class="hint">⬇ 已下載：賽程圖'+(nextText?'、下輪對陣文字（.txt）':'')+'。如果瀏覽器問「是否允許下載多個檔案」，請按允許。</p>';
   const noted=items.filter(function(it){ return it.note && it.status==='applied'; });
   if(noted.length){

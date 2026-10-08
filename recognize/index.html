@@ -114,8 +114,12 @@
   </table>
   </div>
   <div style="margin-top:12px;">
+    <label style="display:inline-flex;align-items:center;gap:4px;font-size:14px;margin-right:10px;cursor:pointer;" title="寫入 Excel 的同時，把這幾局也寫進新成績系統（已經有的局會自動略過）">
+      <input type="checkbox" id="f_write_results" checked> 同時寫入新成績系統
+    </label>
     <button class="secondary" id="btn_save">寫入 Excel</button>
     <button class="link" id="btn_resend_qisai" type="button" style="display:none;" title="不重寫 Excel，只把這張表的勝負再送一次到賽程表">重新送到賽程表</button>
+    <button class="link" id="btn_resend_results" type="button" style="display:none;" title="不重寫 Excel，只把這張表再寫一次到新成績系統（已經有的局會自動略過）">重新寫入新成績系統</button>
     <span id="save_status" class="status"></span>
   </div>
 </fieldset>
@@ -123,6 +127,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script>
 // ===================== 設定 =====================
@@ -492,20 +497,129 @@ $('btn_save').addEventListener('click', async () => {
   if (HAS_FS && !fileHandle) { alert('請先在上方「2. 要寫入的 Excel 檔案」選擇或建立一個 Excel 檔案'); return; }
   const rowsToWrite = currentRows.filter(r => r['_write'] !== false);
   if (!rowsToWrite.length) { alert('目前沒有勾選任何要寫入的局'); return; }
+  const meta = collectMeta(), toResults = $('f_write_results').checked;
+  if (toResults) {   // 要寫進成績系統，共通資訊就一定要完整；先擋下來，Excel 也先不寫，免得兩邊不一致
+    const probs = resultsMetaProblems(meta);
+    if (probs.length) { alert('要同時寫入新成績系統，請先補好上方「1. 這次比賽的共通資訊」：\n・' + probs.join('\n・') + '\n\n（如果這次不想寫進成績系統，可以取消勾選「同時寫入新成績系統」）'); return; }
+  }
   const st = $('save_status'); st.className = 'status'; st.textContent = '寫入中…';
+  $('btn_resend_results').style.display = 'none';
   try {
     if (HAS_FS && !(await ensurePermission(fileHandle))) throw new Error('沒有寫入權限，請重新選擇檔案並允許');
     const wb = await loadWorkbook();
-    appendRows(wb, sheet, collectMeta(), rowsToWrite);
+    appendRows(wb, sheet, meta, rowsToWrite);
     const how = await writeWorkbook(wb);
     st.className = 'status ok';
     st.textContent = `${how}：${rowsToWrite.length} 筆資料 → 分頁「${sheet}」`;
     if (sendResultsToQisai(rowsToWrite)) st.textContent += '，並已送回賽程表（請切回賽程表視窗查看勝負與下載的檔案）';
+    if (toResults) {
+      // Excel 已經寫好了；成績系統另外寫，失敗也不影響 Excel，可以按「重新寫入新成績系統」再試
+      try {
+        st.textContent += '；' + resultsMessage(await writeToResults(meta, rowsToWrite));
+      } catch (err) {
+        st.className = 'status err';
+        st.textContent += '；⚠️ 但寫入新成績系統失敗：' + err.message + '（Excel 已經寫好了，請按「重新寫入新成績系統」再試一次）';
+        $('btn_resend_results').style.display = '';
+      }
+    }
     await refreshFromExcel();
   } catch (err) {
     st.className = 'status err';
     const locked = /lock|busy|NoModificationAllowed|being used/i.test(String(err.name + err.message));
     st.textContent = '寫入失敗：' + err.message + (locked ? '（這個 Excel 可能還開在 Excel 程式裡，請先關閉再試一次）' : '');
+  }
+});
+
+// ===================== 同時寫入新成績系統（2026-10-08）=====================
+// 新成績系統（qisai-schedule-web/results/）的資料放在同一個 Firebase 專案的 Firestore：
+//   results/meta   { version, counts:{年份:局數}, updatedAt }
+//   results/y2026  { year:'2026', rows:'JSON字串' }   rows 每列 [日期,大類,小類,賽名,階段,執黑,執白,勝方,目數]
+// 這裡寫入的格式、排序、判斷重複的方式都跟成績系統的「上傳比賽資料」一模一樣：
+//   同一局 = 年份＋日期＋賽名＋階段＋執黑＋執白（去掉空白後比對），而且照「數量」比對——
+//   系統裡已經有幾局一樣的，這次的前幾局就略過（一天下兩盤也不會被誤擋）。
+// 所以之後再把同一份資料用成績系統的「上傳」傳一次，這些局也只會被略過、不會重複。
+// Firestore 規則：results 只有 haifongigo@gmail.com 能寫（跟這個工具的登入帳號一樣）。
+const db = firebase.firestore();
+const RESULTS_DOC_LIMIT = 900000;                       // Firestore 單一文件上限 1MB，留一點餘裕
+function rsNorm(s) { return String(s == null ? '' : s).replace(/\s+/g, ''); }
+function rsNormDate(s) {                                 // 「9.14」「09/14」→「09.14」；看不懂就回傳 null
+  const m = String(s == null ? '' : s).trim().match(/^(\d{1,2})[.\/-](\d{1,2})$/);
+  return m ? m[1].padStart(2, '0') + '.' + m[2].padStart(2, '0') : null;
+}
+function rsKey(year, r) { return [year, r[0], r[3], r[4], r[5], r[6]].map(rsNorm).join('|'); }
+function rsSort(rows) {                                  // 跟成績系統存檔時的排序一樣：新到舊，同一天再依賽名、階段
+  return rows.sort((a, b) => String(b[0]).localeCompare(String(a[0])) ||
+    String(a[3]).localeCompare(String(b[3]), 'zh-Hant') || String(a[4]).localeCompare(String(b[4]), 'zh-Hant'));
+}
+function mergeYearRows(year, existingRows, newRows) {    // 純函式：把新的局併進某一年，回傳合併結果與新增/略過的局數
+  const have = new Map();
+  existingRows.forEach(r => { const k = rsKey(year, r); have.set(k, (have.get(k) || 0) + 1); });
+  const seen = new Map(), added = [];
+  let skipped = 0;
+  newRows.forEach(r => {
+    const k = rsKey(year, r), occ = (seen.get(k) || 0) + 1;
+    seen.set(k, occ);
+    if (occ <= (have.get(k) || 0)) skipped++; else added.push(r);
+  });
+  return { rows: rsSort(existingRows.concat(added)), added: added.length, skipped };
+}
+function resultsMetaProblems(meta) {                     // 共通資訊不完整就不能寫進成績系統（否則之後判斷重複會失準）
+  const p = [];
+  if (!/^\d{4}$/.test(String(meta['年份'] || '').trim())) p.push('「年份」要是四位數，例如 2026');
+  if (!rsNormDate(meta['日期'])) p.push('「日期」要填「月.日」，例如 09.14');
+  if (!String(meta['賽名'] || '').trim()) p.push('「賽名」不能空白');
+  return p;
+}
+async function writeToResults(meta, rows) {
+  const year = String(meta['年份']).trim(), date = rsNormDate(meta['日期']);
+  const good = [], bad = [];
+  rows.forEach(r => {
+    const b = String(r['執黑'] || '').trim(), w = String(r['執白'] || '').trim(), win = String(r['勝方'] || '').trim();
+    const ok = b && w && win && rsNorm(b) !== rsNorm(w) && (rsNorm(win) === rsNorm(b) || rsNorm(win) === rsNorm(w));
+    if (!ok) { bad.push(r); return; }
+    good.push([date, String(meta['大類'] || '').trim(), String(meta['小類'] || '').trim(), String(meta['賽名']).trim(),
+      String(meta['階段'] || '').trim(), b, w, win, String(r['目數'] || '').trim()]);
+  });
+  let result = { added: 0, skipped: 0, bad: bad.length };
+  if (!good.length) return result;
+  const col = db.collection('results'), yRef = col.doc('y' + year), mRef = col.doc('meta');
+  // 用 transaction：讀到的是雲端最新的那一年資料，寫入時如果別人剛好也在改，會自動重試，不會互相蓋掉
+  await db.runTransaction(async tx => {
+    const [ys, ms] = await Promise.all([tx.get(yRef), tx.get(mRef)]);
+    const existing = ys.exists ? JSON.parse(ys.data().rows || '[]') : [];
+    const m = mergeYearRows(year, existing, good);
+    result = { added: m.added, skipped: m.skipped, bad: bad.length };
+    if (!m.added) return;
+    const json = JSON.stringify(m.rows);
+    if (new Blob([json]).size > RESULTS_DOC_LIMIT) throw new Error(year + ' 年的資料太大（超過單一文件上限），請聯絡維護的人');
+    const counts = Object.assign({}, (ms.exists && ms.data().counts) || {});
+    counts[year] = m.rows.length;
+    tx.set(yRef, { year, rows: json });
+    tx.set(mRef, { version: Date.now(), counts, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+  });
+  return result;
+}
+function resultsMessage(r) {
+  let s = `新成績系統：新增 ${r.added} 局`;
+  if (r.skipped) s += `（${r.skipped} 局系統裡已經有，略過）`;
+  if (r.bad) s += `；⚠️ ${r.bad} 局黑白或勝方不完整，沒有寫入成績系統`;
+  return s;
+}
+// 「同時寫入新成績系統」打勾與否，記在這台電腦的瀏覽器裡
+try { if (localStorage.getItem('recognize-write-results') === '0') $('f_write_results').checked = false; } catch (e) {}
+$('f_write_results').addEventListener('change', e => { try { localStorage.setItem('recognize-write-results', e.target.checked ? '1' : '0'); } catch (err) {} });
+$('btn_resend_results').addEventListener('click', async () => {
+  const rows = currentRows.filter(r => r['_write'] !== false), meta = collectMeta(), st = $('save_status');
+  if (!rows.length) { alert('目前沒有勾選任何局'); return; }
+  const probs = resultsMetaProblems(meta);
+  if (probs.length) { alert('寫入新成績系統前，請先補好上方「1. 這次比賽的共通資訊」：\n・' + probs.join('\n・')); return; }
+  st.className = 'status'; st.textContent = '寫入新成績系統中…';
+  try {
+    const r = await writeToResults(meta, rows);
+    st.className = 'status ok'; st.textContent = resultsMessage(r) + '（Excel 沒有重寫）';
+    $('btn_resend_results').style.display = 'none';
+  } catch (err) {
+    st.className = 'status err'; st.textContent = '寫入新成績系統失敗：' + err.message;
   }
 });
 
