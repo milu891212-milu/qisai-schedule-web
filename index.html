@@ -1528,8 +1528,21 @@ const zhRedrawFns = {};
    這個共用函式，補一個「圖片載入中...」的提示，img真的load完才拿掉；如果真的載入失敗
    （例如檔案路徑打錯、網站沒發布成功），會改顯示「圖片載入失敗」，不會讓使用者一直誤會
    是網路慢、實際上是圖片真的壞了。 */
+/* 2026-10-08：下載賽程圖用的是高畫質原圖（3～4MB），使用者網路慢時按「下載賽程圖」要等快一分鐘、
+   畫面又沒反應，以為壞掉。畫面用的輕量底圖載完後，就在背景先把原圖抓進瀏覽器快取，
+   等使用者按下載時多半已經抓好、馬上就能產生。每張原圖只抓一次。 */
+const __fullImagePrefetch = {};
+function prefetchFullImage(viewSrc){
+  if(!viewSrc || viewSrc.indexOf('images/view/')<0) return;
+  const full = viewSrc.replace('images/view/', 'images/');
+  if(__fullImagePrefetch[full]) return;
+  const im = new Image();
+  im.src = full;
+  __fullImagePrefetch[full] = im; /* 留著參考，避免被回收；下載時 new Image() 同網址會直接用快取 */
+}
 function attachOverlayLoadingHint(wrap, img){
-  if(img.complete && img.naturalWidth){ return; } /* 已經從瀏覽器快取秒讀完，不用顯示提示 */
+  if(img.complete && img.naturalWidth){ prefetchFullImage(img.src); return; } /* 已經從瀏覽器快取秒讀完，不用顯示提示 */
+  img.addEventListener('load', function(){ prefetchFullImage(img.src); });
   const hint = document.createElement('div');
   hint.className = 'zh-loading-hint';
   hint.textContent = '圖片載入中…';
@@ -6796,6 +6809,36 @@ function buildBracketSVG(){
   return svg;
 }
 
+/* 2026-10-08：疊圖賽事的下載要先抓高畫質原圖，網路慢時要等很久，使用者以為按了沒反應。
+   按下去先在右下角顯示「產生中」，真的觸發下載（任何 <a download> 被點）就收掉；
+   3 分鐘還沒好就改成提示網路可能有問題。 */
+let __dlWaitTimer = null;
+function showBracketDownloadWaiting(){
+  let el = document.getElementById('bracketDlWaiting');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'bracketDlWaiting';
+    el.className = 'no-print';
+    el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9999;background:#333;color:#fff;padding:12px 18px;border-radius:8px;font-size:15px;box-shadow:0 2px 8px rgba(0,0,0,.3);max-width:90vw;';
+    document.body.appendChild(el);
+  }
+  el.textContent = '⏳ 賽程圖產生中，請稍候…（要先下載高畫質底圖，網路慢時可能要等一分鐘左右，不用重按）';
+  el.style.display = '';
+  clearTimeout(__dlWaitTimer);
+  __dlWaitTimer = setTimeout(function(){
+    el.textContent = '⚠ 賽程圖等了 3 分鐘還沒產生，可能是網路有問題。請確認網路後重新整理頁面再試一次。';
+    __dlWaitTimer = setTimeout(hideBracketDownloadWaiting, 15000);
+  }, 180000);
+}
+function hideBracketDownloadWaiting(){
+  clearTimeout(__dlWaitTimer);
+  const el = document.getElementById('bracketDlWaiting');
+  if(el) el.style.display = 'none';
+}
+document.addEventListener('click', function(e){
+  const a = e.target && e.target.closest && e.target.closest('a[download]');
+  if(a && /\.(jpe?g|png|svg)$/i.test(a.download||'')) hideBracketDownloadWaiting();
+}, true);
 function downloadBracketSVG(){
   if(!currentBracket){ alert('請先產生賽程表'); return; }
   /* 2026-09-18發現：底圖從內嵌base64換成獨立圖片檔之後（見images/資料夾），如果是直接
@@ -6810,6 +6853,7 @@ function downloadBracketSVG(){
     alert('目前是直接開啟本機檔案（不是網站），瀏覽器的安全機制會擋下這種疊圖賽事的下載功能。\n請改用已發布的網站測試：https://milu891212-milu.github.io/qisai-schedule-web/\n（真正發布上網站後，這個功能是正常的，只有直接雙擊本機檔案時才會被擋。）');
     return;
   }
+  if(currentStConfig && currentStConfig.customBracket) showBracketDownloadWaiting();
   if(currentStConfig && currentStConfig.customBracket==='qiwang19circle'){
     downloadQiwang19Composite();
     return;
