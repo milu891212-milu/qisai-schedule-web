@@ -1332,6 +1332,26 @@ function buildXuanleMain48PrintRounds(){
     customLabels:['48強','32強','16強','8強','4強','決賽']
   };
 }
+/* 2026-10-08：小組冠軍顯示格（XX_champ）→ 4強格（half_left/half_right）補名字，見 toggleWinner 裡的說明。
+   只補「4強格是空的」的情況，回傳有沒有補到。 */
+function repairXuanleMain48Halves(stageId){
+  let changed=false;
+  XUANLE_MAIN48_QUADS.forEach(function(q){
+    const name=getSlotName(stageId, q.qk+'_champ', 0);
+    if(name && !getSlotName(stageId, q.halfMatch, q.halfSlot)){
+      setSlotName(stageId, q.halfMatch, q.halfSlot, name, getSlotSeed(stageId, q.qk+'_champ', 0));
+      changed=true;
+    }
+  });
+  return changed;
+}
+/* 小組冠軍顯示格跟4強格疊在底圖同一個位置，兩格都有名字時只畫4強格那一份，避免同一個名字畫兩次變粗 */
+function xuanleMain48SkipDraw(stageId, slotEl){
+  if(!slotEl.classList.contains('zh-champion-slot')) return false;
+  const q=XUANLE_MAIN48_QUADS.find(function(x){ return slotEl.dataset.zhKey===x.qk+'_champ_0'; });
+  if(!q) return false;
+  return !!getSlotName(stageId, q.halfMatch, q.halfSlot);
+}
 function xuanleMain48SeedLocation(seedNum){
   const matches=buildXuanleMain48Matches();
   for(let i=0;i<matches.length;i++){
@@ -2293,7 +2313,7 @@ function renderXuanleMain48Overlay(st){
       const w = parseFloat(slotEl.style.width)/100*canvasEl.width;
       const h = parseFloat(slotEl.style.height)/100*canvasEl.height;
       if(window.__ZH_DEBUG_CENTERLINE){ drawXuanleDebugOverlay(ctx, slotEl.dataset.zhKey||'', x, y, w, h); }
-      if(name) drawNameHorizontal(ctx, name, x, y, w, h);
+      if(name && !xuanleMain48SkipDraw(stageId, slotEl)) drawNameHorizontal(ctx, name, x, y, w, h);
     });
   }
   zhRedrawFns[stageId] = doRedraw;
@@ -2416,7 +2436,7 @@ function downloadXuanleMain48Composite(){
       const w = parseFloat(slotEl.style.width)/100*img.naturalWidth;
       const h = parseFloat(slotEl.style.height)/100*img.naturalHeight;
       if(debugMode){ drawXuanleDebugOverlay(ctx, slotEl.dataset.zhKey||'', x, y, w, h); }
-      if(name) drawNameHorizontal(ctx, name, x, y, w, h); /* 與畫面上的即時預覽共用同一套排版邏輯 */
+      if(name && !xuanleMain48SkipDraw(currentBracket.stageId, slotEl)) drawNameHorizontal(ctx, name, x, y, w, h); /* 與畫面上的即時預覽共用同一套排版邏輯 */
     });
 
     canvas.toBlob(function(blob){
@@ -4949,6 +4969,13 @@ function toggleWinner(stageId, matchId, slotIndex){
         if(advMatch.targetKind==='qiwang20prelim'){ pushQiwang20QualifierChampionToPrelim(advMatch.target, name); }
         else { pushXuanleChampionToMain(advMatch.target, name); }
       }
+      /* 2026-10-08：玄樂盃本賽的「小組冠軍」顯示格（TL_champ 等，只有一格、不能點）自己還有 advanceTo
+         指向 4強（half_left/half_right）。顯示格永遠不會被 toggle，所以名字要在這裡順手再往下傳一格，
+         不然底圖上看得到名字（顯示格跟4強格疊在同一個位置），4強那場對局本身卻是空的，
+         列印成績登記表、對陣文字、📷匯入都讀不到（使用者回報）。 */
+      if(advMatch && advMatch.slots && advMatch.slots.length===1 && advMatch.advanceTo){
+        setSlotName(stageId, advMatch.advanceTo.matchId, advMatch.advanceTo.slotIndex, name, seedText);
+      }
     }
     /* 中環碁聖賽第14屆決賽三番戰：兩位準決賽勝者一確定，要同步帶入決賽三局（每局都是同一組對手）的對戰格 */
     if(match.notifyOnAdvance==='zh69games'){ syncZh69GamesFromFinal(stageId); }
@@ -4993,7 +5020,9 @@ function clearSlotDownstream(stageId, matchId, slotIndex){
   if(badge) badge.textContent='';
   if(slotEl){ slotEl.classList.remove('winner','loser'); }
   const match = matchRegistry[stageId] && matchRegistry[stageId][matchId];
-  if(wasWinner && match && match.advanceTo){
+  /* 只有一格的顯示格（玄樂盃本賽小組冠軍）不會有勝方標記，但名字有往下傳到4強，清的時候也要一起清 */
+  const isDisplayOnlyRelay = !!(match && match.slots && match.slots.length===1);
+  if((wasWinner || isDisplayOnlyRelay) && match && match.advanceTo){
     clearSlotDownstream(stageId, match.advanceTo.matchId, match.advanceTo.slotIndex);
   }
   if(zhRedrawFns[stageId]) zhRedrawFns[stageId]();
@@ -5416,6 +5445,8 @@ function displayBracket(key){
      不然 renderZhonghuan69Overlay 裡那次同步發生在姓名都還沒還原之前，會把三局同步成空白，
      使用者從存檔重新整理回來就會看到三局白格是空的。 */
   if(rec.stConfig.customBracket==='zhonghuan69'){ syncZh69GamesFromFinal(rec.stConfig.id); }
+  /* 玄樂盃本賽：修正前存的檔，小組冠軍名字只在顯示格、沒傳到4強格，讀檔時補上（4強格已經有名字就不動） */
+  const __xlRepaired = (rec.stConfig.customBracket==='xuanleMain48') && repairXuanleMain48Halves(rec.stConfig.id);
   /* 早期版本的籤號badge沒有掛seed-badge這個class，導致舊存檔裡「靠advanceTo/
      loserAdvanceTo傳過來的籤號」（不是leaf、是晉級後才確定的格子）從來沒被存進
      data.badges過，光是修好新建立badge的class沒辦法讓「已經存過的舊資料」自動補回籤號
@@ -5457,6 +5488,7 @@ function displayBracket(key){
   currentStConfig = rec.stConfig;
   activeBracketKey = key;
   setupExportPanel();
+  if(__xlRepaired) saveState(); /* 補上的4強名字存回去（含雲端），只有真的補到才存 */
   return true;
 }
 function showExistingStage(key, stageDef){
