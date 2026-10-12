@@ -53,6 +53,10 @@ table.grid.dan .btn.small{font-size:19px;min-height:38px;padding:3px 18px;}
 /* 排行榜：日期下拉跟查詢頁的輸入框同高 */
 #viewRank .datesel select{height:36px;font-size:21px;min-width:70px;padding:0 4px;}
 #viewRank .datesel select:first-child{flex:1.6;min-width:95px;}
+.modal-box.rank{max-width:960px;padding:16px 18px;}
+#rankModalBody{max-height:68vh;overflow:auto;margin-top:10px;}
+table.grid.rank-pop th{font-size:17px;position:sticky;top:0;}
+table.grid.rank-pop td{font-size:18px;padding:4px 6px;}
 .nav #navAdminItems{display:flex;flex-wrap:wrap;}
 .nav .welcome{color:var(--welcome);font-weight:700;font-size:18px;display:flex;align-items:center;padding:0 8px;}
 /* 跟舊系統一樣撐滿畫面寬度（左右留一點邊） */
@@ -192,17 +196,30 @@ table.grid a{color:#000;}
 
 <!-- ============ 排行榜（公開，2026-10-12）：台灣選手（＝段位資料裡的棋士）各項數據排名 ============ -->
 <div id="viewRank" class="page" style="display:none;">
+  <!-- 簡化版（預設）：只選年份跟排名項目，大類小類通通算，選了就自動重排 -->
+  <div id="rkSimple">
+    <div class="box qgrid">
+      <div class="row"><div class="lbl">年份</div><select id="rkYear" autocomplete="off" onchange="runRank()"></select></div>
+      <div class="row"><div class="lbl">排名項目</div><select id="rkItemS" autocomplete="off" onchange="runRank()">
+        <option value="win">勝場數</option><option value="rate">勝率</option><option value="n">對局數</option><option value="best">連勝紀錄</option>
+      </select></div>
+    </div>
+    <div class="center"><button type="button" class="btn wide" onclick="setRankMode('custom')">自訂區間</button></div>
+  </div>
+  <!-- 自訂區間：起訖日期、大類、小類、勝率最少局數都可以自己選 -->
+  <div id="rkCustom" style="display:none;">
   <div class="box qgrid">
     <div class="row"><div class="lbl">起始日期</div><div class="datesel" id="rkFrom"></div></div>
     <div class="row"><div class="lbl">結束日期</div><div class="datesel" id="rkTo"></div></div>
     <div class="row"><div class="lbl">大類</div><select id="rkCat1" autocomplete="off"><option value=""></option><option>國內</option><option>國際</option></select></div>
     <div class="row"><div class="lbl">小類</div><select id="rkCat2" autocomplete="off"><option value=""></option><option>交流</option><option>正式</option><option>限制</option></select></div>
     <div class="row"><div class="lbl">排名項目</div><select id="rkItem" autocomplete="off" onchange="rkItemChanged()">
-      <option value="win">勝場數</option><option value="rate">勝率</option><option value="n">對局數</option><option value="best">最長連勝</option><option value="cur">目前連勝</option>
+      <option value="win">勝場數</option><option value="rate">勝率</option><option value="n">對局數</option><option value="best">連勝紀錄</option>
     </select></div>
     <div class="row" id="rkMinRow" style="display:none;"><div class="lbl">勝率最少局數</div><input type="text" id="rkMin" value="10" autocomplete="off" inputmode="numeric"></div>
   </div>
-  <div class="center"><button type="button" class="btn wide" onclick="runRank()">排行</button></div>
+  <div class="center"><button type="button" class="btn wide" onclick="runRank()">排行</button> <button type="button" class="btn gray" onclick="setRankMode('simple')">回到簡化版</button></div>
+  </div>
   <div class="status" id="rkStatus"></div>
   <div class="result-title" id="rkTitle"></div>
   <div id="rkResult"></div>
@@ -331,6 +348,18 @@ table.grid a{color:#000;}
     <div id="danModalBody"></div>
     <div class="login-error" id="danModalError"></div>
     <div class="center" id="danModalActions"></div>
+  </div>
+</div>
+
+<!-- 排行榜點名字跳出的對局清單 -->
+<div id="rankModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeRankModal()">
+  <div class="modal-box rank">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+      <h2 id="rankModalTitle" style="margin:0;"></h2>
+      <button type="button" class="btn gray small" onclick="closeRankModal()">✕ 關閉</button>
+    </div>
+    <div id="rankModalBody"></div>
+    <div class="center"><button type="button" class="btn" onclick="closeRankModal()">回到排行榜</button></div>
   </div>
 </div>
 
@@ -586,6 +615,15 @@ function refreshControls(){
   const dy = document.getElementById('delYear'); const dv = dy.value;
   dy.innerHTML = '<option value="">全部年份</option>' + years.slice().reverse().map(y=>'<option>'+y+'</option>').join('');
   dy.value = dv;
+  /* 排行榜簡化版的年份清單：資料載入（或更新）後重建；如果使用者在資料還沒載好時就點進排行榜，這裡補排一次 */
+  const ry = document.getElementById('rkYear');
+  if(rankInited){
+    const rv = ry.value, cy = String(new Date().getFullYear());
+    const ys = years.slice(); if(ys.indexOf(cy)<0) ys.push(cy);
+    ry.innerHTML = ys.sort().reverse().map(y=>'<option>'+y+'</option>').join('');
+    ry.value = rv || cy;
+    if(document.getElementById('viewRank').style.display!=='none' && DAN_PLAYERS) runRank();
+  }
 }
 
 /* ============ 查詢 ============
@@ -1422,25 +1460,38 @@ async function confirmDanUpload(){
    期間可自選（預設今年 1/1～今天），大類／小類空白＝全部。只列出這段期間有下棋的人。
    - 勝場數、對局數：照查詢頁同一套算法（勝方欄＝這位棋士才算勝，其他都算敗）。
    - 勝率：只排對局數達到「勝率最少局數」的棋士，避免下 1 盤贏 1 盤就 100%。
-   - 最長連勝：這段期間內連續贏最多盤；目前連勝：到這段期間最後一盤為止還在連勝幾盤。
+   - 連勝紀錄：這段期間內連續贏最多盤（使用者說只要一個連勝紀錄，不分目前／最長）。
      同一天下兩盤時，系統裡不知道哪盤先下，照賽名、階段的順序算。
-   同分的名次相同（例如兩個第 3 名，下一位是第 5 名）。 */
+   同分的名次相同（例如兩個第 3 名，下一位是第 5 名）。
+   點名字跳出彈出視窗看這段期間的對局（使用者：跳到查詢頁就回不去排行榜）。 */
 const RANK_ITEMS = {
   win:  {t:'勝場數',   col:4, v:s=>s.win,        tie:s=>ratio(s.win,s.n)},
   rate: {t:'勝率',     col:6, v:s=>s.win/s.n,    tie:s=>s.win},
   n:    {t:'對局數',   col:3, v:s=>s.n,          tie:s=>s.win},
-  best: {t:'最長連勝', col:7, v:s=>s.best,       tie:s=>s.win},
-  cur:  {t:'目前連勝', col:8, v:s=>s.cur,        tie:s=>s.best}
+  best: {t:'連勝紀錄', col:7, v:s=>s.best,       tie:s=>s.win}
 };
+let rankLast = null;   // 最近一次排行的 {games(舊到新), players, label}，彈出視窗用
+/* 2026-10-12 使用者要求分兩種：進來先看「簡化版」（只選年份＋排名項目，預設今年，大類小類通通算、
+   勝率門檻固定 10 局）；按「自訂區間」才是可以選起訖日期／大類／小類／勝率局數的詳細版。 */
 let rankInited = false;
+let rankMode = 'simple';
+const RANK_SIMPLE_MIN = 10;
+function setRankMode(m){
+  rankMode = m;
+  document.getElementById('rkSimple').style.display = m==='simple' ? '' : 'none';
+  document.getElementById('rkCustom').style.display = m==='custom' ? '' : 'none';
+  runRank();
+}
 async function enterRankView(){
   if(!rankInited){
     rankInited = true;
-    const t = new Date();
+    const t = new Date(), cy = String(t.getFullYear());
     fillDateSelYears('rkFrom', t.getFullYear(), 1, 1, 2016);
     fillDateSelYears('rkTo', t.getFullYear(), t.getMonth()+1, t.getDate(), 2016);
+    const years = dataYears(); if(years.indexOf(cy)<0) years.push(cy);
+    document.getElementById('rkYear').innerHTML = years.sort().reverse().map(y=>'<option>'+y+'</option>').join('');
     /* Edge 重新整理會把下拉選單恢復成上次的選擇，這裡強制回到預設值 */
-    const setDefaults = ()=>{ document.getElementById('rkCat1').value=''; document.getElementById('rkCat2').value=''; document.getElementById('rkItem').value='win'; rkItemChanged(); };
+    const setDefaults = ()=>{ document.getElementById('rkYear').value=cy; document.getElementById('rkItemS').value='win'; document.getElementById('rkCat1').value=''; document.getElementById('rkCat2').value=''; document.getElementById('rkItem').value='win'; rkItemChanged(); };
     setDefaults();
     if(document.readyState!=='complete') window.addEventListener('load', ()=>setTimeout(setDefaults,0), {once:true});
   }
@@ -1457,11 +1508,13 @@ function rkItemChanged(){
 function runRank(){
   if(!DAN_PLAYERS) return;
   if(GAMES.length===0){ document.getElementById('rkResult').innerHTML = '<p class="hint">目前系統裡還沒有資料</p>'; return; }
-  const from = readDateSel('rkFrom'), to = readDateSel('rkTo');
+  const simple = rankMode==='simple';
+  const sy = Number(document.getElementById('rkYear').value);
+  const from = simple ? sy*10000+101 : readDateSel('rkFrom'), to = simple ? sy*10000+1231 : readDateSel('rkTo');
   if(from>to){ alert('起始日期比結束日期晚，請重新選'); return; }
-  const c1 = document.getElementById('rkCat1').value, c2 = document.getElementById('rkCat2').value;
-  const itemKey = document.getElementById('rkItem').value, item = RANK_ITEMS[itemKey];
-  const minN = Math.max(1, parseInt(document.getElementById('rkMin').value,10) || 1);
+  const c1 = simple ? '' : document.getElementById('rkCat1').value, c2 = simple ? '' : document.getElementById('rkCat2').value;
+  const itemKey = document.getElementById(simple ? 'rkItemS' : 'rkItem').value, item = RANK_ITEMS[itemKey];
+  const minN = simple ? RANK_SIMPLE_MIN : Math.max(1, parseInt(document.getElementById('rkMin').value,10) || 1);
   const players = {};
   DAN_PLAYERS.forEach(r=>{ const n = norm(r[0]); if(n) players[n] = {name:r[0], dan:r[1], s:{n:0, win:0, cur:0, best:0}}; });
   /* 沒有日期的對局當成那年 1/1，才不會被「1/1 起」排除 */
@@ -1486,7 +1539,9 @@ function runRank(){
   list.sort((a,b)=> item.v(b.s)-item.v(a.s) || item.tie(b.s)-item.tie(a.s) || a.name.localeCompare(b.name,'zh-Hant'));
   const fmt = n=>{ n=String(n); return n.slice(0,4)+'/'+n.slice(4,6)+'/'+n.slice(6,8); };
   const catLabel = [c1, c2].filter(Boolean).join('・');
-  document.getElementById('rkTitle').textContent = fmt(from)+'～'+fmt(to)+(catLabel?'　'+catLabel:'')+'　'+item.t+'排行（'+list.length+' 位）';
+  const periodLabel = (simple ? sy+' 年' : fmt(from)+'～'+fmt(to))+(catLabel?'　'+catLabel:'');
+  rankLast = { games, players, label: periodLabel };
+  document.getElementById('rkTitle').textContent = periodLabel+'　'+item.t+'排行（'+list.length+' 位）';
   let note = '';
   if(itemKey==='rate' && active.length>list.length) note = '勝率只排對局數 '+minN+' 局以上的棋士，另有 '+(active.length-list.length)+' 位局數不足沒有列出。';
   if(list.length===0){
@@ -1494,7 +1549,7 @@ function runRank(){
     document.getElementById('rkTopBtn').style.display = 'none';
     return;
   }
-  const heads = ['名次','棋士','段位','對局數','勝','敗','勝率','最長連勝','目前連勝'];
+  const heads = ['名次','棋士','段位','對局數','勝','敗','勝率','連勝紀錄'];
   let html = (note ? '<p class="hint">'+esc(note)+'</p>' : '') + '<div class="grid-wrap"><table class="grid" lang="en"><tr>' +
     heads.map((h,i)=>'<th>'+h+(i===item.col?' ▼':'')+'</th>').join('') + '</tr>';
   let rank = 0, prev = null;
@@ -1502,28 +1557,36 @@ function runRank(){
     const v = item.v(P.s);
     if(prev===null || v!==prev){ rank = i+1; prev = v; }
     const s = P.s;
-    const cells = [rank, '<a href="#" onclick="return rankShowPlayer(this.textContent)">'+esc(P.name)+'</a>', esc(P.dan), s.n, s.win, s.n-s.win, pct(s.win,s.n), s.best, s.cur];
+    const cells = [rank, '<a href="#" onclick="return rankShowPlayer(this.textContent)">'+esc(P.name)+'</a>', esc(P.dan), s.n, s.win, s.n-s.win, pct(s.win,s.n), s.best];
     html += '<tr>'+cells.map((c,k)=>'<td'+(k===item.col?' style="color:#c0392b;"':'')+'>'+c+'</td>').join('')+'</tr>';
   });
-  html += '</table></div><p class="hint">點棋士名字可以看這位棋士在這幾年的對局（查詢頁以「年」為單位）。同一天下兩盤時，連勝照賽名、階段的順序計算。</p>';
+  html += '</table></div><p class="hint">點棋士名字可以看這段期間的對局。同一天下兩盤時，連勝照賽名、階段的順序計算。</p>';
   document.getElementById('rkResult').innerHTML = html;
   document.getElementById('rkTopBtn').style.display = '';
 }
-/* 點名字：切到查詢頁，帶入同一個棋士、年份範圍、大類小類，顯示明細 */
+/* 點名字：彈出視窗列出這位棋士在「目前排行這段期間、同樣大類小類」的對局（新到舊），關掉就回到排行榜原位 */
 function rankShowPlayer(name){
-  const from = String(readDateSel('rkFrom')).slice(0,4), to = String(readDateSel('rkTo')).slice(0,4);
-  showView('query');
-  document.getElementById('qPlayer').value = name;
-  document.getElementById('qOpp').value = '';
-  document.getElementById('qYearFrom').value = from;
-  document.getElementById('qYearTo').value = to;
-  document.getElementById('qCat1').value = document.getElementById('rkCat1').value;
-  document.getElementById('qCat2').value = document.getElementById('rkCat2').value;
-  ['qEvent','qStage','qMoves'].forEach(id=>{ document.getElementById(id).value=''; });
-  document.getElementById('qDetails').checked = true;
-  runQuery();
+  if(!rankLast) return false;
+  const p = norm(name), P = rankLast.players[p];
+  if(!P) return false;
+  const games = rankLast.games.filter(g=>norm(g.b)===p || norm(g.w)===p).slice().reverse();
+  const s = P.s;
+  let html = '<p style="font-size:19px;font-weight:700;margin:0 0 8px;">'+esc(rankLast.label)+'　'+s.n+' 局　'+s.win+' 勝 '+(s.n-s.win)+' 敗　勝率 '+pct(s.win,s.n)+'　連勝紀錄 '+s.best+'</p>';
+  html += '<div class="grid-wrap" style="margin-top:0;"><table class="grid rank-pop" lang="en"><tr><th>日期</th><th>賽名</th><th>階段</th><th>對手</th><th>執</th><th>勝負</th><th>目數</th></tr>';
+  games.forEach(g=>{
+    const isB = norm(g.b)===p, won = norm(g.win)===p;
+    html += '<tr><td>'+fmtDate(g)+'</td><td class="left">'+esc(g.ev)+'</td><td class="left">'+esc(g.st)+'</td><td>'+esc(isB ? g.w : g.b)+'</td><td>'+(isB?'黑':'白')+'</td>'+
+      '<td style="color:'+(won?'#c0392b':'#555')+';">'+(won?'勝':'敗')+'</td><td>'+esc(g.mv)+'</td></tr>';
+  });
+  html += '</table></div>';
+  document.getElementById('rankModalTitle').textContent = P.name + (P.dan ? '（'+P.dan+'）' : '');
+  document.getElementById('rankModalBody').innerHTML = html;
+  document.getElementById('rankModal').style.display = 'flex';
+  document.getElementById('rankModalBody').scrollTop = 0;
   return false;
 }
+function closeRankModal(){ document.getElementById('rankModal').style.display = 'none'; }
+document.addEventListener('keydown', e=>{ if(e.key==='Escape' && document.getElementById('rankModal').style.display!=='none') closeRankModal(); });
 
 /* ============ 登入 ============ */
 /* 選單照舊系統：沒登入只有「HAIFONGGO首頁｜重新登入」；登入後多出比賽資料～帳號管理。
