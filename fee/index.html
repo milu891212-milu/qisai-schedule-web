@@ -1012,7 +1012,7 @@ function importExcelFile(inp){
       const res = parseFeeWorkbook(wb);
       const nr = res.players.filter(p=>p.norank).map(p=>p.name);
       const msg = '讀到：棋士 '+res.players.length+' 位、獎金規則 '+Object.keys(res.rules).length+' 個賽事、手填／手動修改 '+Object.keys(res.inputs).length+' 格。'+
-        (nr.length ? '\n段位空白或 0 的 '+nr.length+' 位設為 0 段、不列入排名：'+nr.join('、') : '')+
+        (nr.length ? '\n不列入排名的 '+nr.length+' 位：'+res.players.filter(p=>p.norank).map(p=>p.name+'（'+p.dan+'段）').join('、') : '')+
         (res.warn.length ? '\n\n注意：\n'+res.warn.slice(0,10).join('\n') : '')+'\n\n要用這份 Excel 取代 '+YEAR+' 年的資料嗎？';
       if(!confirm(msg)) return;
       await saveFeeFields({players:res.players, rules:res.rules, inputs:res.inputs, create:true});
@@ -1029,8 +1029,13 @@ function parseFeeWorkbook(wb){
   const players = [];
   for(let r=4; r<=203; r++){
     const name = val(tot, r, 2); if(name==null || String(name).trim()==='') continue;
-    const dan = val(tot,r,3), amateur = (dan==null || dan==='' || Number(dan)===0);
-    players.push({no: val(tot,r,1)==null?'':val(tot,r,1), name:String(name).trim(), dan: amateur ? 0 : dan, bday: val(tot,r,4)==null?'':String(val(tot,r,4)), female: val(tot,r,5)?'㊣':'', norank: amateur});
+    // 段位空白或 0＝業餘 → 0 段、不列入排名；段位寫「7(不排名)」＝外國職業棋手 → 保留段位、不列入排名
+    const danRaw = val(tot,r,3), danS = danRaw==null ? '' : String(danRaw).trim();
+    const tagged = danS.indexOf('不排名') >= 0;
+    const danNum = danS.replace(/[(（]?不排名[)）]?/,'').trim();
+    const amateur = (danNum==='' || Number(danNum)===0);
+    const dan = amateur ? 0 : (isNaN(danNum) ? danNum : Number(danNum));
+    players.push({no: val(tot,r,1)==null?'':val(tot,r,1), name:String(name).trim(), dan, bday: val(tot,r,4)==null?'':String(val(tot,r,4)), female: val(tot,r,5)?'㊣':'', norank: amateur || tagged});
   }
   const roster = new Set(players.map(p=>p.name));
   const rules = {}, inputs = {};
