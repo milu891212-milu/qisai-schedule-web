@@ -50,6 +50,9 @@ table.grid.dan td{font-size:25px;padding:5px 6px;}
 table.grid.dan .btn.small{font-size:19px;min-height:38px;padding:3px 18px;}
 .dan-detail{font-size:19px;line-height:1.7;}
 .dan-detail b{color:#c0392b;}
+/* 排行榜：日期下拉跟查詢頁的輸入框同高 */
+#viewRank .datesel select{height:36px;font-size:21px;min-width:70px;padding:0 4px;}
+#viewRank .datesel select:first-child{flex:1.6;min-width:95px;}
 .nav #navAdminItems{display:flex;flex-wrap:wrap;}
 .nav .welcome{color:var(--welcome);font-weight:700;font-size:18px;display:flex;align-items:center;padding:0 8px;}
 /* 跟舊系統一樣撐滿畫面寬度（左右留一點邊） */
@@ -147,6 +150,7 @@ table.grid a{color:#000;}
 <body>
 <nav class="nav">
   <button type="button" id="navQuery" class="on" onclick="showView('query')">HAIFONGGO首頁</button>
+  <button type="button" id="navRank" onclick="showView('rank')">排行榜</button>
   <span id="navAdminItems" style="display:none;">
     <button type="button" id="navAdmin" onclick="showView('admin')">比賽資料</button>
     <button type="button" id="navBatch" onclick="showView('batch')">批次修改</button>
@@ -184,6 +188,25 @@ table.grid a{color:#000;}
     <div id="detailArea"></div>
     <div class="center" id="detailTopBtn" style="display:none;"><button type="button" class="btn wide" onclick="window.scrollTo({top:0,behavior:'smooth'})">回到上方</button></div>
   </div>
+</div>
+
+<!-- ============ 排行榜（公開，2026-10-12）：台灣選手（＝段位資料裡的棋士）各項數據排名 ============ -->
+<div id="viewRank" class="page" style="display:none;">
+  <div class="box qgrid">
+    <div class="row"><div class="lbl">起始日期</div><div class="datesel" id="rkFrom"></div></div>
+    <div class="row"><div class="lbl">結束日期</div><div class="datesel" id="rkTo"></div></div>
+    <div class="row"><div class="lbl">大類</div><select id="rkCat1" autocomplete="off"><option value=""></option><option>國內</option><option>國際</option></select></div>
+    <div class="row"><div class="lbl">小類</div><select id="rkCat2" autocomplete="off"><option value=""></option><option>交流</option><option>正式</option><option>限制</option></select></div>
+    <div class="row"><div class="lbl">排名項目</div><select id="rkItem" autocomplete="off" onchange="rkItemChanged()">
+      <option value="win">勝場數</option><option value="rate">勝率</option><option value="n">對局數</option><option value="best">最長連勝</option><option value="cur">目前連勝</option>
+    </select></div>
+    <div class="row" id="rkMinRow" style="display:none;"><div class="lbl">勝率最少局數</div><input type="text" id="rkMin" value="10" autocomplete="off" inputmode="numeric"></div>
+  </div>
+  <div class="center"><button type="button" class="btn wide" onclick="runRank()">排行</button></div>
+  <div class="status" id="rkStatus"></div>
+  <div class="result-title" id="rkTitle"></div>
+  <div id="rkResult"></div>
+  <div class="center" id="rkTopBtn" style="display:none;"><button type="button" class="btn wide" onclick="window.scrollTo({top:0,behavior:'smooth'})">回到上方</button></div>
 </div>
 
 <!-- ============ 管理功能頁（登入後） ============ -->
@@ -501,6 +524,7 @@ attachAutocomplete('delEvent', ()=>EVENT_NAMES);
 /* ============ 畫面切換、選單 ============ */
 const VIEWS = {
   query:      {page:'viewQuery',      nav:'navQuery'},
+  rank:       {page:'viewRank',       nav:'navRank'},
   admin:      {page:'viewAdmin',      nav:'navAdmin',      admin:true},
   batch:      {page:'viewBatch',      nav:'navBatch',      admin:true},
   danPlayers: {page:'viewDanPlayers', nav:'navDanPlayers', admin:true},
@@ -516,6 +540,7 @@ function showView(v){
   window.scrollTo(0,0);
   if(v==='danPlayers' || v==='danRemind' || v==='danRules') enterDanView(v);
   if(v==='batch') loadDan().then(batchCount).catch(()=>{});   // 用來提示「段位資料裡也有這個人」
+  if(v==='rank') enterRankView();
 }
 function dataYears(){ return [...new Set(GAMES.map(g=>g.y))].filter(y=>/^\d{4}$/.test(y)).sort(); }
 function fillDateSel(id, y, m, d){
@@ -1390,6 +1415,114 @@ async function confirmDanUpload(){
     document.getElementById('danUpPreview').innerHTML = '<p class="status-ok">✅ 已匯入 '+DAN_PLAYERS.length+' 位棋士的段位資料</p>';
     document.getElementById('danUpFile').value=''; pendingDanUpload = null;
   }catch(err){ console.error(err); DAN_PLAYERS = backup; document.getElementById('danUpStatus').innerHTML = '<span class="status-bad">匯入失敗：'+esc(err.message||err)+'</span>'; }
+}
+
+/* ============ 排行榜（2026-10-12 使用者要求）============
+   台灣選手＝段位資料（results/danPlayers）裡的棋士，名單在「查詢段位勝場」新增／刪除就會跟著變。
+   期間可自選（預設今年 1/1～今天），大類／小類空白＝全部。只列出這段期間有下棋的人。
+   - 勝場數、對局數：照查詢頁同一套算法（勝方欄＝這位棋士才算勝，其他都算敗）。
+   - 勝率：只排對局數達到「勝率最少局數」的棋士，避免下 1 盤贏 1 盤就 100%。
+   - 最長連勝：這段期間內連續贏最多盤；目前連勝：到這段期間最後一盤為止還在連勝幾盤。
+     同一天下兩盤時，系統裡不知道哪盤先下，照賽名、階段的順序算。
+   同分的名次相同（例如兩個第 3 名，下一位是第 5 名）。 */
+const RANK_ITEMS = {
+  win:  {t:'勝場數',   col:4, v:s=>s.win,        tie:s=>ratio(s.win,s.n)},
+  rate: {t:'勝率',     col:6, v:s=>s.win/s.n,    tie:s=>s.win},
+  n:    {t:'對局數',   col:3, v:s=>s.n,          tie:s=>s.win},
+  best: {t:'最長連勝', col:7, v:s=>s.best,       tie:s=>s.win},
+  cur:  {t:'目前連勝', col:8, v:s=>s.cur,        tie:s=>s.best}
+};
+let rankInited = false;
+async function enterRankView(){
+  if(!rankInited){
+    rankInited = true;
+    const t = new Date();
+    fillDateSelYears('rkFrom', t.getFullYear(), 1, 1, 2016);
+    fillDateSelYears('rkTo', t.getFullYear(), t.getMonth()+1, t.getDate(), 2016);
+    /* Edge 重新整理會把下拉選單恢復成上次的選擇，這裡強制回到預設值 */
+    const setDefaults = ()=>{ document.getElementById('rkCat1').value=''; document.getElementById('rkCat2').value=''; document.getElementById('rkItem').value='win'; rkItemChanged(); };
+    setDefaults();
+    if(document.readyState!=='complete') window.addEventListener('load', ()=>setTimeout(setDefaults,0), {once:true});
+  }
+  const st = document.getElementById('rkStatus');
+  st.textContent = '讀取台灣選手名單中…';
+  try{ await loadDan(); }
+  catch(err){ console.error(err); st.innerHTML = '<span class="status-bad">讀取台灣選手名單失敗：'+esc(err.message||err)+'（請重新整理再試一次）</span>'; return; }
+  st.textContent = '台灣選手名單：段位資料裡的 '+DAN_PLAYERS.length+' 位棋士';
+  runRank();
+}
+function rkItemChanged(){
+  document.getElementById('rkMinRow').style.display = document.getElementById('rkItem').value==='rate' ? '' : 'none';
+}
+function runRank(){
+  if(!DAN_PLAYERS) return;
+  if(GAMES.length===0){ document.getElementById('rkResult').innerHTML = '<p class="hint">目前系統裡還沒有資料</p>'; return; }
+  const from = readDateSel('rkFrom'), to = readDateSel('rkTo');
+  if(from>to){ alert('起始日期比結束日期晚，請重新選'); return; }
+  const c1 = document.getElementById('rkCat1').value, c2 = document.getElementById('rkCat2').value;
+  const itemKey = document.getElementById('rkItem').value, item = RANK_ITEMS[itemKey];
+  const minN = Math.max(1, parseInt(document.getElementById('rkMin').value,10) || 1);
+  const players = {};
+  DAN_PLAYERS.forEach(r=>{ const n = norm(r[0]); if(n) players[n] = {name:r[0], dan:r[1], s:{n:0, win:0, cur:0, best:0}}; });
+  /* 沒有日期的對局當成那年 1/1，才不會被「1/1 起」排除 */
+  const dn = g=>{ const n = dateNum(g); return n%10000===0 ? n+101 : n; };
+  const games = GAMES.map((g,i)=>({g,i}))
+    .filter(x=>{ const d = dn(x.g); return d>=from && d<=to && (!c1 || x.g.c1===c1) && (!c2 || x.g.c2===c2); })
+    .sort((a,b)=> dn(a.g)-dn(b.g) || a.g.ev.localeCompare(b.g.ev,'zh-Hant') || a.g.st.localeCompare(b.g.st,'zh-Hant') || a.i-b.i)   // 由舊到新
+    .map(x=>x.g);
+  games.forEach(g=>{
+    const win = norm(g.win);
+    [norm(g.b), norm(g.w)].forEach(p=>{
+      const P = players[p];
+      if(!P) return;
+      const s = P.s;
+      s.n++;
+      if(win===p){ s.win++; s.cur++; if(s.cur>s.best) s.best = s.cur; }
+      else s.cur = 0;
+    });
+  });
+  const active = Object.values(players).filter(P=>P.s.n>0);
+  const list = itemKey==='rate' ? active.filter(P=>P.s.n>=minN) : active;
+  list.sort((a,b)=> item.v(b.s)-item.v(a.s) || item.tie(b.s)-item.tie(a.s) || a.name.localeCompare(b.name,'zh-Hant'));
+  const fmt = n=>{ n=String(n); return n.slice(0,4)+'/'+n.slice(4,6)+'/'+n.slice(6,8); };
+  const catLabel = [c1, c2].filter(Boolean).join('・');
+  document.getElementById('rkTitle').textContent = fmt(from)+'～'+fmt(to)+(catLabel?'　'+catLabel:'')+'　'+item.t+'排行（'+list.length+' 位）';
+  let note = '';
+  if(itemKey==='rate' && active.length>list.length) note = '勝率只排對局數 '+minN+' 局以上的棋士，另有 '+(active.length-list.length)+' 位局數不足沒有列出。';
+  if(list.length===0){
+    document.getElementById('rkResult').innerHTML = '<p class="hint">'+(note || '這段期間台灣選手沒有符合條件的對局。')+'</p>';
+    document.getElementById('rkTopBtn').style.display = 'none';
+    return;
+  }
+  const heads = ['名次','棋士','段位','對局數','勝','敗','勝率','最長連勝','目前連勝'];
+  let html = (note ? '<p class="hint">'+esc(note)+'</p>' : '') + '<div class="grid-wrap"><table class="grid" lang="en"><tr>' +
+    heads.map((h,i)=>'<th>'+h+(i===item.col?' ▼':'')+'</th>').join('') + '</tr>';
+  let rank = 0, prev = null;
+  list.forEach((P,i)=>{
+    const v = item.v(P.s);
+    if(prev===null || v!==prev){ rank = i+1; prev = v; }
+    const s = P.s;
+    const cells = [rank, '<a href="#" onclick="return rankShowPlayer(this.textContent)">'+esc(P.name)+'</a>', esc(P.dan), s.n, s.win, s.n-s.win, pct(s.win,s.n), s.best, s.cur];
+    html += '<tr>'+cells.map((c,k)=>'<td'+(k===item.col?' style="color:#c0392b;"':'')+'>'+c+'</td>').join('')+'</tr>';
+  });
+  html += '</table></div><p class="hint">點棋士名字可以看這位棋士在這幾年的對局（查詢頁以「年」為單位）。同一天下兩盤時，連勝照賽名、階段的順序計算。</p>';
+  document.getElementById('rkResult').innerHTML = html;
+  document.getElementById('rkTopBtn').style.display = '';
+}
+/* 點名字：切到查詢頁，帶入同一個棋士、年份範圍、大類小類，顯示明細 */
+function rankShowPlayer(name){
+  const from = String(readDateSel('rkFrom')).slice(0,4), to = String(readDateSel('rkTo')).slice(0,4);
+  showView('query');
+  document.getElementById('qPlayer').value = name;
+  document.getElementById('qOpp').value = '';
+  document.getElementById('qYearFrom').value = from;
+  document.getElementById('qYearTo').value = to;
+  document.getElementById('qCat1').value = document.getElementById('rkCat1').value;
+  document.getElementById('qCat2').value = document.getElementById('rkCat2').value;
+  ['qEvent','qStage','qMoves'].forEach(id=>{ document.getElementById(id).value=''; });
+  document.getElementById('qDetails').checked = true;
+  runQuery();
+  return false;
 }
 
 /* ============ 登入 ============ */
