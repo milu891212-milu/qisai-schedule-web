@@ -171,15 +171,16 @@ const SHEETS = [
   {id:'國手', short:'國手', grp:'採計', cols:[C('初賽','count'),C('本賽','stage','main'),C('獲獎','stage','main')]},
   {id:'中環碁聖', short:'中環碁聖', grp:'採計', cols:[C('初賽勝','count'),C('初賽負','count'),C('本賽','stage','main')]},
   {id:'玄樂盃', short:'玄樂盃', grp:'採計', cols:[C('初賽','count'),C('本賽','stage','main')]},
-  {id:'臺灣選拔', short:'臺灣選拔', grp:'採計', cols:[C('國手山脈','count'),C('爛柯杯','count'),C('棋仙杯','count'),C('其他選拔','count')]},
+  {id:'臺灣選拔', short:'臺灣選拔', grp:'採計', cols:[C('國手山脈','count'),C('爛柯杯','count'),C('棋仙杯','count'),C('LG盃','count'),C('春蘭盃','count'),C('倡棋盃','count'),C('夢百合盃','count'),C('其他選拔','count')]},
   {id:'世界賽', short:'世界賽', grp:'採計', cols:['三星杯','LG杯','棋仙戰','國手山脈盃','最高棋士戰','爛柯杯','春蘭盃','夢百合杯','北海新譯盃','倡棋杯','南洋杯','應氏盃','GLOBIS盃'].map(h=>C(h,'fx'))},
   {id:'女子最強戰', short:'女子最強', grp:'女子', cols:[C('初賽','count'),C('本賽','stage','main')]},
   {id:'女子名人', short:'女子名人', grp:'女子', cols:[C('初賽','count'),C('對局數','count'),C('名次','stage','main')]},
   {id:'女子世界賽', short:'女子世界賽', grp:'女子', cols:[C('吳清源杯','fx'),C('IBK盃','fx'),C('其他(台幣)','fx')]},
-  {id:'臺灣女子選拔', short:'女子選拔', grp:'女子', cols:[C('吳清源杯','count'),C('其他選拔1','count'),C('其他選拔2','count'),C('其他選拔3','count')]},
+  {id:'臺灣女子選拔', short:'女子選拔', grp:'女子', cols:[C('吳清源杯','count'),C('IBK盃','count'),C('其他選拔1','count'),C('其他選拔2','count'),C('其他選拔3','count')]},
   {id:'新人王', short:'新人王', grp:'限制', cols:[C('初賽','count'),C('本賽','stage','main')]},
   {id:'龍星賽', short:'龍星賽', grp:'限制', cols:[C('本賽','stage','main')]},
   {id:'限制世界賽', short:'限制世界賽', grp:'限制', cols:[C('爛柯兒童','fx'),C('扇興杯','fx')]},
+  {id:'限制選拔', short:'限制選拔', grp:'限制', cols:[C('GLOBIS盃','count'),C('其他選拔','count')]},
   {id:'霸王賽', short:'霸王賽', grp:'限制', cols:[C('循環勝','count'),C('本賽','stage','main')]},
   {id:'團體賽', short:'團體賽', grp:'限制', cols:['雙城盃','中國圍甲','中國乙級','中國丙級','中國女子圍甲','中國女子乙級','韓國圍甲','韓國女子圍甲','全國團體賽'].map(h=>C(h,'money'))},
   {id:'業餘賽', short:'業餘賽', grp:'限制', cols:['大成杯','吳彫枝','雙十杯','東鋼杯','甲子杯','張濬元'].map(h=>C(h,'money'))},
@@ -221,15 +222,23 @@ cnt('玄樂盃','初賽','玄樂盃','局數','初賽');
 ko('玄樂盃','本賽','玄樂盃',[['本賽48強','48強'],['本賽32強','32強'],['本賽16強','16強'],['本賽8強','8強'],['本賽4強','4強'],[FINAL,'亞軍','冠軍']]);
 cnt('臺灣選拔','國手山脈','國手山脈盃','局數','決選'); cnt('臺灣選拔','爛柯杯','衢州爛柯盃','局數','決選');
 cnt('臺灣選拔','棋仙杯','世界棋仙盃','有參加','決選');
+cnt('臺灣選拔','LG盃','LG盃','局數','決選'); cnt('臺灣選拔','春蘭盃','春蘭盃','局數','決選');
+cnt('臺灣選拔','倡棋盃','倡棋盃','局數','決選'); cnt('臺灣選拔','夢百合盃','夢百合盃','局數','決選');
 cnt('女子最強戰','初賽','女子圍棋最強戰','局數','初賽');
 ko('女子最強戰','本賽','女子圍棋最強戰',[['敗部1回','敗部1回'],['敗部2回','敗部2回'],['敗部3回','敗部3回'],['敗部準決賽','敗部準決賽'],['敗部決賽','敗部決賽'],[FINAL,'亞軍','冠軍']]);
 cnt('女子名人','初賽','大森盃女子名人賽','局數','資格賽');
 cnt('女子名人','對局數','大森盃女子名人賽','局數',['勝部','敗部','決賽']);
 ko('女子名人','名次','大森盃女子名人賽',[[['敗部4回','敗部決賽'],'季軍'],[FINAL,'亞軍','冠軍','雙敗決賽',['勝部','敗部','決賽']]]);
 cnt('臺灣女子選拔','吳清源杯','吳清源盃','局數','決選');
+cnt('臺灣女子選拔','IBK盃','IBK企業銀行盃女子圍棋賽','局數','決選');
+cnt('限制選拔','GLOBIS盃','GLOBIS盃','局數','決選');
 cnt('新人王','初賽','新人王賽','局數','初賽');
 ko('新人王','本賽','新人王賽',[['本賽16強','16強'],['本賽8強','8強'],['本賽4強','4強'],[FINAL,'亞軍','冠軍']]);
 ko('龍星賽','本賽','龍星賽',[['本賽32強','32強'],['本賽16強','16強'],['本賽8強','8強'],['本賽4強','4強'],[FINAL,'亞軍','冠軍']]);
+/* 新增欄位的預設單價：海峰棋院官網 2026 各「台灣代表選拔辦法」——初選無對局費，決選每人每局：
+   LG盃/春蘭盃/倡棋盃 3,000、GLOBIS盃 2,000、IBK女子盃 2,000；夢百合盃官網未寫，使用者決定比照衢州爛柯盃 3,000。
+   只有「設定裡從來沒存過這一欄」才用預設；在設定裡改過（含清空）就以設定為準。 */
+const DEFAULT_PRICES = {'臺灣選拔':{'LG盃':3000,'春蘭盃':3000,'倡棋盃':3000,'夢百合盃':3000}, '臺灣女子選拔':{'IBK盃':2000}, '限制選拔':{'GLOBIS盃':2000}};
 const AUTO_COLS = new Set(RULES.map(r=>r[0]+'|'+r[1]));
 const RULE_EVENTS = new Set(RULES.map(r=>r[2]));
 const isAuto = (sh, col) => AUTO_COLS.has(sh+'|'+col);
@@ -357,7 +366,14 @@ function cellValue(sh, p, col){
   }
   return {v:'', src:''};
 }
-function sheetRules(sh){ return (FEE && FEE.rules && FEE.rules[sh]) || {tables:{}, prices:{}, rates:{}}; }
+function sheetRules(sh){
+  const r = (FEE && FEE.rules && FEE.rules[sh]) || {tables:{}, prices:{}, rates:{}};
+  const d = DEFAULT_PRICES[sh];
+  if(!d) return r;
+  const prices = Object.assign({}, r.prices||{});
+  Object.keys(d).forEach(k=>{ if(!(k in prices)) prices[k] = d[k]; });
+  return Object.assign({}, r, {prices});
+}
 function lookupStage(sh, t, v){
   const rows = (sheetRules(sh).tables||{})[t] || [];
   const hit = rows.find(r=>String(r[0])===String(v));
@@ -1041,7 +1057,7 @@ function parseFeeWorkbook(wb){
   const rules = {}, inputs = {};
   const TITLES = ['階段 → 獎金','初賽對局數 → 獎金','每局單價','換算台幣（台幣 = 金額 × 倍率）'];
   SHEETS.forEach(s=>{
-    const ws = wb.Sheets[s.id]; if(!ws){ warn.push('找不到工作表：'+s.id); return; }
+    const ws = wb.Sheets[s.id]; if(!ws){ rules[s.id] = {tables:{}, prices:{}, rates:{}}; return; }   // 網頁版才新增的賽事頁，Excel 沒有是正常的
     const rng = XLSX.utils.decode_range(ws['!ref']);
     // 找規則區
     let rc = null;
