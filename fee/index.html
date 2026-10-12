@@ -166,23 +166,22 @@ const SHEETS = [
   {id:'名人', short:'名人', grp:'採計', cols:[C('本賽','stage','main')]},
   {id:'棋王', short:'棋王', grp:'採計', cols:[C('資格賽','count'),C('初賽','count'),C('複賽','count'),C('循環圈勝','count'),C('循環圈負','count'),C('挑戰賽','stage','main')]},
   {id:'天元', short:'天元', grp:'採計', cols:[C('初賽','count'),C('複賽','count'),C('循環圈勝','count'),C('循環圈負','count'),C('加賽','count'),C('挑戰賽','stage','main')]},
-  {id:'十段', short:'十段', grp:'採計', cols:[C('資格賽','count'),C('初賽','stage','pre'),C('本賽','stage','main'),C('獲獎','stage','main')]},
   {id:'海峰盃', short:'海峰盃', grp:'採計', cols:[C('初賽','count'),C('本賽','stage','main')]},
   {id:'快棋爭霸戰', short:'快棋爭霸', grp:'採計', cols:[C('初賽','count'),C('本賽種子','count'),C('本賽','stage','main')]},
   {id:'國手', short:'國手', grp:'採計', cols:[C('初賽','count'),C('本賽','stage','main'),C('獲獎','stage','main')]},
   {id:'中環碁聖', short:'中環碁聖', grp:'採計', cols:[C('初賽勝','count'),C('初賽負','count'),C('本賽','stage','main')]},
   {id:'玄樂盃', short:'玄樂盃', grp:'採計', cols:[C('初賽','count'),C('本賽','stage','main')]},
   {id:'臺灣選拔', short:'臺灣選拔', grp:'採計', cols:[C('國手山脈','count'),C('爛柯杯','count'),C('棋仙杯','count'),C('其他選拔','count')]},
-  {id:'世界賽', short:'世界賽', grp:'採計', cols:['三星杯','LG杯','棋仙戰','國手山脈盃','最高棋士戰','爛柯杯','春蘭盃','夢百合杯','北海新譯盃','倡棋杯','南洋杯','應氏盃'].map(h=>C(h,'fx'))},
+  {id:'世界賽', short:'世界賽', grp:'採計', cols:['三星杯','LG杯','棋仙戰','國手山脈盃','最高棋士戰','爛柯杯','春蘭盃','夢百合杯','北海新譯盃','倡棋杯','南洋杯','應氏盃','GLOBIS盃'].map(h=>C(h,'fx'))},
   {id:'女子最強戰', short:'女子最強', grp:'女子', cols:[C('初賽','count'),C('本賽','stage','main')]},
   {id:'女子名人', short:'女子名人', grp:'女子', cols:[C('初賽','count'),C('對局數','count'),C('名次','stage','main')]},
-  {id:'女子世界賽', short:'女子世界賽', grp:'女子', cols:[C('吳清源杯','fx'),C('其他(台幣)','fx')]},
+  {id:'女子世界賽', short:'女子世界賽', grp:'女子', cols:[C('吳清源杯','fx'),C('IBK盃','fx'),C('其他(台幣)','fx')]},
   {id:'臺灣女子選拔', short:'女子選拔', grp:'女子', cols:[C('吳清源杯','count'),C('其他選拔1','count'),C('其他選拔2','count'),C('其他選拔3','count')]},
   {id:'新人王', short:'新人王', grp:'限制', cols:[C('初賽','count'),C('本賽','stage','main')]},
   {id:'龍星賽', short:'龍星賽', grp:'限制', cols:[C('本賽','stage','main')]},
   {id:'限制世界賽', short:'限制世界賽', grp:'限制', cols:[C('爛柯兒童','fx'),C('扇興杯','fx')]},
   {id:'霸王賽', short:'霸王賽', grp:'限制', cols:[C('循環勝','count'),C('本賽','stage','main')]},
-  {id:'團體賽', short:'團體賽', grp:'限制', cols:['雙城盃','中國圍甲','中國女子圍甲','韓國圍甲','韓國女子圍甲','全國團體賽'].map(h=>C(h,'money'))},
+  {id:'團體賽', short:'團體賽', grp:'限制', cols:['雙城盃','中國圍甲','中國乙級','中國丙級','中國女子圍甲','中國女子乙級','韓國圍甲','韓國女子圍甲','全國團體賽'].map(h=>C(h,'money'))},
   {id:'業餘賽', short:'業餘賽', grp:'限制', cols:['大成杯','吳彫枝','雙十杯','東鋼杯','甲子杯','張濬元'].map(h=>C(h,'money'))},
 ];
 const SHEET = Object.fromEntries(SHEETS.map(s=>[s.id, s]));
@@ -208,9 +207,6 @@ cnt('天元','初賽','中環天元賽','局數','初賽'); cnt('天元','複賽
 cnt('天元','循環圈勝','中環天元賽','勝局','循環圈'); cnt('天元','循環圈負','中環天元賽','負局','循環圈');
 cnt('天元','加賽','中環天元賽','局數','加賽');
 ko('天元','挑戰賽','中環天元賽',[[FINAL,'亞軍','冠軍']]);
-cnt('十段','資格賽','友士盃十段賽','局數','資格賽'); cnt('十段','初賽','友士盃十段賽','局數','初賽');
-ko('十段','本賽','友士盃十段賽',[['本賽16強','16強'],['本賽8強','8強'],['本賽4強','4強','4強']]);
-ko('十段','獲獎','友士盃十段賽',[['本賽挑戰者決定','季軍'],[FINAL,'亞軍','冠軍']]);
 cnt('海峰盃','初賽','海峰盃','局數','初賽');
 ko('海峰盃','本賽','海峰盃',[['本賽64強','64強'],['本賽32強','32強'],['本賽16強','16強'],['本賽8強','8強'],['本賽4強','4強'],[FINAL,'亞軍','冠軍']]);
 cnt('快棋爭霸戰','初賽','快棋爭霸戰','局數','初賽');
@@ -381,14 +377,16 @@ function calcSheet(sh, p){
       const L = lookupStage(sh, c.t, v); amt = L.prize; bad = !L.ok;
       calc = bad ? '「'+v+'」不在獎金表' : '依階段獎金表';
     } else if(c.k==='count'){
-      const price = num((ru.prices||{})[c.h]);
+      const pv = (ru.prices||{})[c.h], price = num(pv);
       amt = num(v) * price;
       calc = num(v)+' 局 × '+fmt(price);
       if(isNaN(Number(v))) bad = true;
+      if((pv==null || pv==='') && num(v)) { bad = true; calc = num(v)+' 局（每局單價未設定）'; }
     } else if(c.k==='fx'){
-      const rate = num((ru.rates||{})[c.h]);
+      const rv = (ru.rates||{})[c.h], rate = num(rv);
       amt = num(v) * rate;
       calc = fmt(num(v))+' × '+(+rate.toFixed(6));
+      if((rv==null || rv==='') && num(v)) { bad = true; calc = fmt(num(v))+'（換算倍率未設定）'; }
     } else { amt = num(v); calc = '台幣'; }
     total += amt;
     items.push({col:c.h, kind:c.k, v, src, amt, calc, bad});
@@ -397,10 +395,10 @@ function calcSheet(sh, p){
   return {total, items, any};
 }
 function rankOf(list){
-  // list: [{key, v}] → {key: rank}（只排 > 0）
-  const vals = list.filter(x=>x.v>0).map(x=>x.v);
+  // list: [{key, v, skip}] → {key: rank}（只排 > 0；skip＝不列入排名的業餘／外國棋手）
+  const vals = list.filter(x=>x.v>0 && !x.skip).map(x=>x.v);
   const r = {};
-  list.forEach(x=>{ r[x.key] = x.v>0 ? 1 + vals.filter(v=>v>x.v).length : ''; });
+  list.forEach(x=>{ r[x.key] = (x.v>0 && !x.skip) ? 1 + vals.filter(v=>v>x.v).length : ''; });
   return r;
 }
 function recompute(){
@@ -418,7 +416,7 @@ function recompute(){
     row.female = p.female ? row.grp.採計 + row.grp.女子 : null;
     return row;
   });
-  const rk = (f) => rankOf(rows.map(r=>({key:r.p.name, v: f(r)})));
+  const rk = (f) => rankOf(rows.map(r=>({key:r.p.name, v: f(r), skip: !!r.p.norank})));
   const R = {full: rk(r=>r.full), 採計: rk(r=>r.grp.採計), 女子: rk(r=>r.female||0), 限制: rk(r=>r.grp.限制)};
   rows.forEach(r=>{ r.rank = {full:R.full[r.p.name], 採計:R.採計[r.p.name], 女棋:R.女子[r.p.name], 限制:R.限制[r.p.name]}; });
   const byName = Object.fromEntries(rows.map(r=>[r.p.name, r]));
@@ -640,7 +638,7 @@ function renderSummaryBody(){
     const v = c.get(r);
     let cls = (c.money?'num':(c.cls||'')) + stickCls(c) + (c.full?' full':'') + (c.tot?' tot':'');
     let txt = c.money ? fmt0(v) : esc(v==null?'':v);
-    if(c.name) txt = '<a class="name" onclick="go(\'query\',{query:\''+esc(r.p.name)+'\'})">'+esc(r.p.name)+'</a>';
+    if(c.name) txt = '<a class="name" onclick="go(\'query\',{query:\''+esc(r.p.name)+'\'})">'+esc(r.p.name)+'</a>'+(r.p.norank?' <span class="muted" title="業餘／外國棋手，不列入排名">不排名</span>':'');
     return '<td class="'+cls+'">'+txt+'</td>';
   }).join('')+'</tr>').join('');
 }
@@ -702,7 +700,7 @@ function gameNote(g, name){
 function queryDetailHtml(r){
   const p = r.p;
   let h = '<div class="card"><div class="toolbar" style="justify-content:space-between"><h2 style="margin:0">'+esc(p.name)+
-    ' <span class="muted" style="font-size:15px">'+(p.dan!=null&&p.dan!==''?esc(p.dan)+' 段':'')+(p.female?'　㊣ 女棋':'')+'　'+YEAR+' 年對局費</span></h2>'+
+    ' <span class="muted" style="font-size:15px">'+(p.dan!=null&&p.dan!==''?esc(p.dan)+' 段':'')+(p.female?'　㊣ 女棋':'')+(p.norank?'　不列入排名':'')+'　'+YEAR+' 年對局費</span></h2>'+
     '<span class="noprint"><button class="btn" onclick="downloadPlayer(\''+esc(p.name)+'\')">⬇ 下載明細</button> <button class="btn" onclick="window.print()">🖨 列印</button></span></div>';
   h += '<div class="cards">'+
     stat('實際全額總計', r.full, r.rank.full, true)+stat('採計獎金', r.grp.採計, r.rank.採計)+stat('女子賽', r.grp.女子, null)+
@@ -748,7 +746,7 @@ function renderRank(){
   ];
   let h = '<div class="rank4">';
   blocks.forEach(([t, f, color])=>{
-    const list = CALC.rows.map(r=>({n:r.p.name, v:f(r)})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
+    const list = CALC.rows.filter(r=>!r.p.norank).map(r=>({n:r.p.name, v:f(r)})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
     h += '<div class="card"><h2 style="color:'+color+'">'+t+'</h2><table class="list"><thead><tr><th>名次</th><th>棋士</th><th class="num">金額</th></tr></thead><tbody>';
     list.forEach(x=>{ const rk = 1 + list.filter(y=>y.v>x.v).length;
       h += '<tr><td>'+rk+'</td><td><a class="name" onclick="go(\'query\',{query:\''+esc(x.n)+'\'})">'+esc(x.n)+'</a></td><td class="num">'+fmt(x.v)+'</td></tr>'; });
@@ -863,9 +861,9 @@ function renderCheck(){
   } else h += '<div class="ok">✔ 沒有</div>';
   h += '</div>';
   // 2
-  h += '<div class="card"><h3 style="margin-top:0">2. 階段不在獎金表（'+ck.badStages.length+'）</h3>';
+  h += '<div class="card"><h3 style="margin-top:0">2. 算不出金額的格子：階段不在獎金表，或單價／倍率還沒設定（'+ck.badStages.length+'）</h3>';
   if(ck.badStages.length){
-    h += '<div class="muted">這些格子算 0 元。請到「設定 → 獎金規則」補上這個階段，或修正內容。</div><table class="list"><thead><tr><th>賽事</th><th>棋士</th><th>欄位</th><th>內容</th></tr></thead><tbody>';
+    h += '<div class="muted">這些格子目前算 0 元。請到「設定 → 獎金規則」補上階段、單價或換算倍率，或修正內容。</div><table class="list"><thead><tr><th>賽事</th><th>棋士</th><th>欄位</th><th>內容</th></tr></thead><tbody>';
     ck.badStages.forEach(b=>{ h += '<tr><td><a class="name" onclick="go(\'events\',{event:\''+esc(b.sh)+'\'})">'+esc(b.sh)+'</a></td><td>'+esc(b.p)+'</td><td>'+esc(b.col)+'</td><td>'+esc(b.v)+'</td></tr>'; });
     h += '</tbody></table>';
   } else h += '<div class="ok">✔ 沒有</div>';
@@ -899,7 +897,7 @@ async function addPlayer(name){
   const players = (FEE.players||[]).slice();
   if(players.some(p=>p.name===name)) return;
   const maxNo = Math.max(0, ...players.map(p=>Number(p.no)||0));
-  players.push({no:maxNo+1, name, dan:'', bday:'', female:''});
+  players.push({no:maxNo+1, name, dan:0, bday:'', female:'', norank:true});
   await saveFeeFields({players}); toast('已把 '+name+' 加入名單');
 }
 async function deleteOrphan(k){
@@ -921,8 +919,8 @@ function renderSettings(){
 }
 function playersEditorHtml(){
   const ps = FEE.players||[];
-  let h = '<div class="card"><h2>棋士名單</h2><div class="muted">改完按「儲存名單」。改名字時，該棋士的手填資料會一起改名。</div>'+
-    '<div class="tablewrap" style="max-height:480px;margin-top:8px"><table class="grid edit-table" id="plTable"><thead><tr class="hdr"><th style="top:0">序</th><th style="top:0">棋士</th><th style="top:0">段</th><th style="top:0">生日</th><th style="top:0">女棋</th><th style="top:0"></th></tr></thead><tbody>';
+  let h = '<div class="card"><h2>棋士名單</h2><div class="muted">改完按「儲存名單」。改名字時，該棋士的手填資料會一起改名。「不列入排名」＝業餘／外國棋手：對局費照算，但不出現在排名與排行榜。</div>'+
+    '<div class="tablewrap" style="max-height:480px;margin-top:8px"><table class="grid edit-table" id="plTable"><thead><tr class="hdr"><th style="top:0">序</th><th style="top:0">棋士</th><th style="top:0">段</th><th style="top:0">生日</th><th style="top:0">女棋</th><th style="top:0" title="業餘／外國棋手：照算對局費，但不列入排名">不列入排名</th><th style="top:0"></th></tr></thead><tbody>';
   ps.forEach((p,i)=>{ h += plRow(p, i); });
   h += '</tbody></table></div><div class="toolbar" style="margin-top:8px"><button class="btn" onclick="addPlRow()">＋ 新增一列</button><button class="btn primary" onclick="savePlayers()">儲存名單</button></div></div>';
   return h;
@@ -930,7 +928,7 @@ function playersEditorHtml(){
 function plRow(p, i){
   return '<tr data-orig="'+esc(p.name||'')+'"><td><input style="width:60px" value="'+esc(p.no==null?'':p.no)+'"></td><td><input style="width:110px" value="'+esc(p.name||'')+'"></td>'+
     '<td><input style="width:50px" value="'+esc(p.dan==null?'':p.dan)+'"></td><td><input style="width:100px" value="'+esc(p.bday==null?'':p.bday)+'"></td>'+
-    '<td class="c"><input type="checkbox" style="width:auto" '+(p.female?'checked':'')+'></td><td><button class="btn small danger" onclick="this.closest(\'tr\').remove()">刪除</button></td></tr>';
+    '<td class="c"><input type="checkbox" style="width:auto" '+(p.female?'checked':'')+'></td><td class="c"><input type="checkbox" style="width:auto" '+(p.norank?'checked':'')+'></td><td><button class="btn small danger" onclick="this.closest(\'tr\').remove()">刪除</button></td></tr>';
 }
 function addPlRow(){ const tb = document.querySelector('#plTable tbody'); tb.insertAdjacentHTML('beforeend', plRow({}, 0)); tb.lastElementChild.querySelectorAll('input')[1].focus(); }
 async function savePlayers(){
@@ -940,7 +938,7 @@ async function savePlayers(){
     const ins = tr.querySelectorAll('input');
     const name = ins[1].value.trim(); if(!name) continue;
     const noV = ins[0].value.trim(), danV = ins[2].value.trim();
-    players.push({no: noV===''?'':(isNaN(noV)?noV:Number(noV)), name, dan: danV===''?'':(isNaN(danV)?danV:Number(danV)), bday: ins[3].value.trim(), female: ins[4].checked ? '㊣' : ''});
+    players.push({no: noV===''?'':(isNaN(noV)?noV:Number(noV)), name, dan: danV===''?'':(isNaN(danV)?danV:Number(danV)), bday: ins[3].value.trim(), female: ins[4].checked ? '㊣' : '', norank: ins[5].checked});
     const orig = tr.dataset.orig; if(orig && orig!==name) renames[orig] = name;
   }
   const names = players.map(p=>p.name); const dup = names.filter((n,i)=>names.indexOf(n)!==i);
@@ -1012,7 +1010,9 @@ function importExcelFile(inp){
     try{
       const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellFormula:true});
       const res = parseFeeWorkbook(wb);
+      const nr = res.players.filter(p=>p.norank).map(p=>p.name);
       const msg = '讀到：棋士 '+res.players.length+' 位、獎金規則 '+Object.keys(res.rules).length+' 個賽事、手填／手動修改 '+Object.keys(res.inputs).length+' 格。'+
+        (nr.length ? '\n段位空白或 0 的 '+nr.length+' 位設為 0 段、不列入排名：'+nr.join('、') : '')+
         (res.warn.length ? '\n\n注意：\n'+res.warn.slice(0,10).join('\n') : '')+'\n\n要用這份 Excel 取代 '+YEAR+' 年的資料嗎？';
       if(!confirm(msg)) return;
       await saveFeeFields({players:res.players, rules:res.rules, inputs:res.inputs, create:true});
@@ -1029,7 +1029,8 @@ function parseFeeWorkbook(wb){
   const players = [];
   for(let r=4; r<=203; r++){
     const name = val(tot, r, 2); if(name==null || String(name).trim()==='') continue;
-    players.push({no: val(tot,r,1)==null?'':val(tot,r,1), name:String(name).trim(), dan: val(tot,r,3)==null?'':val(tot,r,3), bday: val(tot,r,4)==null?'':String(val(tot,r,4)), female: val(tot,r,5)?'㊣':''});
+    const dan = val(tot,r,3), amateur = (dan==null || dan==='' || Number(dan)===0);
+    players.push({no: val(tot,r,1)==null?'':val(tot,r,1), name:String(name).trim(), dan: amateur ? 0 : dan, bday: val(tot,r,4)==null?'':String(val(tot,r,4)), female: val(tot,r,5)?'㊣':'', norank: amateur});
   }
   const roster = new Set(players.map(p=>p.name));
   const rules = {}, inputs = {};
@@ -1058,7 +1059,6 @@ function parseFeeWorkbook(wb){
     rules[s.id] = ru;
     // 手填資料
     const hdr = {}; for(let c=3; c<=rng.e.c+1; c++){ const h = String(val(ws,2,c)||'').replace(/\((局|選)\)$/,'').trim(); if(h) hdr[h] = c; }
-    s.cols.forEach(col=>{ if(!hdr[col.h]) warn.push(s.id+'：找不到欄位「'+col.h+'」'); });
     for(let r=3; r<=202; r++){
       const name = val(ws, r, 1); if(name==null || String(name).trim()==='') continue;
       const p = String(name).trim();
