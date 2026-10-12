@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>海峰棋院 對局費</title>
+<style>
+:root{
+  --navy:#2F5597; --navy-l:#DDEBF7; --teal:#00897B; --teal-l:#E0F4F1; --orange:#C55A11; --orange-l:#FBE5D6;
+  --pink:#A64D79; --pink-l:#FBE4EF; --green:#548235; --green-l:#E2EFDA; --gray:#595959; --gray-l:#F2F2F2;
+  --yellow-l:#FFF8D6; --manual:#F8CBAD; --bad:#FFC7CE; --line:#D0D0D0; --text:#222; --muted:#777;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:"微軟正黑體","Microsoft JhengHei","Noto Sans TC",sans-serif;color:var(--text);background:#F7F7F5;font-size:15px}
+button{font-family:inherit;font-size:14px;cursor:pointer}
+input,select{font-family:inherit;font-size:14px}
+.topbar{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.topbar .row1{display:flex;align-items:center;gap:14px;padding:10px 18px;flex-wrap:wrap}
+.brand{font-size:20px;font-weight:bold;color:var(--navy);white-space:nowrap}
+.brand small{font-size:13px;color:var(--muted);font-weight:normal;margin-left:6px}
+.spacer{flex:1}
+.status{font-size:13px;color:var(--muted)}
+.status b.ok{color:var(--green)} .status b.bad{color:#C00000}
+.tabs{display:flex;gap:2px;padding:0 12px;overflow-x:auto}
+.tab{border:none;background:none;padding:9px 16px;border-bottom:3px solid transparent;color:#444;font-size:15px;white-space:nowrap}
+.tab.on{border-bottom-color:var(--navy);color:var(--navy);font-weight:bold}
+.btn{border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 12px}
+.btn:hover{background:#f3f3f3}
+.btn.primary{background:var(--navy);border-color:var(--navy);color:#fff}
+.btn.primary:hover{background:#244a86}
+.btn.small{padding:2px 8px;font-size:13px}
+.btn.danger{color:#C00000}
+main{padding:16px 18px 60px}
+.card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:14px}
+h2{font-size:18px;margin:0 0 10px;color:var(--navy)}
+h3{font-size:16px;margin:14px 0 8px}
+.muted{color:var(--muted);font-size:13px}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.toolbar input[type=search]{padding:6px 10px;border:1px solid var(--line);border-radius:6px;min-width:180px}
+.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:6px;background:#fff;max-height:calc(100vh - 210px)}
+table.grid{border-collapse:separate;border-spacing:0;font-size:14px;white-space:nowrap}
+table.grid th,table.grid td{border-right:1px solid #E3E3E3;border-bottom:1px solid #E3E3E3;padding:5px 8px}
+table.grid thead th{position:sticky;top:0;background:#fff;z-index:3;font-weight:bold;text-align:center}
+table.grid thead tr.band th{top:0;color:#fff}
+table.grid thead tr.hdr th{top:30px;cursor:pointer}
+table.grid thead tr.sum th{top:60px;background:var(--green-l);font-weight:bold;cursor:default}
+table.grid td.num,table.grid th.num{text-align:right}
+table.grid td.c{text-align:center}
+table.grid .stick1{position:sticky;left:0;z-index:2;background:#fff}
+table.grid .stick2{position:sticky;left:44px;z-index:2;background:#fff}
+table.grid thead .stick1,table.grid thead .stick2{z-index:4}
+table.grid tbody tr:hover td{background:#FFF6E5}
+table.grid tbody tr:hover td.stick1,table.grid tbody tr:hover td.stick2{background:#FFF6E5}
+td.tot{font-weight:bold}
+td.full{background:var(--orange-l)!important;font-weight:bold}
+a.name{color:var(--navy);text-decoration:none;cursor:pointer}
+a.name:hover{text-decoration:underline}
+.badge{display:inline-block;font-size:12px;padding:1px 7px;border-radius:10px;border:1px solid}
+.badge.auto{color:var(--teal);border-color:var(--teal);background:var(--teal-l)}
+.badge.hand{color:#8a6d00;border-color:#d8c06a;background:var(--yellow-l)}
+.badge.manual{color:#a14b12;border-color:#e3a173;background:var(--manual)}
+.cards{display:flex;gap:12px;flex-wrap:wrap;margin:6px 0 14px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 14px;min-width:150px}
+.stat .lab{font-size:13px;color:var(--muted)}
+.stat .val{font-size:22px;font-weight:bold;margin-top:2px}
+.stat .rk{font-size:13px;color:var(--muted)}
+.stat.full{border-color:var(--orange);background:var(--orange-l)}
+table.list{border-collapse:collapse;width:100%;font-size:14px}
+table.list th,table.list td{border-bottom:1px solid #E6E6E6;padding:6px 8px;text-align:left}
+table.list th{background:#F4F6FA;font-weight:bold}
+table.list td.num,table.list th.num{text-align:right}
+table.list tr.sub td{background:#FAFAFA;font-weight:bold}
+.evbtns{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.evbtn{border:1px solid var(--line);background:#fff;border-radius:16px;padding:4px 12px}
+.evbtn.on{color:#fff}
+.evbtn .amt{font-size:12px;opacity:.75;margin-left:4px}
+td.auto{background:var(--teal-l)}
+td.over{background:var(--manual)}
+td.hand{background:var(--yellow-l)}
+td.badcell{background:var(--bad)!important}
+td.edit input,td.edit select{width:100%;min-width:70px;border:1px solid transparent;background:transparent;padding:2px 4px;text-align:center}
+td.edit input:hover,td.edit select:hover,td.edit input:focus,td.edit select:focus{border-color:#9bb3d9;background:#fff}
+td.edit .restore{border:none;background:none;color:#a14b12;cursor:pointer;font-size:13px;padding:0 2px}
+.sidebox{min-width:230px}
+.flex{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.flex>.grow{flex:1;min-width:300px}
+.rank4{display:flex;gap:14px;flex-wrap:wrap}
+.rank4 .card{flex:1;min-width:250px}
+.ok{color:var(--green);font-weight:bold}
+.bad{color:#C00000;font-weight:bold}
+.chk-sum{font-size:16px;margin-bottom:10px}
+#loginView{max-width:380px;margin:80px auto}
+#loginView input{width:100%;padding:8px 10px;margin:6px 0 10px;border:1px solid var(--line);border-radius:6px}
+.err{color:#C00000;font-size:14px;min-height:20px}
+.ac{position:relative;display:inline-block}
+.ac input{padding:7px 10px;border:1px solid var(--line);border-radius:6px;width:220px;font-size:16px}
+.ac-list{position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #9bb3d9;border-top:none;max-height:300px;overflow:auto;z-index:20;display:none}
+.ac-list div{padding:6px 10px;cursor:pointer}
+.ac-list div.on,.ac-list div:hover{background:#E8F0FB}
+#localBanner{background:#FFF3CD;color:#7a5b00;padding:6px 18px;font-size:13px;display:none}
+.toast{position:fixed;right:18px;bottom:18px;background:#333;color:#fff;padding:8px 14px;border-radius:6px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:99}
+.toast.show{opacity:.92}
+.edit-table input{border:1px solid var(--line);border-radius:4px;padding:3px 6px;width:100%}
+.edit-table td{padding:3px 4px}
+.note{background:#F4F6FA;border-left:4px solid var(--navy);padding:8px 12px;font-size:14px;margin:8px 0}
+@media print{.topbar,.noprint{display:none!important} main{padding:0} .card{border:none}}
+</style>
+</head>
+<body>
+<div id="localBanner">本機測試模式（?local=1）：對局費資料只存在這台電腦的瀏覽器，不會上傳；成績資料仍讀取正式成績系統。</div>
+<div class="topbar" id="topbar" style="display:none">
+  <div class="row1">
+    <div class="brand">海峰棋院 對局費<small id="yearLabel"></small></div>
+    <select id="yearSel" class="btn" onchange="changeYear(this.value)"></select>
+    <div class="spacer"></div>
+    <div class="status" id="statusLine"></div>
+    <button class="btn" onclick="downloadAll()">⬇ 下載 Excel</button>
+    <button class="btn" id="logoutBtn" onclick="logout()">登出</button>
+  </div>
+  <div class="tabs" id="tabs"></div>
+</div>
+<main id="main"></main>
+<div id="loginView" class="card" style="display:none">
+  <h2>海峰棋院 對局費</h2>
+  <div class="muted">內部資料，請登入後查看。</div>
+  <label>帳號（Email）<input id="loginEmail" type="email" autocomplete="username"></label>
+  <label>密碼<input id="loginPw" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></label>
+  <div class="err" id="loginErr"></div>
+  <button class="btn primary" id="loginBtn" onclick="doLogin()" style="width:100%">登入</button>
+</div>
+<div class="toast" id="toast"></div>
+<input type="file" id="xlsxFile" accept=".xlsx" style="display:none" onchange="importExcelFile(this)">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script>
+/* ============ 海峰棋院 對局費（2026-10-12 網頁版） ============
+   取代桌面上的「2026對局費計算_優化版.xlsx」。
+   資料來源：
+     ・對局成績：成績系統 Firestore results/yYYYY（公開可讀），results/meta 改版號時自動重新讀取 → 不用按更新。
+     ・對局費資料：Firestore fees/yYYYY { players:JSON, rules:JSON, inputs:{鍵:值}, updatedAt }
+         players = [{no,name,dan,bday,female}]
+         rules   = { 賽事頁: { tables:{main:[[階段,獎金]…], pre:[[局數,獎金]…]}, prices:{欄位:每局}, rates:{欄位:倍率} } }
+         inputs  = { "賽事頁|棋士|欄位": 值 }  ← 手填欄位，或自動欄位被手動改過（逐欄位更新，多人同時改不會互蓋）
+       名單、金額、生日都只存在 Firestore（登入才讀得到），不寫在這份網頁程式裡（網站原始碼是公開的）。
+   Firestore 規則：fees 只有院方帳號可讀寫（使用者要在 Firebase 後台加上規則）。
+   計算規則跟 Excel 優化版的 Power Query 完全相同（用同事手填的 2025 年版逐格驗證過）。
+   網址加 ?local=1 = 本機測試模式：對局費資料存在 localStorage；成績照樣讀正式成績系統（唯讀）。 */
+const firebaseConfig = {
+  apiKey: "AIzaSyAZAxRuD6MFG4i_FcOf5OX_qzrHunGXqnk",
+  authDomain: "test-5cfc9.firebaseapp.com",
+  projectId: "test-5cfc9",
+  storageBucket: "test-5cfc9.firebasestorage.app",
+  messagingSenderId: "892169332286",
+  appId: "1:892169332286:web:c16a82a686d1f3e024536f"
+};
+const LOCAL_MODE = new URLSearchParams(location.search).get('local') === '1';
+const LOCAL_KEY = 'haifong-fee-local-v1';
+
+/* ============ 賽事頁結構（欄位種類：count=局數×單價、stage=查階段表、fx=外幣×倍率、money=直接台幣） ============ */
+const C = (h, k, t) => ({h, k, t});
+const SHEETS = [
+  {id:'名人', short:'名人', grp:'採計', cols:[C('本賽','stage','main')]},
+  {id:'棋王', short:'棋王', grp:'採計', cols:[C('資格賽','count'),C('初賽','count'),C('複賽','count'),C('循環圈勝','count'),C('循環圈負','count'),C('挑戰賽','stage','main')]},
+  {id:'天元', short:'天元', grp:'採計', cols:[C('初賽','count'),C('複賽','count'),C('循環圈勝','count'),C('循環圈負','count'),C('加賽','count'),C('挑戰賽','stage','main')]},
+  {id:'十段', short:'十段', grp:'採計', cols:[C('資格賽','count'),C('初賽','stage','pre'),C('本賽','stage','main'),C('獲獎','stage','main')]},
+  {id:'海峰盃', short:'海峰盃', grp:'採計', cols:[C('初賽','count'),C('本賽','stage','main')]},
+  {id:'快棋爭霸戰', short:'快棋爭霸', grp:'採計', cols:[C('初賽','count'),C('本賽種子','count'),C('本賽','stage','main')]},
+  {id:'國手', short:'國手', grp:'採計', cols:[C('初賽','count'),C('本賽','stage','main'),C('獲獎','stage','main')]},
+  {id:'中環碁聖', short:'中環碁聖', grp:'採計', cols:[C('初賽勝','count'),C('初賽負','count'),C('本賽','stage','main')]},
+  {id:'玄樂盃', short:'玄樂盃', grp:'採計', cols:[C('初賽','count'),C('本賽','stage','main')]},
+  {id:'臺灣選拔', short:'臺灣選拔', grp:'採計', cols:[C('國手山脈','count'),C('爛柯杯','count'),C('棋仙杯','count'),C('其他選拔','count')]},
+  {id:'世界賽', short:'世界賽', grp:'採計', cols:['三星杯','LG杯','棋仙戰','國手山脈盃','最高棋士戰','爛柯杯','春蘭盃','夢百合杯','北海新譯盃','倡棋杯','南洋杯','應氏盃'].map(h=>C(h,'fx'))},
+  {id:'女子最強戰', short:'女子最強', grp:'女子', cols:[C('初賽','count'),C('本賽','stage','main')]},
+  {id:'女子名人', short:'女子名人', grp:'女子', cols:[C('初賽','count'),C('對局數','count'),C('名次','stage','main')]},
+  {id:'女子世界賽', short:'女子世界賽', grp:'女子', cols:[C('吳清源杯','fx'),C('其他(台幣)','fx')]},
+  {id:'臺灣女子選拔', short:'女子選拔', grp:'女子', cols:[C('吳清源杯','count'),C('其他選拔1','count'),C('其他選拔2','count'),C('其他選拔3','count')]},
+  {id:'新人王', short:'新人王', grp:'限制', cols:[C('初賽','count'),C('本賽','stage','main')]},
+  {id:'龍星賽', short:'龍星賽', grp:'限制', cols:[C('本賽','stage','main')]},
+  {id:'限制世界賽', short:'限制世界賽', grp:'限制', cols:[C('爛柯兒童','fx'),C('扇興杯','fx')]},
+  {id:'霸王賽', short:'霸王賽', grp:'限制', cols:[C('循環勝','count'),C('本賽','stage','main')]},
+  {id:'團體賽', short:'團體賽', grp:'限制', cols:['雙城盃','中國圍甲','中國女子圍甲','韓國圍甲','韓國女子圍甲','全國團體賽'].map(h=>C(h,'money'))},
+  {id:'業餘賽', short:'業餘賽', grp:'限制', cols:['大成杯','吳彫枝','雙十杯','東鋼杯','甲子杯','張濬元'].map(h=>C(h,'money'))},
+];
+const SHEET = Object.fromEntries(SHEETS.map(s=>[s.id, s]));
+const GROUPS = [
+  {id:'採計', name:'採計獎金', dark:'#2F5597', light:'#DDEBF7'},
+  {id:'女子', name:'女子賽', dark:'#A64D79', light:'#FBE4EF'},
+  {id:'限制', name:'限制賽', dark:'#548235', light:'#E2EFDA'},
+];
+const GRP = Object.fromEntries(GROUPS.map(g=>[g.id, g]));
+
+/* ============ 成績 → 自動欄位 規則（跟 Excel 的 Power Query 同一份） ============
+   [賽事頁, 欄位, 成績系統賽名, 方式, [階段開頭], 輪次, 輸了填, 贏了填, [附加階段]]
+   方式：局數／勝局／負局／有參加／階段／雙敗決賽／種子 */
+const FINAL = ['決賽','冠亞軍決賽'];
+const RULES = [];
+function ko(sh, col, ev, rounds){ rounds.forEach((r,i)=>RULES.push([sh, col, ev, r[3]||'階段', [].concat(r[0]), i+1, r[1], r[2]||null, r[4]||[]])); }
+function cnt(sh, col, ev, mode, pre, extra){ RULES.push([sh, col, ev, mode, [].concat(pre), null, null, null, extra||[]]); }
+ko('名人','本賽','名人賽',[['本賽32強','32強'],['本賽16強','16強'],['本賽8強','8強'],['本賽4強','4強'],[FINAL,'亞軍','冠軍']]);
+cnt('棋王','資格賽','棋王賽','局數','資格賽'); cnt('棋王','初賽','棋王賽','局數','初賽'); cnt('棋王','複賽','棋王賽','局數','複賽');
+cnt('棋王','循環圈勝','棋王賽','勝局',['循環圈','加賽']); cnt('棋王','循環圈負','棋王賽','負局',['循環圈','加賽']);
+ko('棋王','挑戰賽','棋王賽',[[FINAL,'亞軍','冠軍']]);
+cnt('天元','初賽','中環天元賽','局數','初賽'); cnt('天元','複賽','中環天元賽','局數','複賽');
+cnt('天元','循環圈勝','中環天元賽','勝局','循環圈'); cnt('天元','循環圈負','中環天元賽','負局','循環圈');
+cnt('天元','加賽','中環天元賽','局數','加賽');
+ko('天元','挑戰賽','中環天元賽',[[FINAL,'亞軍','冠軍']]);
+cnt('十段','資格賽','友士盃十段賽','局數','資格賽'); cnt('十段','初賽','友士盃十段賽','局數','初賽');
+ko('十段','本賽','友士盃十段賽',[['本賽16強','16強'],['本賽8強','8強'],['本賽4強','4強','4強']]);
+ko('十段','獲獎','友士盃十段賽',[['本賽挑戰者決定','季軍'],[FINAL,'亞軍','冠軍']]);
+cnt('海峰盃','初賽','海峰盃','局數','初賽');
+ko('海峰盃','本賽','海峰盃',[['本賽64強','64強'],['本賽32強','32強'],['本賽16強','16強'],['本賽8強','8強'],['本賽4強','4強'],[FINAL,'亞軍','冠軍']]);
+cnt('快棋爭霸戰','初賽','快棋爭霸戰','局數','初賽');
+cnt('快棋爭霸戰','本賽種子','快棋爭霸戰','種子','本賽32強',['本賽48強']);
+ko('快棋爭霸戰','本賽','快棋爭霸戰',[['本賽48強','48強'],['本賽32強','32強'],['本賽16強','16強'],['本賽8強','8強'],['本賽4強','4強'],[FINAL,'亞軍','冠軍']]);
+cnt('國手','初賽','中環國手賽','局數','初賽');
+ko('國手','本賽','中環國手賽',[['本賽16強','16強'],['本賽8強','8強'],['本賽4強','4強'],['本賽挑戰者決定','季軍','4強']]);
+ko('國手','獲獎','中環國手賽',[[FINAL,'亞軍','冠軍']]);
+cnt('中環碁聖','初賽勝','中環碁聖賽','勝局','初賽'); cnt('中環碁聖','初賽負','中環碁聖賽','負局','初賽');
+ko('中環碁聖','本賽','中環碁聖賽',[['本賽16強','16強'],['本賽8強','8強'],['本賽4強','4強'],[FINAL,'亞軍','冠軍']]);
+cnt('玄樂盃','初賽','玄樂盃','局數','初賽');
+ko('玄樂盃','本賽','玄樂盃',[['本賽48強','48強'],['本賽32強','32強'],['本賽16強','16強'],['本賽8強','8強'],['本賽4強','4強'],[FINAL,'亞軍','冠軍']]);
+cnt('臺灣選拔','國手山脈','國手山脈盃','局數','決選'); cnt('臺灣選拔','爛柯杯','衢州爛柯盃','局數','決選');
+cnt('臺灣選拔','棋仙杯','世界棋仙盃','有參加','決選');
+cnt('女子最強戰','初賽','女子圍棋最強戰','局數','初賽');
+ko('女子最強戰','本賽','女子圍棋最強戰',[['敗部1回','敗部1回'],['敗部2回','敗部2回'],['敗部3回','敗部3回'],['敗部準決賽','敗部準決賽'],['敗部決賽','敗部決賽'],[FINAL,'亞軍','冠軍']]);
+cnt('女子名人','初賽','大森盃女子名人賽','局數','資格賽');
+cnt('女子名人','對局數','大森盃女子名人賽','局數',['勝部','敗部','決賽']);
+ko('女子名人','名次','大森盃女子名人賽',[[['敗部4回','敗部決賽'],'季軍'],[FINAL,'亞軍','冠軍','雙敗決賽',['勝部','敗部','決賽']]]);
+cnt('臺灣女子選拔','吳清源杯','吳清源盃','局數','決選');
+cnt('新人王','初賽','新人王賽','局數','初賽');
+ko('新人王','本賽','新人王賽',[['本賽16強','16強'],['本賽8強','8強'],['本賽4強','4強'],[FINAL,'亞軍','冠軍']]);
+ko('龍星賽','本賽','龍星賽',[['本賽32強','32強'],['本賽16強','16強'],['本賽8強','8強'],['本賽4強','4強'],[FINAL,'亞軍','冠軍']]);
+const AUTO_COLS = new Set(RULES.map(r=>r[0]+'|'+r[1]));
+const RULE_EVENTS = new Set(RULES.map(r=>r[2]));
+const isAuto = (sh, col) => AUTO_COLS.has(sh+'|'+col);
+
+/* ============ 狀態 ============ */
+let fb = null, USER = null;
+let YEAR = new Date().getFullYear();
+let RESULT_VERSION = null, RESULT_YEARS = [];
+let GAMES = [];            // 這一年全部對局（國內＋國際）
+let FEE = null;            // {players, rules, inputs, updatedAt}；null = 這一年還沒建立
+let FEE_LOADED = false, RESULTS_LOADED = false;
+let AUTO = {};             // AUTO[賽事頁][棋士][欄位] = 值
+let CALC = null;           // 計算結果
+let VIEW = 'summary';
+let VIEW_STATE = {event:'名人', query:'', sortCol:'no', sortDir:1, filter:'', onlyData:true, ruleSheet:'名人'};
+let unsubFee = null, unsubMeta = null;
+let pendingRender = false;
+
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => (n==null || n==='' || isNaN(n)) ? '' : Math.round(n).toLocaleString('zh-TW');
+const fmt0 = n => n ? fmt(n) : '';
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'), 2200); }
+function num(v){ if(v===''||v==null) return 0; const n = Number(v); return isNaN(n) ? 0 : n; }
+function roundX(x){ return Math.round(Number(x.toFixed(9))); }   // 跟 Excel ROUND 一樣（避免 308.625 變 308.62499999）
+
+/* ============ 成績正規化與自動推算（等同 Excel Power Query「成績資料／對局明細／自動成績」） ============ */
+const CN_PAIRS = [['一回','1回'],['二回','2回'],['三回','3回'],['四回','4回'],['五回','5回'],['六回','6回'],['三番','3番'],['五番','5番'],['七番','7番']];
+function normStage(s){
+  let a = String(s||'').replace(/[\s　]/g,'').replace(/强/g,'強');
+  CN_PAIRS.forEach(p=>{ a = a.split(p[0]).join(p[1]); });
+  return a;
+}
+function prepareGames(rows, year){
+  // rows：成績系統的 [日期,國內/國際,正式/限制,賽名,階段,黑,白,勝方,結果]
+  const out = rows.map((r, i)=>{
+    const t = k => String(r[k]==null?'':r[k]).trim();
+    const g = {i, y:year, d:t(0), c1:t(1), c2:t(2), ev:t(3), st0raw:t(4), b:t(5), w:t(6), win:t(7), mv:t(8)};
+    g.st0 = normStage(g.st0raw);
+    g.forfeit = g.mv.indexOf('不戰') >= 0;
+    return g;
+  });
+  // 循環圈裡同一對人第二次碰面 → 加賽（只看國內）
+  const seen = new Set();
+  out.filter(g=>g.c1==='國內').slice().sort((a,b)=>a.d.localeCompare(b.d) || a.i-b.i).forEach(g=>{
+    g.playoff = false;
+    if(g.st0.startsWith('循環圈') && g.st0.indexOf('加賽')<0){
+      const key = g.ev+'|'+[g.b,g.w].sort().join('|');
+      if(seen.has(key)) g.playoff = true;
+      seen.add(key);
+    }
+  });
+  out.forEach(g=>{ g.st = (g.st0.indexOf('加賽')>=0 || g.playoff) ? '加賽' : g.st0; });
+  return out;
+}
+function needOf(s){ const p = s.indexOf('番'); if(p<1) return null; const n = Number(s.charAt(p-1)); return isNaN(n) ? null : Math.floor(n/2)+1; }
+const startsAny = (s, pre) => pre.some(p=>s.startsWith(p));
+function deriveAuto(games){
+  const P = [];   // 對局明細：每局拆成黑白兩列
+  games.filter(g=>g.c1==='國內').forEach(g=>{
+    [[g.b,g.w],[g.w,g.b]].forEach(([p,o])=>{
+      if(!p) return;
+      P.push({ev:g.ev, st:g.st, p, o, win: g.win===p ? 1 : (g.win===o ? 0 : null), forfeitLoss: g.forfeit && g.win!==p, g});
+    });
+  });
+  const byEv = {};
+  RULES.forEach(r=>{ (byEv[r[2]] = byEv[r[2]] || []).push(r); });
+  const M = [];
+  P.forEach(x=>{ (byEv[x.ev]||[]).forEach(r=>{ if(startsAny(x.st, r[4])) M.push({x, r}); }); });
+  const played = M.filter(m=>!m.x.forfeitLoss);
+  const auto = {};
+  const set = (sh, p, col, v) => { ((auto[sh] = auto[sh]||{})[p] = auto[sh][p]||{})[col] = v; };
+  // 局數／勝局／負局／有參加
+  const cnt = {};
+  played.forEach(({x, r})=>{
+    const mode = r[3]; if(['局數','勝局','負局','有參加'].indexOf(mode)<0) return;
+    const k = r[0]+'\u0001'+r[1]+'\u0001'+x.p;
+    if(!(k in cnt)) cnt[k] = {sh:r[0], col:r[1], p:x.p, mode, n:0};
+    if(mode==='局數') cnt[k].n++;
+    else if(mode==='勝局'){ if(x.win===1) cnt[k].n++; }
+    else if(mode==='負局'){ if(x.win===0) cnt[k].n++; }
+    else cnt[k].n = 1;
+  });
+  Object.values(cnt).forEach(c=>{ if(c.n!==0) set(c.sh, c.p, c.col, c.n); });
+  // 種子：有下開頭階段、但沒下附加階段
+  played.filter(m=>m.r[3]==='種子').forEach(({x, r})=>{
+    const inExtra = P.some(q=>q.ev===x.ev && q.p===x.p && startsAny(q.st, r[8]));
+    if(!inExtra) set(r[0], x.p, r[1], 1);
+  });
+  // 階段：看最後一輪，輸了填該輪、贏了填下一輪（保底）
+  const lossesIn = (ev, who, pre) => P.filter(q=>q.ev===ev && q.p===who && q.win===0 && startsAny(q.st, pre)).length;
+  const grp = {};
+  played.filter(m=>m.r[3]==='階段' || m.r[3]==='雙敗決賽').forEach(m=>{
+    const k = m.r[0]+'\u0001'+m.r[1]+'\u0001'+m.x.p;
+    (grp[k] = grp[k] || []).push(m);
+  });
+  Object.values(grp).forEach(list=>{
+    const mx = Math.max(...list.map(m=>m.r[5]));
+    const tr = list.filter(m=>m.r[5]===mx);
+    const r0 = tr[0].r, p = tr[0].x.p;
+    const w = tr.filter(m=>m.x.win===1).length, l = tr.filter(m=>m.x.win===0).length;
+    const need = needOf(tr[0].x.st);
+    let won;
+    if(r0[3]==='雙敗決賽'){
+      const opps = [...new Set(tr.map(m=>m.x.o))];
+      won = lossesIn(r0[2], p, r0[8]) < 2 && opps.every(o=>lossesIn(r0[2], o, r0[8]) >= 2);
+    } else if(need!=null) won = w >= need;
+    else won = w > l;
+    const nx = RULES.filter(r=>r[0]===r0[0] && r[1]===r0[1] && r[5]!=null && r[5]>mx).sort((a,b)=>a[5]-b[5]);
+    const nextLose = nx.length ? nx[0][6] : r0[6];
+    set(r0[0], p, r0[1], won ? (r0[7]!=null ? r0[7] : nextLose) : r0[6]);
+  });
+  return auto;
+}
+
+/* ============ 計算 ============ */
+function inputKey(sh, p, col){ return sh+'|'+p+'|'+col; }
+function cellValue(sh, p, col){
+  const k = inputKey(sh, p, col);
+  if(FEE && FEE.inputs && Object.prototype.hasOwnProperty.call(FEE.inputs, k)){
+    return {v: FEE.inputs[k], src: isAuto(sh, col) ? 'manual' : 'hand'};
+  }
+  if(isAuto(sh, col)){
+    const v = ((AUTO[sh]||{})[p]||{})[col];
+    return {v: v==null ? '' : v, src: v==null ? '' : 'auto'};
+  }
+  return {v:'', src:''};
+}
+function sheetRules(sh){ return (FEE && FEE.rules && FEE.rules[sh]) || {tables:{}, prices:{}, rates:{}}; }
+function lookupStage(sh, t, v){
+  const rows = (sheetRules(sh).tables||{})[t] || [];
+  const hit = rows.find(r=>String(r[0])===String(v));
+  return hit ? {ok:true, prize: num(hit[1])} : {ok:false, prize:0};
+}
+// 一位棋士在一個賽事頁的明細
+function calcSheet(sh, p){
+  const s = SHEET[sh], ru = sheetRules(sh);
+  let total = 0, any = false, hasFx = s.cols.some(c=>c.k==='fx');
+  const items = [];
+  s.cols.forEach(c=>{
+    const {v, src} = cellValue(sh, p, c.h);
+    if(v==='' || v==null) return;
+    any = true;
+    let amt = 0, calc = '', bad = false;
+    if(c.k==='stage'){
+      const L = lookupStage(sh, c.t, v); amt = L.prize; bad = !L.ok;
+      calc = bad ? '「'+v+'」不在獎金表' : '依階段獎金表';
+    } else if(c.k==='count'){
+      const price = num((ru.prices||{})[c.h]);
+      amt = num(v) * price;
+      calc = num(v)+' 局 × '+fmt(price);
+      if(isNaN(Number(v))) bad = true;
+    } else if(c.k==='fx'){
+      const rate = num((ru.rates||{})[c.h]);
+      amt = num(v) * rate;
+      calc = fmt(num(v))+' × '+(+rate.toFixed(6));
+    } else { amt = num(v); calc = '台幣'; }
+    total += amt;
+    items.push({col:c.h, kind:c.k, v, src, amt, calc, bad});
+  });
+  if(hasFx) total = roundX(total);
+  return {total, items, any};
+}
+function rankOf(list){
+  // list: [{key, v}] → {key: rank}（只排 > 0）
+  const vals = list.filter(x=>x.v>0).map(x=>x.v);
+  const r = {};
+  list.forEach(x=>{ r[x.key] = x.v>0 ? 1 + vals.filter(v=>v>x.v).length : ''; });
+  return r;
+}
+function recompute(){
+  if(!FEE){ CALC = null; return; }
+  const players = FEE.players || [];
+  const noKey = p => (p.no==='' || p.no==null || isNaN(p.no)) ? Infinity : Number(p.no);
+  const rows = players.filter(p=>p.name).slice().sort((a,b)=>noKey(a)-noKey(b)).map(p=>{
+    const row = {p, sheets:{}, grp:{採計:0, 女子:0, 限制:0}};
+    SHEETS.forEach(s=>{
+      const c = calcSheet(s.id, p.name);
+      row.sheets[s.id] = c;
+      row.grp[s.grp] += c.total;
+    });
+    row.full = row.grp.採計 + row.grp.女子 + row.grp.限制;
+    row.female = p.female ? row.grp.採計 + row.grp.女子 : null;
+    return row;
+  });
+  const rk = (f) => rankOf(rows.map(r=>({key:r.p.name, v: f(r)})));
+  const R = {full: rk(r=>r.full), 採計: rk(r=>r.grp.採計), 女子: rk(r=>r.female||0), 限制: rk(r=>r.grp.限制)};
+  rows.forEach(r=>{ r.rank = {full:R.full[r.p.name], 採計:R.採計[r.p.name], 女棋:R.女子[r.p.name], 限制:R.限制[r.p.name]}; });
+  const byName = Object.fromEntries(rows.map(r=>[r.p.name, r]));
+  // 檢核
+  const roster = new Set(players.map(p=>p.name));
+  const missing = [];   // 成績系統有、名單沒有
+  Object.keys(AUTO).forEach(sh=>{ Object.keys(AUTO[sh]).forEach(p=>{ if(!roster.has(p)) missing.push({sh, p, vals:AUTO[sh][p]}); }); });
+  const badStages = [];
+  rows.forEach(r=>SHEETS.forEach(s=>r.sheets[s.id].items.forEach(it=>{ if(it.bad) badStages.push({sh:s.id, p:r.p.name, col:it.col, v:it.v}); })));
+  const manual = [];
+  Object.keys((FEE.inputs||{})).forEach(k=>{ const [sh, p, col] = k.split('|'); if(isAuto(sh, col)) manual.push({sh, p, col, v:FEE.inputs[k], auto:((AUTO[sh]||{})[p]||{})[col]}); });
+  const cnt = {}; players.forEach(p=>{ if(p.name) cnt[p.name] = (cnt[p.name]||0)+1; });
+  const dups = Object.keys(cnt).filter(n=>cnt[n]>1);
+  const orphan = [];  // 手填資料的名字已不在名單
+  Object.keys((FEE.inputs||{})).forEach(k=>{ const [sh, p] = k.split('|'); if(!roster.has(p)) orphan.push({k, sh, p, v:FEE.inputs[k]}); });
+  const evCount = {};
+  GAMES.filter(g=>g.c1==='國內' && !RULE_EVENTS.has(g.ev)).forEach(g=>{ evCount[g.ev] = (evCount[g.ev]||0)+1; });
+  const unmapped = Object.keys(evCount).map(ev=>({ev, n:evCount[ev]})).sort((a,b)=>b.n-a.n);
+  const sheetTotals = Object.fromEntries(SHEETS.map(s=>[s.id, rows.reduce((a,r)=>a+r.sheets[s.id].total, 0)]));
+  CALC = {rows, byName, check:{missing, badStages, manual, dups, orphan, unmapped}, sheetTotals,
+          issues: missing.length + badStages.length + dups.length + orphan.length};
+}
+
+/* ============ 資料載入（即時同步） ============ */
+function feeDocRef(y){ return fb.db.collection('fees').doc('y'+(y||YEAR)); }
+function parseFeeDoc(d){
+  if(!d) return null;
+  return { players: JSON.parse(d.players||'[]'), rules: JSON.parse(d.rules||'{}'), inputs: d.inputs||{}, updatedAt: d.updatedAt||null };
+}
+function localDB(){ try{ return JSON.parse(localStorage.getItem(LOCAL_KEY)||'{}'); }catch(e){ return {}; } }
+function saveLocalDB(db){ localStorage.setItem(LOCAL_KEY, JSON.stringify(db)); }
+function subscribeFee(){
+  if(unsubFee){ unsubFee(); unsubFee = null; }
+  FEE_LOADED = false;
+  if(LOCAL_MODE){
+    const d = localDB()['y'+YEAR];
+    FEE = d ? JSON.parse(JSON.stringify(d)) : null;
+    FEE_LOADED = true; onDataChanged(); return;
+  }
+  unsubFee = feeDocRef().onSnapshot(snap=>{
+    FEE = snap.exists ? parseFeeDoc(snap.data()) : null;
+    FEE_LOADED = true; onDataChanged();
+  }, err=>{
+    console.error(err);
+    FEE_LOADED = true; FEE = null;
+    document.getElementById('main').innerHTML = '<div class="card"><h2>讀不到對局費資料</h2><p class="bad">'+esc(err.message||err)+'</p>'+
+      '<p>如果訊息是 <b>Missing or insufficient permissions</b>，代表 Firebase 還沒開放 fees 的權限，請照設定說明加上規則。</p></div>';
+  });
+}
+async function loadResultsYear(){
+  const snap = await fb.db.collection('results').doc('y'+YEAR).get({source:'server'});
+  const rows = snap.exists ? JSON.parse(snap.data().rows||'[]') : [];
+  GAMES = prepareGames(rows, YEAR);
+  AUTO = deriveAuto(GAMES);
+  RESULTS_LOADED = true;
+}
+function subscribeResults(){
+  if(unsubMeta){ unsubMeta(); unsubMeta = null; }
+  RESULTS_LOADED = false;
+  unsubMeta = fb.db.collection('results').doc('meta').onSnapshot(async snap=>{
+    const m = snap.exists ? snap.data() : {};
+    RESULT_YEARS = Object.keys(m.counts||{}).map(Number).filter(y=>y>=2025).sort();
+    fillYearSelect();
+    if(m.version !== RESULT_VERSION || !RESULTS_LOADED){
+      RESULT_VERSION = m.version;
+      try{ await loadResultsYear(); }catch(e){ console.error(e); toast('成績讀取失敗：'+(e.message||e)); }
+      window.RESULTS_TIME = new Date();
+      onDataChanged();
+    }
+  }, err=>{ console.error(err); toast('成績系統連線失敗'); });
+}
+function onDataChanged(){
+  if(!FEE_LOADED) return;
+  recompute();
+  updateStatus();
+  const a = document.activeElement;
+  if(a && a.closest && a.closest('#main') && (a.tagName==='INPUT' || a.tagName==='SELECT') && VIEW!=='summary'){ pendingRender = true; return; }
+  render();
+}
+document.addEventListener('focusout', ()=>{ setTimeout(()=>{ if(pendingRender){ const a=document.activeElement; if(!(a && a.closest && a.closest('#main') && (a.tagName==='INPUT'||a.tagName==='SELECT'))){ pendingRender=false; render(); } } }, 50); });
+function fillYearSelect(){
+  const sel = document.getElementById('yearSel');
+  const ys = [...new Set([...RESULT_YEARS, YEAR, new Date().getFullYear()])].sort();
+  sel.innerHTML = ys.map(y=>'<option value="'+y+'"'+(y===YEAR?' selected':'')+'>'+y+' 年</option>').join('');
+}
+function changeYear(y){
+  YEAR = Number(y);
+  document.getElementById('yearLabel').textContent = '';
+  RESULTS_LOADED = false;
+  loadResultsYear().then(()=>{ window.RESULTS_TIME = new Date(); onDataChanged(); }).catch(e=>toast('成績讀取失敗'));
+  subscribeFee();
+}
+function updateStatus(){
+  const el = document.getElementById('statusLine');
+  if(!CALC){ el.innerHTML = ''; return; }
+  const t = window.RESULTS_TIME ? window.RESULTS_TIME.toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}) : '';
+  const n = GAMES.length;
+  el.innerHTML = '成績 '+n+' 局（'+t+' 更新，有新成績會自動同步）　' +
+    (CALC.issues ? '<b class="bad">⚠ '+CALC.issues+' 項待處理</b>' : '<b class="ok">✔ 檢核正常</b>');
+}
+
+/* ============ 寫入 ============ */
+async function setInput(sh, p, col, v){
+  const k = inputKey(sh, p, col);
+  const del = (v==='' || v==null);
+  if(LOCAL_MODE){
+    const db = localDB(); const d = db['y'+YEAR]; if(!d) return;
+    if(del) delete d.inputs[k]; else d.inputs[k] = v;
+    saveLocalDB(db); FEE = JSON.parse(JSON.stringify(d)); onDataChanged(); toast('已儲存'); return;
+  }
+  try{
+    await feeDocRef().update(new firebase.firestore.FieldPath('inputs', k), del ? firebase.firestore.FieldValue.delete() : v,
+                             'updatedAt', firebase.firestore.FieldValue.serverTimestamp());
+    toast('已儲存');
+  }catch(e){ console.error(e); alert('儲存失敗：'+(e.message||e)); }
+}
+async function saveFeeFields(fields){
+  // fields: {players?, rules?, inputs?}（整份取代）
+  if(LOCAL_MODE){
+    const db = localDB(); const d = db['y'+YEAR] || {players:[], rules:{}, inputs:{}};
+    Object.assign(d, fields); db['y'+YEAR] = d; saveLocalDB(db);
+    FEE = JSON.parse(JSON.stringify(d)); onDataChanged(); return;
+  }
+  const data = {};
+  if(fields.players) data.players = JSON.stringify(fields.players);
+  if(fields.rules) data.rules = JSON.stringify(fields.rules);
+  if(fields.inputs) data.inputs = fields.inputs;
+  data.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+  if(FEE && !fields.create) await feeDocRef().update(data);
+  else { if(!data.inputs) data.inputs = {}; if(!data.players) data.players='[]'; if(!data.rules) data.rules='{}'; await feeDocRef().set(data); }
+}
+
+/* ============ 畫面 ============ */
+const TABS = [['summary','總表'],['query','查詢'],['rank','排行榜'],['events','各賽事'],['check','檢核'],['settings','設定']];
+function renderTabs(){
+  document.getElementById('tabs').innerHTML = TABS.map(([k,n])=>{
+    let label = n;
+    if(k==='check' && CALC && CALC.issues) label += ' <span class="bad">⚠'+CALC.issues+'</span>';
+    return '<button class="tab'+(VIEW===k?' on':'')+'" onclick="go(\''+k+'\')">'+label+'</button>';
+  }).join('');
+}
+function go(v, opt){ VIEW = v; if(opt) Object.assign(VIEW_STATE, opt); render(); window.scrollTo(0,0); }
+function render(){
+  renderTabs();
+  const m = document.getElementById('main');
+  if(!FEE_LOADED){ m.innerHTML = '<div class="card">讀取中…</div>'; return; }
+  if(!FEE && VIEW!=='settings'){
+    m.innerHTML = '<div class="card"><h2>'+YEAR+' 年還沒有對局費資料</h2><p>請到「設定」建立：從 Excel 匯入，或從上一年複製名單與獎金規則。</p>'+
+      '<button class="btn primary" onclick="go(\'settings\')">前往設定</button></div>';
+    return;
+  }
+  ({summary:renderSummary, query:renderQuery, rank:renderRank, events:renderEvents, check:renderCheck, settings:renderSettings})[VIEW]();
+}
+
+/* ---------- 總表 ---------- */
+function summaryColumns(){
+  const cols = [
+    {k:'no', h:'序', get:r=>r.p.no, cls:'c', stick:1},
+    {k:'name', h:'棋士', get:r=>r.p.name, name:true, stick:2},
+    {k:'dan', h:'段', get:r=>r.p.dan, cls:'c'},
+    {k:'female', h:'女棋', get:r=>r.p.female?'㊣':'', cls:'c'},
+    {k:'full', h:'實際全額總計', get:r=>r.full, money:true, full:true, band:'全額'},
+    {k:'rfull', h:'全額排名', get:r=>r.rank.full, cls:'c', band:'全額'},
+  ];
+  GROUPS.forEach(g=>{
+    SHEETS.filter(s=>s.grp===g.id).forEach(s=>cols.push({k:'s:'+s.id, h:s.short, get:r=>r.sheets[s.id].total, money:true, band:g.id, sheet:s.id}));
+    if(g.id==='採計'){ cols.push({k:'g採計', h:'採計總計', get:r=>r.grp.採計, money:true, tot:true, band:g.id}, {k:'r採計', h:'採計排名', get:r=>r.rank.採計, cls:'c', band:g.id}); }
+    if(g.id==='女子'){ cols.push({k:'g女子', h:'女子賽小計', get:r=>r.grp.女子, money:true, tot:true, band:g.id}, {k:'女棋', h:'女棋總計(含採計)', get:r=>r.female, money:true, tot:true, band:g.id}, {k:'r女棋', h:'女棋排名', get:r=>r.rank.女棋, cls:'c', band:g.id}); }
+    if(g.id==='限制'){ cols.push({k:'g限制', h:'限制賽總計', get:r=>r.grp.限制, money:true, tot:true, band:g.id}, {k:'r限制', h:'限制排名', get:r=>r.rank.限制, cls:'c', band:g.id}); }
+  });
+  return cols;
+}
+function renderSummary(){
+  const cols = summaryColumns();
+  let rows = CALC.rows.slice();
+  const f = VIEW_STATE.filter.trim();
+  if(f) rows = rows.filter(r=>r.p.name.indexOf(f)>=0);
+  if(VIEW_STATE.sortCol){
+    const c = cols.find(c=>c.k===VIEW_STATE.sortCol);
+    if(c) rows.sort((a,b)=>{ const x=c.get(a), y=c.get(b); const ex = (x===''||x==null||x===0), ey = (y===''||y==null||y===0);
+      if(ex || ey) return ex===ey ? 0 : (ex ? 1 : -1);          // 空白、0 一律排最後
+      if(typeof x==='string' || typeof y==='string') return VIEW_STATE.sortDir*String(x).localeCompare(String(y),'zh-Hant');
+      return VIEW_STATE.sortDir*(x-y); });
+  }
+  // 色帶
+  const bands = []; cols.forEach(c=>{ const b = c.band||'資料'; if(bands.length && bands[bands.length-1].b===b) bands[bands.length-1].n++; else bands.push({b, n:1}); });
+  const bandColor = b => b==='全額' ? '#C55A11' : b==='資料' ? '#404040' : GRP[b].dark;
+  const bandName = b => b==='全額' ? '全額' : b==='資料' ? '棋士資料' : GRP[b].name;
+  const hdrBg = c => c.band==='全額' ? 'var(--orange-l)' : c.band ? GRP[c.band].light : '#EDEDED';
+  const stickCls = c => c.stick===1 ? ' stick1' : c.stick===2 ? ' stick2' : '';
+  let h = '<div class="toolbar"><input type="search" placeholder="搜尋棋士" value="'+esc(f)+'" oninput="VIEW_STATE.filter=this.value;renderSummaryBody()">'+
+    '<span class="muted">點欄位標題排序；點棋士名字看明細；點賽事標題看該賽事頁。</span></div>';
+  h += '<div class="tablewrap"><table class="grid" id="sumTable"><thead><tr class="band">';
+  bands.forEach(b=>{ h += '<th colspan="'+b.n+'" style="background:'+bandColor(b.b)+'">'+bandName(b.b)+'</th>'; });
+  h += '</tr><tr class="hdr">';
+  cols.forEach(c=>{
+    const arrow = VIEW_STATE.sortCol===c.k ? (VIEW_STATE.sortDir<0?' ▼':' ▲') : '';
+    const click = c.sheet ? 'onclick="go(\'events\',{event:\''+c.sheet+'\'})" title="看'+esc(c.sheet)+'頁"' : 'onclick="sortSummary(\''+c.k+'\')"';
+    h += '<th class="'+stickCls(c)+'" style="background:'+hdrBg(c)+'" '+click+'>'+esc(c.h)+arrow+'</th>';
+  });
+  h += '</tr><tr class="sum">';
+  cols.forEach(c=>{
+    let v = '';
+    if(c.k==='name') v = '合計';
+    else if(c.money) v = fmt(CALC.rows.reduce((a,r)=>a+(Number(c.get(r))||0),0));
+    h += '<th class="'+(c.money?'num':'')+stickCls(c)+'" style="background:var(--green-l)">'+v+'</th>';
+  });
+  h += '</tr></thead><tbody id="sumBody"></tbody></table></div>';
+  document.getElementById('main').innerHTML = h;
+  window._sumCols = cols; window._sumRows = rows;
+  renderSummaryBody();
+}
+function renderSummaryBody(){
+  const cols = window._sumCols; let rows = window._sumRows;
+  const f = VIEW_STATE.filter.trim();
+  if(f) rows = CALC.rows.filter(r=>r.p.name.indexOf(f)>=0);
+  const stickCls = c => c.stick===1 ? ' stick1' : c.stick===2 ? ' stick2' : '';
+  document.getElementById('sumBody').innerHTML = rows.map(r=>'<tr>'+cols.map(c=>{
+    const v = c.get(r);
+    let cls = (c.money?'num':(c.cls||'')) + stickCls(c) + (c.full?' full':'') + (c.tot?' tot':'');
+    let txt = c.money ? fmt0(v) : esc(v==null?'':v);
+    if(c.name) txt = '<a class="name" onclick="go(\'query\',{query:\''+esc(r.p.name)+'\'})">'+esc(r.p.name)+'</a>';
+    return '<td class="'+cls+'">'+txt+'</td>';
+  }).join('')+'</tr>').join('');
+}
+function sortSummary(k){
+  if(VIEW_STATE.sortCol===k) VIEW_STATE.sortDir *= -1; else { VIEW_STATE.sortCol = k; VIEW_STATE.sortDir = (k==='name'||k==='no'||k==='dan'||k==='female') ? 1 : -1; }
+  renderSummary();
+}
+
+/* ---------- 查詢 ---------- */
+function attachAutocomplete(input, onPick){
+  const box = input.parentElement.querySelector('.ac-list');
+  let idx = -1, items = [];
+  const names = () => (FEE.players||[]).map(p=>p.name).filter(Boolean);
+  const show = () => {
+    const q = input.value.trim();
+    if(!q){ box.style.display='none'; return; }
+    const all = names();
+    items = all.filter(n=>n.startsWith(q)).concat(all.filter(n=>!n.startsWith(q) && n.indexOf(q)>=0)).slice(0, 30);
+    idx = -1;
+    box.innerHTML = items.map((n,i)=>'<div data-i="'+i+'">'+esc(n)+'</div>').join('');
+    box.style.display = items.length ? 'block' : 'none';
+  };
+  input.addEventListener('input', show);
+  input.addEventListener('keydown', e=>{
+    if(e.key==='ArrowDown'){ idx = Math.min(idx+1, items.length-1); mark(); e.preventDefault(); }
+    else if(e.key==='ArrowUp'){ idx = Math.max(idx-1, 0); mark(); e.preventDefault(); }
+    else if(e.key==='Enter'){ const n = idx>=0 ? items[idx] : (items.length===1 ? items[0] : input.value.trim()); box.style.display='none'; onPick(n); }
+    else if(e.key==='Escape'){ box.style.display='none'; }
+  });
+  box.addEventListener('mousedown', e=>{ const d = e.target.closest('div[data-i]'); if(d){ e.preventDefault(); box.style.display='none'; onPick(items[+d.dataset.i]); } });
+  input.addEventListener('blur', ()=>setTimeout(()=>box.style.display='none', 150));
+  function mark(){ [...box.children].forEach((c,i)=>c.classList.toggle('on', i===idx)); }
+}
+function renderQuery(){
+  const name = VIEW_STATE.query;
+  let h = '<div class="card noprint"><div class="toolbar" style="margin:0"><b>查詢棋士</b>'+
+    '<div class="ac"><input id="qInput" placeholder="輸入名字" value="'+esc(name)+'" autocomplete="off"><div class="ac-list"></div></div>'+
+    '<span class="muted">輸入幾個字就會出現名單，按 Enter 或點選。</span></div></div>';
+  const r = CALC.byName[name];
+  if(name && !r) h += '<div class="card"><span class="bad">名單裡沒有「'+esc(name)+'」。</span></div>';
+  if(r) h += queryDetailHtml(r);
+  document.getElementById('main').innerHTML = h;
+  const inp = document.getElementById('qInput');
+  attachAutocomplete(inp, n=>{ VIEW_STATE.query = n; renderQuery(); });
+  if(!name) inp.focus();
+}
+function srcBadge(src){ return src==='auto' ? '<span class="badge auto">自動</span>' : src==='manual' ? '<span class="badge manual">手動修改</span>' : '<span class="badge hand">手填</span>'; }
+function playerGames(name){
+  return GAMES.filter(g=>g.b===name || g.w===name).sort((a,b)=>a.d.localeCompare(b.d) || a.i-b.i);
+}
+function gameNote(g, name){
+  const notes = [];
+  if(g.c1!=='國內') notes.push('國際賽（不自動計算）');
+  else if(!RULE_EVENTS.has(g.ev)) notes.push('沒有對應的賽事頁');
+  if(g.forfeit) notes.push(g.win===name ? '不戰勝' : '棄權（不計）');
+  if(g.playoff) notes.push('加賽');
+  return notes.join('、');
+}
+function queryDetailHtml(r){
+  const p = r.p;
+  let h = '<div class="card"><div class="toolbar" style="justify-content:space-between"><h2 style="margin:0">'+esc(p.name)+
+    ' <span class="muted" style="font-size:15px">'+(p.dan!=null&&p.dan!==''?esc(p.dan)+' 段':'')+(p.female?'　㊣ 女棋':'')+'　'+YEAR+' 年對局費</span></h2>'+
+    '<span class="noprint"><button class="btn" onclick="downloadPlayer(\''+esc(p.name)+'\')">⬇ 下載明細</button> <button class="btn" onclick="window.print()">🖨 列印</button></span></div>';
+  h += '<div class="cards">'+
+    stat('實際全額總計', r.full, r.rank.full, true)+stat('採計獎金', r.grp.採計, r.rank.採計)+stat('女子賽', r.grp.女子, null)+
+    (p.female ? stat('女棋總計（含採計）', r.female, r.rank.女棋) : '')+stat('限制賽', r.grp.限制, r.rank.限制)+'</div>';
+  h += '<table class="list"><thead><tr><th>賽事</th><th>項目</th><th>內容</th><th>計算</th><th class="num">金額</th><th>來源</th></tr></thead><tbody>';
+  let anyRow = false;
+  GROUPS.forEach(g=>{
+    SHEETS.filter(s=>s.grp===g.id).forEach(s=>{
+      const c = r.sheets[s.id];
+      if(!c.any) return;
+      anyRow = true;
+      c.items.forEach((it, i)=>{
+        h += '<tr>'+(i===0?'<td rowspan="'+(c.items.length+1)+'" style="vertical-align:top"><span style="color:'+g.dark+'">●</span> '+esc(s.id)+'</td>':'')+
+          '<td>'+esc(it.col)+'</td><td>'+esc(it.v)+(it.kind==='count'?' 局':'')+'</td><td'+(it.bad?' class="bad"':'')+'>'+esc(it.calc)+'</td>'+
+          '<td class="num">'+fmt(it.amt)+'</td><td>'+srcBadge(it.src)+'</td></tr>';
+      });
+      h += '<tr class="sub"><td colspan="3">'+esc(s.id)+' 小計</td><td class="num">'+fmt(c.total)+'</td><td></td></tr>';
+    });
+  });
+  if(!anyRow) h += '<tr><td colspan="6" class="muted">今年還沒有對局費紀錄。</td></tr>';
+  h += '</tbody></table></div>';
+  const gs = playerGames(p.name);
+  h += '<div class="card"><h3 style="margin-top:0">'+YEAR+' 年對局紀錄（成績系統，共 '+gs.length+' 局）</h3>';
+  h += '<table class="list"><thead><tr><th>日期</th><th>賽名</th><th>階段</th><th>對手</th><th>持</th><th>結果</th><th>勝負</th><th>備註</th></tr></thead><tbody>';
+  gs.forEach(g=>{
+    const opp = g.b===p.name ? g.w : g.b, color = g.b===p.name ? '黑' : '白';
+    const wl = g.win===p.name ? '<span class="ok">勝</span>' : (g.win ? '負' : '');
+    h += '<tr><td>'+esc(g.d)+'</td><td>'+esc(g.ev)+'</td><td>'+esc(g.st0raw)+'</td><td>'+esc(opp)+'</td><td>'+color+'</td><td>'+esc(g.mv)+'</td><td>'+wl+'</td><td class="muted">'+esc(gameNote(g, p.name))+'</td></tr>';
+  });
+  if(!gs.length) h += '<tr><td colspan="8" class="muted">沒有對局紀錄。</td></tr>';
+  h += '</tbody></table></div>';
+  return h;
+}
+function stat(lab, v, rk, full){ return '<div class="stat'+(full?' full':'')+'"><div class="lab">'+lab+'</div><div class="val">'+(fmt(v)||'0')+'</div><div class="rk">'+(rk?'第 '+rk+' 名':'　')+'</div></div>'; }
+
+/* ---------- 排行榜 ---------- */
+function renderRank(){
+  const blocks = [
+    ['實際全額總計', r=>r.full, '#C55A11'],
+    ['採計獎金', r=>r.grp.採計, GRP.採計.dark],
+    ['女棋總計（採計＋女子賽）', r=>r.female||0, GRP.女子.dark],
+    ['限制賽總計', r=>r.grp.限制, GRP.限制.dark],
+  ];
+  let h = '<div class="rank4">';
+  blocks.forEach(([t, f, color])=>{
+    const list = CALC.rows.map(r=>({n:r.p.name, v:f(r)})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
+    h += '<div class="card"><h2 style="color:'+color+'">'+t+'</h2><table class="list"><thead><tr><th>名次</th><th>棋士</th><th class="num">金額</th></tr></thead><tbody>';
+    list.forEach(x=>{ const rk = 1 + list.filter(y=>y.v>x.v).length;
+      h += '<tr><td>'+rk+'</td><td><a class="name" onclick="go(\'query\',{query:\''+esc(x.n)+'\'})">'+esc(x.n)+'</a></td><td class="num">'+fmt(x.v)+'</td></tr>'; });
+    if(!list.length) h += '<tr><td colspan="3" class="muted">尚無資料</td></tr>';
+    h += '</tbody></table></div>';
+  });
+  document.getElementById('main').innerHTML = h + '</div>';
+}
+
+/* ---------- 各賽事 ---------- */
+function renderEvents(){
+  const sh = VIEW_STATE.event, s = SHEET[sh], ru = sheetRules(sh);
+  let h = '<div class="evbtns">';
+  GROUPS.forEach(g=>SHEETS.filter(x=>x.grp===g.id).forEach(x=>{
+    const on = x.id===sh;
+    h += '<button class="evbtn'+(on?' on':'')+'" style="'+(on?'background:'+g.dark+';border-color:'+g.dark:'border-color:'+g.dark+';color:'+g.dark)+'" onclick="go(\'events\',{event:\''+x.id+'\'})">'+
+      esc(x.id)+'<span class="amt">'+fmt0(CALC.sheetTotals[x.id])+'</span></button>';
+  }));
+  h += '</div>';
+  const autoCount = s.cols.filter(c=>isAuto(sh, c.h)).length;
+  h += '<div class="flex"><div class="grow"><div class="toolbar">'+
+    '<label><input type="checkbox" '+(VIEW_STATE.onlyData?'checked':'')+' onchange="VIEW_STATE.onlyData=this.checked;renderEvents()"> 只顯示有資料的棋士</label>'+
+    '<input type="search" placeholder="搜尋棋士" value="'+esc(VIEW_STATE.filter)+'" oninput="VIEW_STATE.filter=this.value;renderEventsBody()">'+
+    (autoCount ? '<span class="muted"><span class="badge auto">青綠</span> 自動從成績系統帶入；改了會變 <span class="badge manual">淺橘</span>，按 ↺ 恢復自動</span>' :
+                 '<span class="muted">這個賽事沒有自動帶入，請直接填寫（<span class="badge hand">黃底</span>）</span>')+'</div>';
+  h += '<div class="tablewrap"><table class="grid"><thead><tr class="hdr">';
+  h += '<th class="stick1" style="top:0;min-width:44px">序</th><th class="stick2" style="top:0">棋士</th>';
+  s.cols.forEach(c=>{
+    const a = isAuto(sh, c.h);
+    const unit = c.k==='count' ? '(局)' : c.k==='stage' ? '(選)' : '';
+    h += '<th style="top:0;background:'+(a?'var(--teal)':'var(--navy)')+';color:#fff">'+esc(c.h)+unit+'</th>';
+  });
+  h += '<th style="top:0;background:var(--gray);color:#fff">獎金(台幣)</th></tr>';
+  h += '<tr class="sum"><th class="stick1" style="top:33px;background:var(--green-l)"></th><th class="stick2" style="top:33px;background:var(--green-l)">合計</th>';
+  s.cols.forEach(c=>{
+    let v = 0;
+    CALC.rows.forEach(r=>{ const cv = cellValue(sh, r.p.name, c.h).v; if(cv!=='' && cv!=null) v += (c.k==='stage') ? 1 : num(cv); });
+    h += '<th style="top:33px;background:var(--green-l)">'+(c.k==='stage' ? v+' 人' : c.k==='count' ? v+' 局' : fmt(v))+'</th>';
+  });
+  h += '<th class="num" style="top:33px;background:var(--green-l)">'+fmt(CALC.sheetTotals[sh])+'</th></tr></thead><tbody id="evBody"></tbody></table></div></div>';
+  // 規則
+  h += '<div class="card sidebox"><h3 style="margin-top:0">'+esc(sh)+' 獎金規則</h3>';
+  Object.keys(ru.tables||{}).forEach(t=>{
+    h += '<table class="list"><thead><tr><th>'+(t==='pre'?'初賽局數':'階段')+'</th><th class="num">獎金</th></tr></thead><tbody>'+
+      (ru.tables[t]||[]).map(row=>'<tr><td>'+esc(row[0])+'</td><td class="num">'+fmt(row[1])+'</td></tr>').join('')+'</tbody></table><br>';
+  });
+  const pr = s.cols.filter(c=>c.k==='count');
+  if(pr.length) h += '<table class="list"><thead><tr><th>每局單價</th><th class="num">金額</th></tr></thead><tbody>'+pr.map(c=>'<tr><td>'+esc(c.h)+'</td><td class="num">'+fmt((ru.prices||{})[c.h])+'</td></tr>').join('')+'</tbody></table><br>';
+  const fx = s.cols.filter(c=>c.k==='fx');
+  if(fx.length) h += '<table class="list"><thead><tr><th>換算</th><th class="num">倍率</th></tr></thead><tbody>'+fx.map(c=>'<tr><td>'+esc(c.h)+'</td><td class="num">'+(+num((ru.rates||{})[c.h]).toFixed(6))+'</td></tr>').join('')+'</tbody></table><br>';
+  h += '<button class="btn small" onclick="go(\'settings\',{ruleSheet:\''+sh+'\'})">修改規則</button></div></div>';
+  document.getElementById('main').innerHTML = h;
+  renderEventsBody();
+}
+function renderEventsBody(){
+  const sh = VIEW_STATE.event, s = SHEET[sh];
+  const f = VIEW_STATE.filter.trim();
+  let rows = CALC.rows.filter(r=>!f || r.p.name.indexOf(f)>=0);
+  if(VIEW_STATE.onlyData && !f) rows = rows.filter(r=>r.sheets[sh].any);
+  const opts = (c) => { const t = (sheetRules(sh).tables||{})[c.t]||[]; return t.map(r=>String(r[0])); };
+  let h = '';
+  rows.forEach(r=>{
+    h += '<tr><td class="c stick1">'+esc(r.p.no==null?'':r.p.no)+'</td><td class="stick2"><a class="name" onclick="go(\'query\',{query:\''+esc(r.p.name)+'\'})">'+esc(r.p.name)+'</a></td>';
+    s.cols.forEach(c=>{
+      const {v, src} = cellValue(sh, r.p.name, c.h);
+      const a = isAuto(sh, c.h);
+      const item = r.sheets[sh].items.find(it=>it.col===c.h);
+      let cls = 'edit ' + (src==='manual' ? 'over' : a ? 'auto' : 'hand') + (item && item.bad ? ' badcell' : '');
+      const data = 'data-p="'+esc(r.p.name)+'" data-c="'+esc(c.h)+'"';
+      let ctl;
+      if(c.k==='stage'){
+        const o = opts(c); const vs = String(v);
+        ctl = '<select '+data+' onchange="cellChanged(this)"><option value=""></option>'+
+          (vs!=='' && o.indexOf(vs)<0 ? '<option selected>'+esc(vs)+'</option>' : '')+
+          o.map(x=>'<option'+(x===vs?' selected':'')+'>'+esc(x)+'</option>').join('')+'</select>';
+      } else {
+        ctl = '<input type="number" min="0" step="'+(c.k==='count'?'1':'any')+'" '+data+' value="'+esc(v)+'" onchange="cellChanged(this)">';
+      }
+      if(src==='manual') ctl += '<button class="restore" title="恢復自動（成績系統的值：'+esc(((AUTO[sh]||{})[r.p.name]||{})[c.h]||'空白')+'）" onclick="restoreAuto(\''+esc(r.p.name)+'\',\''+esc(c.h)+'\')">↺</button>';
+      h += '<td class="'+cls+'" style="display:table-cell"><div style="display:flex;align-items:center">'+ctl+'</div></td>';
+    });
+    h += '<td class="num tot">'+fmt0(r.sheets[sh].total)+'</td></tr>';
+  });
+  if(!rows.length) h = '<tr><td colspan="'+(s.cols.length+3)+'" class="muted">沒有資料。取消勾選「只顯示有資料的棋士」可以看到全部名單並填寫。</td></tr>';
+  document.getElementById('evBody').innerHTML = h;
+}
+function cellChanged(el){
+  const sh = VIEW_STATE.event, p = el.dataset.p, col = el.dataset.c, c = SHEET[sh].cols.find(x=>x.h===col);
+  let v = el.value;
+  if(c.k!=='stage' && v!==''){ v = Number(v); if(isNaN(v) || v<0){ alert('請填 0 以上的數字'); renderEventsBody(); return; } }
+  if(isAuto(sh, col)){
+    // 自動欄位：跟自動值一樣就不存（等於沒改）；清空＝手動改成空白
+    const av = ((AUTO[sh]||{})[p]||{})[col];
+    if(String(v) === String(av==null?'':av)){ return; }
+    if(v===''){ v = 0; if(c.k==='stage') v = '—'; }
+  }
+  setInput(sh, p, col, v);
+}
+function restoreAuto(p, col){ setInput(VIEW_STATE.event, p, col, null); }
+
+/* ---------- 檢核 ---------- */
+function renderCheck(){
+  const ck = CALC.check;
+  let h = '<div class="card"><div class="chk-sum">'+(CALC.issues ? '<span class="bad">⚠ 有 '+CALC.issues+' 項需要處理</span>' : '<span class="ok">✔ 檢核正常，可以發放</span>')+'</div>';
+  h += '<div class="muted">成績每次有新資料都會自動重算；下面 1～4 項都清空才算檢核正常，5～6 項是提醒。</div></div>';
+  // 1
+  h += '<div class="card"><h3 style="margin-top:0">1. 成績系統有成績、但名單沒有這位棋士（'+ck.missing.length+'）</h3>';
+  if(ck.missing.length){
+    h += '<div class="muted">這些錢目前沒算到任何人。名字打錯 → 到成績系統修正；新棋士 → 按「加入名單」。</div><table class="list"><thead><tr><th>賽事</th><th>名字</th><th>自動帶入的內容</th><th></th></tr></thead><tbody>';
+    ck.missing.forEach(m=>{ h += '<tr><td>'+esc(m.sh)+'</td><td>'+esc(m.p)+'</td><td>'+esc(Object.entries(m.vals).map(([k,v])=>k+'：'+v).join('、'))+'</td><td><button class="btn small" onclick="addPlayer(\''+esc(m.p)+'\')">加入名單</button></td></tr>'; });
+    h += '</tbody></table>';
+  } else h += '<div class="ok">✔ 沒有</div>';
+  h += '</div>';
+  // 2
+  h += '<div class="card"><h3 style="margin-top:0">2. 階段不在獎金表（'+ck.badStages.length+'）</h3>';
+  if(ck.badStages.length){
+    h += '<div class="muted">這些格子算 0 元。請到「設定 → 獎金規則」補上這個階段，或修正內容。</div><table class="list"><thead><tr><th>賽事</th><th>棋士</th><th>欄位</th><th>內容</th></tr></thead><tbody>';
+    ck.badStages.forEach(b=>{ h += '<tr><td><a class="name" onclick="go(\'events\',{event:\''+esc(b.sh)+'\'})">'+esc(b.sh)+'</a></td><td>'+esc(b.p)+'</td><td>'+esc(b.col)+'</td><td>'+esc(b.v)+'</td></tr>'; });
+    h += '</tbody></table>';
+  } else h += '<div class="ok">✔ 沒有</div>';
+  h += '</div>';
+  // 3
+  h += '<div class="card"><h3 style="margin-top:0">3. 棋士名單重複（'+ck.dups.length+'）</h3>'+(ck.dups.length ? '<div class="bad">'+esc(ck.dups.join('、'))+'</div><div class="muted">請到「設定 → 棋士名單」刪掉重複的那一列。</div>' : '<div class="ok">✔ 沒有</div>')+'</div>';
+  // 4
+  h += '<div class="card"><h3 style="margin-top:0">4. 手填資料的名字已不在名單（'+ck.orphan.length+'）</h3>';
+  if(ck.orphan.length){
+    h += '<table class="list"><thead><tr><th>賽事</th><th>名字</th><th>內容</th><th></th></tr></thead><tbody>';
+    ck.orphan.forEach(o=>{ const col = o.k.split('|')[2]; h += '<tr><td>'+esc(o.sh)+'</td><td>'+esc(o.p)+'</td><td>'+esc(col+'：'+o.v)+'</td><td><button class="btn small danger" onclick="deleteOrphan(\''+esc(o.k)+'\')">刪除這筆</button></td></tr>'; });
+    h += '</tbody></table>';
+  } else h += '<div class="ok">✔ 沒有</div>';
+  h += '</div>';
+  // 5
+  h += '<div class="card"><h3 style="margin-top:0">5. 自動欄位被手動修改（'+ck.manual.length+'，提醒）</h3>';
+  if(ck.manual.length){
+    h += '<table class="list"><thead><tr><th>賽事</th><th>棋士</th><th>欄位</th><th>手動改成</th><th>成績系統算出</th><th></th></tr></thead><tbody>';
+    ck.manual.forEach(m=>{ h += '<tr><td>'+esc(m.sh)+'</td><td>'+esc(m.p)+'</td><td>'+esc(m.col)+'</td><td>'+esc(m.v)+'</td><td>'+esc(m.auto==null?'（空白）':m.auto)+'</td><td><button class="btn small" onclick="setInput(\''+esc(m.sh)+'\',\''+esc(m.p)+'\',\''+esc(m.col)+'\',null)">恢復自動</button></td></tr>'; });
+    h += '</tbody></table>';
+  } else h += '<div class="muted">沒有</div>';
+  h += '</div>';
+  // 6
+  h += '<div class="card"><h3 style="margin-top:0">6. 成績系統裡、還沒對應到任何賽事頁的國內比賽（提醒）</h3>';
+  if(ck.unmapped.length) h += '<table class="list" style="max-width:420px"><thead><tr><th>賽名</th><th class="num">局數</th></tr></thead><tbody>'+ck.unmapped.map(u=>'<tr><td>'+esc(u.ev)+'</td><td class="num">'+u.n+'</td></tr>').join('')+'</tbody></table><div class="muted">要算對局費的話，告訴維護的人要對應到哪個賽事頁、每局多少。</div>';
+  else h += '<div class="muted">沒有</div>';
+  h += '</div>';
+  document.getElementById('main').innerHTML = h;
+}
+async function addPlayer(name){
+  const players = (FEE.players||[]).slice();
+  if(players.some(p=>p.name===name)) return;
+  const maxNo = Math.max(0, ...players.map(p=>Number(p.no)||0));
+  players.push({no:maxNo+1, name, dan:'', bday:'', female:''});
+  await saveFeeFields({players}); toast('已把 '+name+' 加入名單');
+}
+async function deleteOrphan(k){
+  const [sh, p, col] = k.split('|');
+  if(!confirm('刪除「'+p+'」在'+sh+'的「'+col+'」資料？')) return;
+  await setInput(sh, p, col, null);
+}
+
+/* ---------- 設定 ---------- */
+function renderSettings(){
+  let h = '<div class="card"><h2>'+YEAR+' 年資料</h2>';
+  if(!FEE) h += '<p class="bad">這一年還沒有對局費資料。</p>';
+  else h += '<p>棋士 '+(FEE.players||[]).length+' 位；手填／手動修改 '+Object.keys(FEE.inputs||{}).length+' 格。</p>';
+  h += '<div class="toolbar"><button class="btn primary" onclick="document.getElementById(\'xlsxFile\').click()">從 Excel 匯入…</button>'+
+       '<button class="btn" onclick="copyFromYear()">從 '+(YEAR-1)+' 年複製名單與獎金規則</button></div>'+
+       '<div class="muted">「從 Excel 匯入」讀取「2026對局費計算_優化版.xlsx」格式：棋士名單、各賽事獎金規則、手填與手動修改的格子，會<b>整份取代</b>這一年的資料。</div></div>';
+  if(FEE){ h += playersEditorHtml(); h += rulesEditorHtml(); }
+  document.getElementById('main').innerHTML = h;
+}
+function playersEditorHtml(){
+  const ps = FEE.players||[];
+  let h = '<div class="card"><h2>棋士名單</h2><div class="muted">改完按「儲存名單」。改名字時，該棋士的手填資料會一起改名。</div>'+
+    '<div class="tablewrap" style="max-height:480px;margin-top:8px"><table class="grid edit-table" id="plTable"><thead><tr class="hdr"><th style="top:0">序</th><th style="top:0">棋士</th><th style="top:0">段</th><th style="top:0">生日</th><th style="top:0">女棋</th><th style="top:0"></th></tr></thead><tbody>';
+  ps.forEach((p,i)=>{ h += plRow(p, i); });
+  h += '</tbody></table></div><div class="toolbar" style="margin-top:8px"><button class="btn" onclick="addPlRow()">＋ 新增一列</button><button class="btn primary" onclick="savePlayers()">儲存名單</button></div></div>';
+  return h;
+}
+function plRow(p, i){
+  return '<tr data-orig="'+esc(p.name||'')+'"><td><input style="width:60px" value="'+esc(p.no==null?'':p.no)+'"></td><td><input style="width:110px" value="'+esc(p.name||'')+'"></td>'+
+    '<td><input style="width:50px" value="'+esc(p.dan==null?'':p.dan)+'"></td><td><input style="width:100px" value="'+esc(p.bday==null?'':p.bday)+'"></td>'+
+    '<td class="c"><input type="checkbox" style="width:auto" '+(p.female?'checked':'')+'></td><td><button class="btn small danger" onclick="this.closest(\'tr\').remove()">刪除</button></td></tr>';
+}
+function addPlRow(){ const tb = document.querySelector('#plTable tbody'); tb.insertAdjacentHTML('beforeend', plRow({}, 0)); tb.lastElementChild.querySelectorAll('input')[1].focus(); }
+async function savePlayers(){
+  const trs = [...document.querySelectorAll('#plTable tbody tr')];
+  const players = [], renames = {};
+  for(const tr of trs){
+    const ins = tr.querySelectorAll('input');
+    const name = ins[1].value.trim(); if(!name) continue;
+    const noV = ins[0].value.trim(), danV = ins[2].value.trim();
+    players.push({no: noV===''?'':(isNaN(noV)?noV:Number(noV)), name, dan: danV===''?'':(isNaN(danV)?danV:Number(danV)), bday: ins[3].value.trim(), female: ins[4].checked ? '㊣' : ''});
+    const orig = tr.dataset.orig; if(orig && orig!==name) renames[orig] = name;
+  }
+  const names = players.map(p=>p.name); const dup = names.filter((n,i)=>names.indexOf(n)!==i);
+  if(dup.length && !confirm('名單有重複的名字：'+[...new Set(dup)].join('、')+'\n仍要儲存嗎？')) return;
+  const fields = {players};
+  if(Object.keys(renames).length){
+    const inputs = {};
+    Object.entries(FEE.inputs||{}).forEach(([k,v])=>{ const [sh,p,col] = k.split('|'); inputs[inputKey(sh, renames[p]||p, col)] = v; });
+    fields.inputs = inputs;
+  }
+  await saveFeeFields(fields); toast('名單已儲存（'+players.length+' 位）');
+}
+function rulesEditorHtml(){
+  const sh = VIEW_STATE.ruleSheet, s = SHEET[sh], ru = sheetRules(sh);
+  let h = '<div class="card"><h2>獎金規則</h2><div class="evbtns">';
+  SHEETS.forEach(x=>{ const g = GRP[x.grp], on = x.id===sh;
+    h += '<button class="evbtn'+(on?' on':'')+'" style="'+(on?'background:'+g.dark+';border-color:'+g.dark:'border-color:'+g.dark+';color:'+g.dark)+'" onclick="VIEW_STATE.ruleSheet=\''+x.id+'\';renderSettings()">'+esc(x.id)+'</button>'; });
+  h += '</div><div class="flex" id="ruleEditor">';
+  const tkeys = [...new Set(s.cols.filter(c=>c.k==='stage').map(c=>c.t))];
+  tkeys.forEach(t=>{
+    const rows = ((ru.tables||{})[t]||[]).concat([['',''],['','']]);
+    h += '<div><h3>'+(t==='pre'?'初賽局數 → 獎金':'階段 → 獎金')+'</h3><table class="list edit-table" data-table="'+t+'"><thead><tr><th>'+(t==='pre'?'局數':'階段')+'</th><th>獎金</th></tr></thead><tbody>'+
+      rows.map(r=>'<tr><td><input value="'+esc(r[0])+'"></td><td><input type="number" value="'+esc(r[1]==null?'':r[1])+'"></td></tr>').join('')+
+      '</tbody></table><button class="btn small" onclick="addRuleRow(this)">＋ 新增階段</button></div>';
+  });
+  const pr = s.cols.filter(c=>c.k==='count');
+  if(pr.length) h += '<div><h3>每局單價</h3><table class="list edit-table" data-prices="1"><thead><tr><th>項目</th><th>每局金額</th></tr></thead><tbody>'+
+    pr.map(c=>'<tr><td>'+esc(c.h)+'</td><td><input type="number" data-col="'+esc(c.h)+'" value="'+esc((ru.prices||{})[c.h]==null?'':ru.prices[c.h])+'"></td></tr>').join('')+'</tbody></table>'+
+    (sh==='快棋爭霸戰'?'<div class="muted">本賽種子是「每位扣除」，所以填負數。</div>':'')+'</div>';
+  const fx = s.cols.filter(c=>c.k==='fx');
+  if(fx.length) h += '<div><h3>換算台幣（台幣＝金額×倍率）</h3><table class="list edit-table" data-rates="1"><thead><tr><th>賽事</th><th>倍率</th></tr></thead><tbody>'+
+    fx.map(c=>'<tr><td>'+esc(c.h)+'</td><td><input type="number" step="any" data-col="'+esc(c.h)+'" value="'+esc((ru.rates||{})[c.h]==null?'':ru.rates[c.h])+'"></td></tr>').join('')+'</tbody></table><div class="muted">÷40 請填 0.025；換算後四捨五入到整數元。</div></div>';
+  if(s.cols.every(c=>c.k==='money')) h += '<div class="muted">這個賽事直接填台幣金額，沒有規則要設定。</div>';
+  h += '</div><div class="toolbar" style="margin-top:10px"><button class="btn primary" onclick="saveRules()">儲存 '+esc(sh)+' 規則</button></div></div>';
+  return h;
+}
+function addRuleRow(btn){ btn.previousElementSibling.querySelector('tbody').insertAdjacentHTML('beforeend','<tr><td><input></td><td><input type="number"></td></tr>'); }
+async function saveRules(){
+  const sh = VIEW_STATE.ruleSheet;
+  const rules = JSON.parse(JSON.stringify(FEE.rules||{}));
+  const r = rules[sh] = rules[sh] || {tables:{}, prices:{}, rates:{}};
+  r.tables = r.tables||{}; r.prices = r.prices||{}; r.rates = r.rates||{};
+  document.querySelectorAll('#ruleEditor table[data-table]').forEach(tb=>{
+    const t = tb.dataset.table;
+    r.tables[t] = [...tb.querySelectorAll('tbody tr')].map(tr=>{ const ins = tr.querySelectorAll('input'); let k = ins[0].value.trim(); if(t==='pre' && k!=='' && !isNaN(k)) k = Number(k);
+      return [k, ins[1].value===''?null:Number(ins[1].value)]; }).filter(x=>x[0]!=='');
+  });
+  document.querySelectorAll('#ruleEditor table[data-prices] input').forEach(i=>{ r.prices[i.dataset.col] = i.value===''?null:Number(i.value); });
+  document.querySelectorAll('#ruleEditor table[data-rates] input').forEach(i=>{ r.rates[i.dataset.col] = i.value===''?null:Number(i.value); });
+  await saveFeeFields({rules}); toast(sh+' 規則已儲存');
+}
+async function copyFromYear(){
+  const from = YEAR-1;
+  let src = null;
+  if(LOCAL_MODE) src = localDB()['y'+from] || null;
+  else { const snap = await feeDocRef(from).get(); src = snap.exists ? parseFeeDoc(snap.data()) : null; }
+  if(!src){ alert(from+' 年沒有對局費資料可以複製。'); return; }
+  if(FEE && !confirm(YEAR+' 年已經有資料，要用 '+from+' 年的名單和獎金規則取代嗎？（手填資料會保留）')) return;
+  await saveFeeFields({players: src.players, rules: src.rules, create: !FEE});
+  toast('已複製 '+from+' 年的名單與規則');
+}
+
+/* ---------- 從 Excel 匯入（優化版格式） ---------- */
+function importExcelFile(inp){
+  const file = inp.files[0]; inp.value = '';
+  if(!file) return;
+  const rd = new FileReader();
+  rd.onload = async e=>{
+    try{
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellFormula:true});
+      const res = parseFeeWorkbook(wb);
+      const msg = '讀到：棋士 '+res.players.length+' 位、獎金規則 '+Object.keys(res.rules).length+' 個賽事、手填／手動修改 '+Object.keys(res.inputs).length+' 格。'+
+        (res.warn.length ? '\n\n注意：\n'+res.warn.slice(0,10).join('\n') : '')+'\n\n要用這份 Excel 取代 '+YEAR+' 年的資料嗎？';
+      if(!confirm(msg)) return;
+      await saveFeeFields({players:res.players, rules:res.rules, inputs:res.inputs, create:true});
+      toast('匯入完成'); go('summary');
+    }catch(err){ console.error(err); alert('匯入失敗：'+(err.message||err)); }
+  };
+  rd.readAsArrayBuffer(file);
+}
+function parseFeeWorkbook(wb){
+  const warn = [];
+  const cell = (ws, r, c) => ws[XLSX.utils.encode_cell({r:r-1, c:c-1})];
+  const val = (ws, r, c) => { const x = cell(ws, r, c); return x ? x.v : undefined; };
+  const tot = wb.Sheets['總獎金']; if(!tot) throw new Error('找不到「總獎金」工作表');
+  const players = [];
+  for(let r=4; r<=203; r++){
+    const name = val(tot, r, 2); if(name==null || String(name).trim()==='') continue;
+    players.push({no: val(tot,r,1)==null?'':val(tot,r,1), name:String(name).trim(), dan: val(tot,r,3)==null?'':val(tot,r,3), bday: val(tot,r,4)==null?'':String(val(tot,r,4)), female: val(tot,r,5)?'㊣':''});
+  }
+  const roster = new Set(players.map(p=>p.name));
+  const rules = {}, inputs = {};
+  const TITLES = ['階段 → 獎金','初賽對局數 → 獎金','每局單價','換算台幣（台幣 = 金額 × 倍率）'];
+  SHEETS.forEach(s=>{
+    const ws = wb.Sheets[s.id]; if(!ws){ warn.push('找不到工作表：'+s.id); return; }
+    const rng = XLSX.utils.decode_range(ws['!ref']);
+    // 找規則區
+    let rc = null;
+    for(let c=1; c<=rng.e.c+1; c++){ if(String(val(ws,1,c)||'').indexOf('獎金規則')===0){ rc = c; break; } }
+    const ru = {tables:{}, prices:{}, rates:{}};
+    if(rc){
+      let mode = null, skip = 0;
+      for(let r=2; r<=60; r++){
+        const lab = val(ws, r, rc), labS = lab==null ? '' : String(lab).trim();
+        if(TITLES.indexOf(labS)>=0){ mode = labS; skip = 1; if(mode==='階段 → 獎金') ru.tables.main = []; if(mode==='初賽對局數 → 獎金') ru.tables.pre = []; continue; }
+        if(skip){ skip = 0; continue; }   // 表頭
+        if(labS==='' || labS.startsWith('・') || labS.startsWith('換算後')) continue;
+        const v = val(ws, r, rc+1), nv = (v==null||v==='') ? null : Number(v);
+        if(mode==='階段 → 獎金') ru.tables.main.push([labS, nv]);
+        else if(mode==='初賽對局數 → 獎金') ru.tables.pre.push([isNaN(labS)?labS:Number(labS), nv]);
+        else if(mode==='每局單價') ru.prices[labS.replace('（每位扣除）','')] = nv;
+        else if(mode && mode.indexOf('換算台幣')===0) ru.rates[labS] = nv;
+      }
+    } else warn.push(s.id+'：找不到獎金規則區');
+    rules[s.id] = ru;
+    // 手填資料
+    const hdr = {}; for(let c=3; c<=rng.e.c+1; c++){ const h = String(val(ws,2,c)||'').replace(/\((局|選)\)$/,'').trim(); if(h) hdr[h] = c; }
+    s.cols.forEach(col=>{ if(!hdr[col.h]) warn.push(s.id+'：找不到欄位「'+col.h+'」'); });
+    for(let r=3; r<=202; r++){
+      const name = val(ws, r, 1); if(name==null || String(name).trim()==='') continue;
+      const p = String(name).trim();
+      s.cols.forEach(col=>{
+        const c = hdr[col.h]; if(!c) return;
+        const x = cell(ws, r, c);
+        const auto = isAuto(s.id, col.h);
+        if(auto && x && x.f) return;            // 還是公式＝自動
+        const v = x ? x.v : undefined;
+        if(v==null || v==='') return;
+        if(!roster.has(p)) warn.push(s.id+'：'+p+' 不在名單（資料仍會匯入）');
+        inputs[inputKey(s.id, p, col.h)] = (col.k==='stage' && typeof v!=='number') ? String(v) : v;
+      });
+    }
+  });
+  return {players, rules, inputs, warn};
+}
+
+/* ---------- 下載 Excel ---------- */
+function downloadAll(){
+  if(!CALC) return;
+  const wb = XLSX.utils.book_new();
+  const cols = summaryColumns();
+  const aoa = [cols.map(c=>c.h.replace(/\n/g,''))];
+  CALC.rows.forEach(r=>aoa.push(cols.map(c=>{ const v = c.get(r); return (v===''||v==null)?null:v; })));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), '總表');
+  SHEETS.forEach(s=>{
+    const a = [['棋士', ...s.cols.map(c=>c.h), '獎金(台幣)']];
+    CALC.rows.forEach(r=>{ if(!r.sheets[s.id].any) return; a.push([r.p.name, ...s.cols.map(c=>{ const v = cellValue(s.id, r.p.name, c.h).v; return v===''?null:v; }), r.sheets[s.id].total]); });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(a), s.id.slice(0,31));
+  });
+  XLSX.writeFile(wb, YEAR+'對局費_'+new Date().toISOString().slice(0,10)+'.xlsx', {compression:true});
+}
+function downloadPlayer(name){
+  const r = CALC.byName[name]; if(!r) return;
+  const a = [[name+'　'+YEAR+' 年對局費明細'], [], ['實際全額總計', r.full], ['採計獎金', r.grp.採計], ['女子賽', r.grp.女子], ['限制賽', r.grp.限制], [], ['賽事','項目','內容','計算','金額','來源']];
+  SHEETS.forEach(s=>{ const c = r.sheets[s.id]; if(!c.any) return;
+    c.items.forEach(it=>a.push([s.id, it.col, it.v, it.calc, it.amt, it.src==='auto'?'自動':it.src==='manual'?'手動修改':'手填']));
+    a.push([s.id+' 小計','','','',c.total,'']); });
+  a.push([], ['對局紀錄'], ['日期','賽名','階段','黑','白','勝方','結果','備註']);
+  playerGames(name).forEach(g=>a.push([g.d, g.ev, g.st0raw, g.b, g.w, g.win, g.mv, gameNote(g, name)]));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(a), '明細');
+  XLSX.writeFile(wb, YEAR+'對局費_'+name+'.xlsx', {compression:true});
+}
+
+/* ============ 登入與啟動 ============ */
+async function doLogin(){
+  const email = document.getElementById('loginEmail').value.trim(), pw = document.getElementById('loginPw').value;
+  const err = document.getElementById('loginErr'), btn = document.getElementById('loginBtn');
+  if(!email || !pw){ err.textContent = '請輸入帳號和密碼'; return; }
+  btn.disabled = true; err.textContent = '';
+  try{ await fb.auth.signInWithEmailAndPassword(email, pw); document.getElementById('loginPw').value=''; }
+  catch(e){ const c = e.code||''; err.textContent = (c.indexOf('invalid')>=0||c.indexOf('wrong')>=0||c.indexOf('not-found')>=0) ? '帳號或密碼不對' : '登入失敗：'+(e.message||c); }
+  finally{ btn.disabled = false; }
+}
+async function logout(){ if(LOCAL_MODE) return; await fb.auth.signOut(); }
+function showApp(on){
+  document.getElementById('topbar').style.display = on ? '' : 'none';
+  document.getElementById('main').style.display = on ? '' : 'none';
+  document.getElementById('loginView').style.display = on ? 'none' : '';
+  if(LOCAL_MODE) document.getElementById('logoutBtn').style.display = 'none';
+}
+(function init(){
+  /* 用另外取名的 Firebase app（haifong-fee），登入狀態跟賽程表、成績系統分開，互不干擾 */
+  const app = firebase.initializeApp(firebaseConfig, 'haifong-fee');
+  fb = {auth: app.auth(), db: app.firestore()};
+  if(LOCAL_MODE){
+    document.getElementById('localBanner').style.display = 'block';
+    showApp(true); fillYearSelect(); subscribeResults(); subscribeFee(); render();
+    return;
+  }
+  fb.auth.onAuthStateChanged(u=>{
+    USER = u;
+    if(u){ showApp(true); fillYearSelect(); subscribeResults(); subscribeFee(); render(); }
+    else {
+      if(unsubFee){ unsubFee(); unsubFee = null; } if(unsubMeta){ unsubMeta(); unsubMeta = null; }
+      FEE = null; CALC = null; FEE_LOADED = false; RESULT_VERSION = null;
+      showApp(false); document.getElementById('loginEmail').focus();
+    }
+  });
+})();
+</script>
+</body>
+</html>
