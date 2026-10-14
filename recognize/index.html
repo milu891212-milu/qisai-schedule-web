@@ -657,11 +657,17 @@ function qisaiWarnings(r) {
   const players = (qisaiCtx.players || []).map(normName);
   const b = normName(r['執黑']), w = normName(r['執白']), win = normName(r['勝方']);
   const out = [];
-  if (b && !players.includes(b)) out.push(`「${r['執黑']}」不在賽程表這一輪的名單裡`);
-  if (w && !players.includes(w)) out.push(`「${r['執白']}」不在賽程表這一輪的名單裡`);
+  // 2026-10-14：這兩位在賽程表上有對局、只是已經比完（標過勝方或手動填了「棄」），就直接說清楚，不要說「不在名單裡」讓人以為辨識錯
+  if (b && w && (qisaiCtx.decidedPairs || []).some(p => { const x = normName(p[0]), y = normName(p[1]); return (x === b && y === w) || (x === w && y === b); })) {
+    out.push('賽程表上這局已經標過勝負了（不會重複晉級）');
+    if (win && win !== b && win !== w) out.push('勝方跟執黑/執白都不一樣');
+    return out;
+  }
+  if (b && !players.includes(b)) out.push(`「${r['執黑']}」不在賽程表還沒比完的對局裡`);
+  if (w && !players.includes(w)) out.push(`「${r['執白']}」不在賽程表還沒比完的對局裡`);
   if (b && w && players.includes(b) && players.includes(w)) {
     const paired = (qisaiCtx.pairs || []).some(p => { const x = normName(p[0]), y = normName(p[1]); return (x === b && y === w) || (x === w && y === b); });
-    if (!paired) out.push('賽程表這一輪沒有這兩位的對局');
+    if (!paired) out.push('賽程表還沒比完的對局裡沒有這兩位的對局');
   }
   if (win && win !== b && win !== w) out.push('勝方跟執黑/執白都不一樣');
   return out;

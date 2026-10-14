@@ -5917,14 +5917,29 @@ function openMatchIdsOfRound(stageId, ids){
 /* 整個階段還沒比完的對局（依輪次順序、不重複），以及第一個還有未完成對局的輪次 */
 function stageOpenMatches(stageId){
   const rounds=stageRoundInfos();
-  const ids=[], seen={};
+  const ids=[], seen={}, openByRound=[];
   let firstOpen=null;
   rounds.forEach(function(r){
     const open=openMatchIdsOfRound(stageId, r.ids);
     if(open.length && firstOpen===null) firstOpen=r;
-    open.forEach(function(mid){ if(!seen[mid]){ seen[mid]=true; ids.push(mid); } });
+    let cnt=0;
+    open.forEach(function(mid){ if(!seen[mid]){ seen[mid]=true; ids.push(mid); cnt++; } });
+    if(cnt) openByRound.push({ idx:r.idx, count:cnt });
   });
-  return { rounds:rounds, ids:ids, firstOpen:firstOpen };
+  return { rounds:rounds, ids:ids, firstOpen:firstOpen, openByRound:openByRound };
+}
+/* 整個階段「兩邊名字都有、已經比完」的對局（含手動填晉級格的），給辨識工具分辨
+   「名字讀錯」跟「賽程表上這局已經標過」用（2026-10-14 同仁以為辨識錯了） */
+function stageDecidedPairs(stageId){
+  const pairs=[], seen={};
+  stageRoundInfos().forEach(function(r){
+    r.ids.forEach(function(mid){
+      if(seen[mid]) return; seen[mid]=true;
+      const a=getSlotName(stageId,mid,0), b=getSlotName(stageId,mid,1);
+      if(a && b && matchIsDecided(stageId,mid)) pairs.push([a,b]);
+    });
+  });
+  return pairs;
 }
 /* 這批標了勝方的對局屬於哪一輪：取最後面（最晚）的那一輪；同一場出現在好幾個輪次清單時以最前面的為準 */
 function detectRoundOfMatches(rounds, matchIds){
@@ -5961,13 +5976,21 @@ function sendScoreContext(sess, targetWin, targetOrigin){
   const players=[];
   pairs.forEach(function(p){ p.forEach(function(n){ if(players.indexOf(n)<0) players.push(n); }); });
   const head=so.firstOpen || (so.rounds[0]||{});
+  /* 2026-10-14：標題不再只寫「第一個還有未完成對局的輪次」（同仁看到「勝部1回」以為工具把照片認成勝部1回），
+     改成列出每個輪次還沒比完幾局，例如「還沒比完：勝部1回 (1~28號) 1局、敗部2回 (1~56號) 1局」 */
+  const sel=document.getElementById('exportRoundSelect');
+  const openText=so.openByRound.map(function(o){
+    const t=(sel && sel.options[o.idx]) ? sel.options[o.idx].text : (so.rounds.find(function(r){ return r.idx===o.idx; })||{}).label;
+    return t+' '+o.count+'局';
+  }).join('、');
   targetWin.postMessage({
     type:'qisai-context',
     title:(head.titlePrefix||'')+currentBracket.title,
     stageName:currentBracket.stageName,
-    roundLabel:(head.label||'')+'（依對陣自動判斷輪次）',
+    roundLabel:'　還沒比完：'+openText+'（依對陣自動判斷輪次）',
     pairs:pairs,
-    players:players
+    players:players,
+    decidedPairs:stageDecidedPairs(stageId)
   }, targetOrigin);
 }
 
@@ -5991,8 +6014,17 @@ function slotIsWinner(stageId, matchId, idx){
   const el=document.getElementById(slotWrapId(stageId,matchId,idx));
   return !!(el && el.classList.contains('winner'));
 }
+/* 2026-10-14：沒點勝方、但「晉級格」已經有字（例如雙方都沒到，用右鍵手動填「棄」）的局，也算已經比完。
+   回傳晉級格的文字（沒有就是空字串）。晉級格平常只有 toggleWinner 會填、取消勝方時會清掉，
+   所以「有字卻沒勝方」只會是手動填的。 */
+function matchManualFilled(stageId, matchId){
+  const m = matchRegistry[stageId] && matchRegistry[stageId][matchId];
+  if(!m || !m.advanceTo) return '';
+  if(slotIsWinner(stageId,matchId,0) || slotIsWinner(stageId,matchId,1)) return '';
+  return getSlotName(stageId, m.advanceTo.matchId, m.advanceTo.slotIndex);
+}
 function matchIsDecided(stageId, matchId){
-  return slotIsWinner(stageId,matchId,0) || slotIsWinner(stageId,matchId,1);
+  return slotIsWinner(stageId,matchId,0) || slotIsWinner(stageId,matchId,1) || !!matchManualFilled(stageId, matchId);
 }
 /* 這一輪裡「兩邊名字都有、還沒分勝負、這次還沒被用掉」的對局，給使用者手動挑的下拉選單用 */
 function openMatchesInRound(stageId, ids, used){
@@ -6033,7 +6065,9 @@ function matchScoreGames(stageId, ids, games){
     item.slotIdx=slotIdx;
     used[mid]=true;
     if(matchIsDecided(stageId,mid)){
+      const manual=matchManualFilled(stageId,mid);
       if(slotIsWinner(stageId,mid,slotIdx)){ item.status='already'; }
+      else if(manual){ item.status='problem'; item.reason='賽程表上這局的晉級格已經手動填了「'+manual+'」，為了安全不自動改，請自己確認後手動修改'; item.locked=true; }
       else { item.status='problem'; item.reason='賽程表上這局已經標成另一方贏，為了安全不自動改，請自己確認後手動修改'; item.locked=true; }
       return;
     }
