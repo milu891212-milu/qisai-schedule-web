@@ -79,6 +79,9 @@ td.auto{background:var(--teal-l)}
 td.over{background:var(--manual)}
 td.hand{background:var(--yellow-l)}
 td.badcell{background:var(--bad)!important}
+td.adjcell{background:#F3E5F5}
+td.adjon input{color:#6A1B9A;font-weight:bold}
+.badge.adj{color:#6A1B9A;border-color:#B388C9;background:#F3E5F5}
 td.edit input,td.edit select{width:100%;min-width:70px;border:1px solid transparent;background:transparent;padding:2px 4px;text-align:center}
 td.edit input:hover,td.edit select:hover,td.edit input:focus,td.edit select:focus{border-color:#9bb3d9;background:#fff}
 td.edit .restore{border:none;background:none;color:#a14b12;cursor:pointer;font-size:13px;padding:0 2px}
@@ -355,6 +358,8 @@ function deriveAuto(games){
 
 /* ============ 計算 ============ */
 function inputKey(sh, p, col){ return sh+'|'+p+'|'+col; }
+const ADJ = '調整金額', ADJ_NOTE = '調整原因', NOT_COUNTED = '不計';
+const isAdjCol = col => col===ADJ || col===ADJ_NOTE;
 function cellValue(sh, p, col){
   const k = inputKey(sh, p, col);
   if(FEE && FEE.inputs && Object.prototype.hasOwnProperty.call(FEE.inputs, k)){
@@ -389,7 +394,9 @@ function calcSheet(sh, p){
     if(v==='' || v==null) return;
     any = true;
     let amt = 0, calc = '', bad = false;
-    if(c.k==='stage'){
+    if(c.k==='stage' && v===NOT_COUNTED){
+      amt = 0; calc = '手動設為不計';
+    } else if(c.k==='stage'){
       const L = lookupStage(sh, c.t, v); amt = L.prize; bad = !L.ok;
       calc = bad ? '「'+v+'」不在獎金表' : '依階段獎金表';
     } else if(c.k==='count'){
@@ -408,7 +415,17 @@ function calcSheet(sh, p){
     items.push({col:c.h, kind:c.k, v, src, amt, calc, bad});
   });
   if(hasFx) total = roundX(total);
-  return {total, items, any};
+  // 金額調整（自動帶入的局數、階段不動，只在金額上加減，並記錄原因）
+  const base = total;
+  const adjRaw = FEE && FEE.inputs ? FEE.inputs[inputKey(sh, p, ADJ)] : undefined;
+  const note = FEE && FEE.inputs ? (FEE.inputs[inputKey(sh, p, ADJ_NOTE)] || '') : '';
+  const adj = num(adjRaw);
+  if(adj || note){
+    any = true;
+    total += adj;
+    items.push({col:'金額調整', kind:'adj', v: adj, src:'adj', amt: adj, calc: note || '（沒有寫原因）', bad:false, adj:true});
+  }
+  return {total, base, adj, note, items, any};
 }
 function rankOf(list){
   // list: [{key, v, skip}] → {key: rank}（只排 > 0；skip＝不列入排名的業餘／外國棋手）
@@ -444,6 +461,9 @@ function recompute(){
   rows.forEach(r=>SHEETS.forEach(s=>r.sheets[s.id].items.forEach(it=>{ if(it.bad) badStages.push({sh:s.id, p:r.p.name, col:it.col, v:it.v}); })));
   const manual = [];
   Object.keys((FEE.inputs||{})).forEach(k=>{ const [sh, p, col] = k.split('|'); if(isAuto(sh, col)) manual.push({sh, p, col, v:FEE.inputs[k], auto:((AUTO[sh]||{})[p]||{})[col]}); });
+  const adjusts = [];
+  rows.forEach(r=>SHEETS.forEach(s=>{ const c = r.sheets[s.id]; if(c.adj || c.note) adjusts.push({sh:s.id, p:r.p.name, base:c.base, adj:c.adj, total:c.total, note:c.note}); }));
+  const adjNoNote = adjusts.filter(a=>a.adj && !String(a.note).trim());
   const cnt = {}; players.forEach(p=>{ if(p.name) cnt[p.name] = (cnt[p.name]||0)+1; });
   const dups = Object.keys(cnt).filter(n=>cnt[n]>1);
   const orphan = [];  // 手填資料的名字已不在名單
@@ -452,8 +472,8 @@ function recompute(){
   GAMES.filter(g=>g.c1==='國內' && !RULE_EVENTS.has(g.ev)).forEach(g=>{ evCount[g.ev] = (evCount[g.ev]||0)+1; });
   const unmapped = Object.keys(evCount).map(ev=>({ev, n:evCount[ev]})).sort((a,b)=>b.n-a.n);
   const sheetTotals = Object.fromEntries(SHEETS.map(s=>[s.id, rows.reduce((a,r)=>a+r.sheets[s.id].total, 0)]));
-  CALC = {rows, byName, check:{missing, badStages, manual, dups, orphan, unmapped}, sheetTotals,
-          issues: missing.length + badStages.length + dups.length + orphan.length};
+  CALC = {rows, byName, check:{missing, badStages, manual, dups, orphan, unmapped, adjusts, adjNoNote}, sheetTotals,
+          issues: missing.length + badStages.length + dups.length + orphan.length + adjNoNote.length};
 }
 
 /* ============ 資料載入（即時同步） ============ */
@@ -574,7 +594,7 @@ function renderTabs(){
     return '<button class="tab'+(VIEW===k?' on':'')+'" onclick="go(\''+k+'\')">'+label+'</button>';
   }).join('');
 }
-function go(v, opt){ VIEW = v; if(opt) Object.assign(VIEW_STATE, opt); render(); window.scrollTo(0,0); }
+function go(v, opt){ VIEW = v; if(opt) Object.assign(VIEW_STATE, opt); if(v==='events' && opt && opt.event && !('filter' in opt)) VIEW_STATE.filter=''; render(); window.scrollTo(0,0); }
 function render(){
   renderTabs();
   const m = document.getElementById('main');
@@ -701,7 +721,7 @@ function renderQuery(){
   attachAutocomplete(inp, n=>{ VIEW_STATE.query = n; renderQuery(); });
   if(!name) inp.focus();
 }
-function srcBadge(src){ return src==='auto' ? '<span class="badge auto">自動</span>' : src==='manual' ? '<span class="badge manual">手動修改</span>' : '<span class="badge hand">手填</span>'; }
+function srcBadge(src){ return src==='auto' ? '<span class="badge auto">自動</span>' : src==='manual' ? '<span class="badge manual">手動修改</span>' : src==='adj' ? '<span class="badge adj">調整</span>' : '<span class="badge hand">手填</span>'; }
 function playerGames(name){
   return GAMES.filter(g=>g.b===name || g.w===name).sort((a,b)=>a.d.localeCompare(b.d) || a.i-b.i);
 }
@@ -730,7 +750,7 @@ function queryDetailHtml(r){
       anyRow = true;
       c.items.forEach((it, i)=>{
         h += '<tr>'+(i===0?'<td rowspan="'+(c.items.length+1)+'" style="vertical-align:top"><span style="color:'+g.dark+'">●</span> '+esc(s.id)+'</td>':'')+
-          '<td>'+esc(it.col)+'</td><td>'+esc(it.v)+(it.kind==='count'?' 局':'')+'</td><td'+(it.bad?' class="bad"':'')+'>'+esc(it.calc)+'</td>'+
+          '<td>'+esc(it.col)+'</td><td>'+(it.adj ? ((it.v>0?'+':'')+fmt(it.v)) : esc(it.v)+(it.kind==='count'?' 局':''))+'</td><td'+(it.bad?' class="bad"':'')+'>'+esc(it.calc)+'</td>'+
           '<td class="num">'+fmt(it.amt)+'</td><td>'+srcBadge(it.src)+'</td></tr>';
       });
       h += '<tr class="sub"><td colspan="3">'+esc(s.id)+' 小計</td><td class="num">'+fmt(c.total)+'</td><td></td></tr>';
@@ -795,14 +815,19 @@ function renderEvents(){
     const unit = c.k==='count' ? '(局)' : c.k==='stage' ? '(選)' : '';
     h += '<th style="top:0;background:'+(a?'var(--teal)':'var(--navy)')+';color:#fff">'+esc(c.h)+unit+'</th>';
   });
-  h += '<th style="top:0;background:var(--gray);color:#fff">獎金(台幣)</th></tr>';
+  h += '<th style="top:0;background:var(--gray);color:#fff">計算獎金</th>'+
+       '<th style="top:0;background:#6A1B9A;color:#fff" title="要扣錢填負數（例如 -2000），補發填正數">調整金額</th>'+
+       '<th style="top:0;background:#6A1B9A;color:#fff;min-width:180px">調整原因</th>'+
+       '<th style="top:0;background:var(--orange);color:#fff">實發金額</th></tr>';
   h += '<tr class="sum"><th class="stick1" style="top:33px;background:var(--green-l)"></th><th class="stick2" style="top:33px;background:var(--green-l)">合計</th>';
   s.cols.forEach(c=>{
     let v = 0;
     CALC.rows.forEach(r=>{ const cv = cellValue(sh, r.p.name, c.h).v; if(cv!=='' && cv!=null) v += (c.k==='stage') ? 1 : num(cv); });
     h += '<th style="top:33px;background:var(--green-l)">'+(c.k==='stage' ? v+' 人' : c.k==='count' ? v+' 局' : fmt(v))+'</th>';
   });
-  h += '<th class="num" style="top:33px;background:var(--green-l)">'+fmt(CALC.sheetTotals[sh])+'</th></tr></thead><tbody id="evBody"></tbody></table></div></div>';
+  const baseSum = CALC.rows.reduce((a,r)=>a+r.sheets[sh].base,0), adjSum = CALC.rows.reduce((a,r)=>a+r.sheets[sh].adj,0);
+  h += '<th class="num" style="top:33px;background:var(--green-l)">'+fmt(baseSum)+'</th><th class="num" style="top:33px;background:var(--green-l)">'+(adjSum?(adjSum>0?'+':'')+fmt(adjSum):'')+'</th>'+
+       '<th style="top:33px;background:var(--green-l)"></th><th class="num" style="top:33px;background:var(--green-l)">'+fmt(CALC.sheetTotals[sh])+'</th></tr></thead><tbody id="evBody"></tbody></table></div></div>';
   // 規則
   h += '<div class="card sidebox"><h3 style="margin-top:0">'+esc(sh)+' 獎金規則</h3>';
   Object.keys(ru.tables||{}).forEach(t=>{
@@ -844,9 +869,14 @@ function renderEventsBody(){
       if(src==='manual') ctl += '<button class="restore" title="恢復自動（成績系統的值：'+esc(((AUTO[sh]||{})[r.p.name]||{})[c.h]||'空白')+'）" onclick="restoreAuto(\''+esc(r.p.name)+'\',\''+esc(c.h)+'\')">↺</button>';
       h += '<td class="'+cls+'" style="display:table-cell"><div style="display:flex;align-items:center">'+ctl+'</div></td>';
     });
-    h += '<td class="num tot">'+fmt0(r.sheets[sh].total)+'</td></tr>';
+    const c = r.sheets[sh], dp = 'data-p="'+esc(r.p.name)+'"';
+    const needNote = c.adj && !String(c.note).trim();
+    h += '<td class="num">'+fmt0(c.base)+'</td>'+
+      '<td class="edit adjcell'+(c.adj?' adjon':'')+'"><input type="number" step="1" '+dp+' data-adj="amt" value="'+(c.adj||'')+'" placeholder="±" onchange="adjChanged(this)"></td>'+
+      '<td class="edit adjcell'+(needNote?' badcell':'')+'"><input type="text" style="text-align:left" '+dp+' data-adj="note" value="'+esc(c.note)+'" placeholder="'+(c.adj?'請寫原因':'')+'" onchange="adjChanged(this)"></td>'+
+      '<td class="num tot">'+fmt0(c.total)+'</td></tr>';
   });
-  if(!rows.length) h = '<tr><td colspan="'+(s.cols.length+3)+'" class="muted">沒有資料。取消勾選「只顯示有資料的棋士」可以看到全部名單並填寫。</td></tr>';
+  if(!rows.length) h = '<tr><td colspan="'+(s.cols.length+6)+'" class="muted">沒有資料。取消勾選「只顯示有資料的棋士」可以看到全部名單並填寫。</td></tr>';
   document.getElementById('evBody').innerHTML = h;
 }
 function cellChanged(el){
@@ -857,17 +887,28 @@ function cellChanged(el){
     // 自動欄位：跟自動值一樣就不存（等於沒改）；清空＝手動改成空白
     const av = ((AUTO[sh]||{})[p]||{})[col];
     if(String(v) === String(av==null?'':av)){ return; }
-    if(v===''){ v = 0; if(c.k==='stage') v = '—'; }
+    if(v===''){ v = (c.k==='stage') ? NOT_COUNTED : 0; }
   }
   setInput(sh, p, col, v);
 }
 function restoreAuto(p, col){ setInput(VIEW_STATE.event, p, col, null); }
+function adjChanged(el){
+  const sh = VIEW_STATE.event, p = el.dataset.p;
+  if(el.dataset.adj==='amt'){
+    let v = el.value.trim();
+    if(v!==''){ v = Number(v); if(isNaN(v)){ alert('請填數字（扣款填負數，例如 -2000）'); renderEventsBody(); return; } if(v===0) v = ''; }
+    setInput(sh, p, ADJ, v===''?null:Math.round(v));
+  } else {
+    const v = el.value.trim();
+    setInput(sh, p, ADJ_NOTE, v===''?null:v);
+  }
+}
 
 /* ---------- 檢核 ---------- */
 function renderCheck(){
   const ck = CALC.check;
   let h = '<div class="card"><div class="chk-sum">'+(CALC.issues ? '<span class="bad">⚠ 有 '+CALC.issues+' 項需要處理</span>' : '<span class="ok">✔ 檢核正常，可以發放</span>')+'</div>';
-  h += '<div class="muted">成績每次有新資料都會自動重算；下面 1～4 項都清空才算檢核正常，5～6 項是提醒。</div></div>';
+  h += '<div class="muted">成績每次有新資料都會自動重算；下面 1～4 項清空、而且每筆金額調整都有寫原因，才算檢核正常；6～7 項是提醒。</div></div>';
   // 1
   h += '<div class="card"><h3 style="margin-top:0">1. 成績系統有成績、但名單沒有這位棋士（'+ck.missing.length+'）</h3>';
   if(ck.missing.length){
@@ -895,7 +936,14 @@ function renderCheck(){
   } else h += '<div class="ok">✔ 沒有</div>';
   h += '</div>';
   // 5
-  h += '<div class="card"><h3 style="margin-top:0">5. 自動欄位被手動修改（'+ck.manual.length+'，提醒）</h3>';
+  h += '<div class="card"><h3 style="margin-top:0">5. 金額調整（'+ck.adjusts.length+'）'+(ck.adjNoNote.length ? '　<span class="bad">⚠ '+ck.adjNoNote.length+' 筆沒有寫原因</span>' : '')+'</h3>';
+  if(ck.adjusts.length){
+    h += '<div class="muted">發放前請核對；調整了金額一定要寫原因（沒寫會列為待處理）。</div><table class="list"><thead><tr><th>賽事</th><th>棋士</th><th class="num">計算金額</th><th class="num">調整</th><th class="num">實發</th><th>原因</th></tr></thead><tbody>';
+    ck.adjusts.forEach(a=>{ h += '<tr><td><a class="name" onclick="go(\'events\',{event:\''+esc(a.sh)+'\',filter:\''+esc(a.p)+'\'})">'+esc(a.sh)+'</a></td><td>'+esc(a.p)+'</td><td class="num">'+fmt(a.base)+'</td><td class="num '+(a.adj<0?'bad':'ok')+'">'+(a.adj>0?'+':'')+fmt(a.adj)+'</td><td class="num">'+fmt(a.total)+'</td><td'+(a.adj && !String(a.note).trim()?' class="bad"':'')+'>'+esc(a.note||'（沒有寫原因）')+'</td></tr>'; });
+    h += '</tbody></table>';
+  } else h += '<div class="muted">沒有</div>';
+  h += '</div>';
+  h += '<div class="card"><h3 style="margin-top:0">6. 自動欄位被手動修改（'+ck.manual.length+'，提醒）</h3>';
   if(ck.manual.length){
     h += '<table class="list"><thead><tr><th>賽事</th><th>棋士</th><th>欄位</th><th>手動改成</th><th>成績系統算出</th><th></th></tr></thead><tbody>';
     ck.manual.forEach(m=>{ h += '<tr><td>'+esc(m.sh)+'</td><td>'+esc(m.p)+'</td><td>'+esc(m.col)+'</td><td>'+esc(m.v)+'</td><td>'+esc(m.auto==null?'（空白）':m.auto)+'</td><td><button class="btn small" onclick="setInput(\''+esc(m.sh)+'\',\''+esc(m.p)+'\',\''+esc(m.col)+'\',null)">恢復自動</button></td></tr>'; });
@@ -903,7 +951,7 @@ function renderCheck(){
   } else h += '<div class="muted">沒有</div>';
   h += '</div>';
   // 6
-  h += '<div class="card"><h3 style="margin-top:0">6. 成績系統裡、還沒對應到任何賽事頁的國內比賽（提醒）</h3>';
+  h += '<div class="card"><h3 style="margin-top:0">7. 成績系統裡、還沒對應到任何賽事頁的國內比賽（提醒）</h3>';
   if(ck.unmapped.length) h += '<table class="list" style="max-width:420px"><thead><tr><th>賽名</th><th class="num">局數</th></tr></thead><tbody>'+ck.unmapped.map(u=>'<tr><td>'+esc(u.ev)+'</td><td class="num">'+u.n+'</td></tr>').join('')+'</tbody></table><div class="muted">要算對局費的話，告訴維護的人要對應到哪個賽事頁、每局多少。</div>';
   else h += '<div class="muted">沒有</div>';
   h += '</div>';
@@ -1107,8 +1155,8 @@ function downloadAll(){
   CALC.rows.forEach(r=>aoa.push(cols.map(c=>{ const v = c.get(r); return (v===''||v==null)?null:v; })));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), '總表');
   SHEETS.forEach(s=>{
-    const a = [['棋士', ...s.cols.map(c=>c.h), '獎金(台幣)']];
-    CALC.rows.forEach(r=>{ if(!r.sheets[s.id].any) return; a.push([r.p.name, ...s.cols.map(c=>{ const v = cellValue(s.id, r.p.name, c.h).v; return v===''?null:v; }), r.sheets[s.id].total]); });
+    const a = [['棋士', ...s.cols.map(c=>c.h), '計算獎金', '調整金額', '調整原因', '實發金額']];
+    CALC.rows.forEach(r=>{ const c = r.sheets[s.id]; if(!c.any) return; a.push([r.p.name, ...s.cols.map(cc=>{ const v = cellValue(s.id, r.p.name, cc.h).v; return v===''?null:v; }), c.base, c.adj||null, c.note||null, c.total]); });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(a), s.id.slice(0,31));
   });
   XLSX.writeFile(wb, YEAR+'對局費_'+new Date().toISOString().slice(0,10)+'.xlsx', {compression:true});
@@ -1117,7 +1165,7 @@ function downloadPlayer(name){
   const r = CALC.byName[name]; if(!r) return;
   const a = [[name+'　'+YEAR+' 年對局費明細'], [], ['實際全額總計', r.full], ['採計獎金', r.grp.採計], ['女子賽', r.grp.女子], ['限制賽', r.grp.限制], [], ['賽事','項目','內容','計算','金額','來源']];
   SHEETS.forEach(s=>{ const c = r.sheets[s.id]; if(!c.any) return;
-    c.items.forEach(it=>a.push([s.id, it.col, it.v, it.calc, it.amt, it.src==='auto'?'自動':it.src==='manual'?'手動修改':'手填']));
+    c.items.forEach(it=>a.push([s.id, it.col, it.v, it.calc, it.amt, it.src==='auto'?'自動':it.src==='manual'?'手動修改':it.src==='adj'?'調整':'手填']));
     a.push([s.id+' 小計','','','',c.total,'']); });
   a.push([], ['對局紀錄'], ['日期','賽名','階段','黑','白','勝方','結果','備註']);
   playerGames(name).forEach(g=>a.push([g.d, g.ev, g.st0raw, g.b, g.w, g.win, g.mv, gameNote(g, name)]));
