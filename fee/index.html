@@ -40,7 +40,7 @@ h3{font-size:16px;margin:14px 0 8px}
 .toolbar input[type=search]{padding:6px 10px;border:1px solid var(--line);border-radius:6px;min-width:180px}
 .tablewrap{overflow:auto;border:1px solid var(--line);border-radius:6px;background:#fff;max-height:calc(100vh - 210px)}
 table.grid{border-collapse:separate;border-spacing:0;font-size:14px;white-space:nowrap}
-table.grid th,table.grid td{border-right:1px solid #E3E3E3;border-bottom:1px solid #E3E3E3;padding:5px 8px}
+table.grid th,table.grid td{border-right:1px solid #E3E3E3;border-bottom:1px solid #E3E3E3;padding:4px 8px;line-height:1.35}
 table.grid thead th{position:sticky;top:0;background:#fff;z-index:3;font-weight:bold;text-align:center}
 table.grid thead tr.band th{top:0;color:#fff}
 table.grid thead tr.hdr th{top:30px;cursor:pointer}
@@ -82,7 +82,16 @@ td.badcell{background:var(--bad)!important}
 td.adjcell{background:#F3E5F5}
 td.adjon input{color:#6A1B9A;font-weight:bold}
 .badge.adj{color:#6A1B9A;border-color:#B388C9;background:#F3E5F5}
-td.edit input,td.edit select{width:100%;min-width:70px;border:1px solid transparent;background:transparent;padding:2px 4px;text-align:center}
+td.edit{padding:1px 3px}
+td.edit input,td.edit select{height:24px;border:1px solid transparent;background:transparent;padding:1px 3px;text-align:center;font-size:14px}
+td.edit input[type=number]{width:52px}
+td.edit select{width:auto;min-width:58px}
+td.adjcell input.adjamt{width:80px;text-align:right}
+td.money input.amt{width:78px;text-align:right}
+.stg{font-size:12px;color:#5f6b6a;margin-right:3px;white-space:nowrap}
+td.adjcell input[type=text]{width:150px;text-align:left}
+td.edit > div{justify-content:center}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{margin:0}
 td.edit input:hover,td.edit select:hover,td.edit input:focus,td.edit select:focus{border-color:#9bb3d9;background:#fff}
 td.edit .restore{border:none;background:none;color:#a14b12;cursor:pointer;font-size:13px;padding:0 2px}
 .sidebox{min-width:230px}
@@ -358,6 +367,9 @@ function deriveAuto(games){
 
 /* ============ 計算 ============ */
 function inputKey(sh, p, col){ return sh+'|'+p+'|'+col; }
+/* 局數、階段欄「直接輸入的金額」另外存在「頁|棋士|欄位|$」：有這個鍵就用它，沒有才依局數×單價／階段獎金表計算 */
+function moneyKey(sh, p, col){ return inputKey(sh, p, col)+'|$'; }
+const isMoneyMode = c => c.k==='count' || c.k==='stage';
 const ADJ = '調整金額', ADJ_NOTE = '調整原因', NOT_COUNTED = '不計';
 const isAdjCol = col => col===ADJ || col===ADJ_NOTE;
 function cellValue(sh, p, col){
@@ -379,6 +391,28 @@ function sheetRules(sh){
   Object.keys(d).forEach(k=>{ if(!(k in prices)) prices[k] = d[k]; });
   return Object.assign({}, r, {prices});
 }
+// 依局數／階段／外幣算出金額（不含手動輸入的金額）
+function amountOf(sh, c, v, ru){
+  let amt = 0, calc = '', bad = false;
+  if(c.k==='stage' && v===NOT_COUNTED){
+    calc = '手動設為不計';
+  } else if(c.k==='stage'){
+    const L = lookupStage(sh, c.t, v); amt = L.prize; bad = !L.ok;
+    calc = bad ? '「'+v+'」不在獎金表' : String(v)+'（依階段獎金表）';
+  } else if(c.k==='count'){
+    const pv = (ru.prices||{})[c.h], price = num(pv);
+    amt = num(v) * price;
+    calc = num(v)+' 局 × '+fmt(price);
+    if(isNaN(Number(v))) bad = true;
+    if((pv==null || pv==='') && num(v)) { bad = true; calc = num(v)+' 局（每局單價未設定）'; }
+  } else if(c.k==='fx'){
+    const rv = (ru.rates||{})[c.h], rate = num(rv);
+    amt = num(v) * rate;
+    calc = fmt(num(v))+' × '+(+rate.toFixed(6));
+    if((rv==null || rv==='') && num(v)) { bad = true; calc = fmt(num(v))+'（換算倍率未設定）'; }
+  } else { amt = num(v); calc = '台幣'; }
+  return {amt, calc, bad};
+}
 function lookupStage(sh, t, v){
   const rows = (sheetRules(sh).tables||{})[t] || [];
   const hit = rows.find(r=>String(r[0])===String(v));
@@ -391,28 +425,21 @@ function calcSheet(sh, p){
   const items = [];
   s.cols.forEach(c=>{
     const {v, src} = cellValue(sh, p, c.h);
-    if(v==='' || v==null) return;
+    const mk = moneyKey(sh, p, c.h);
+    const hasM = isMoneyMode(c) && FEE && FEE.inputs && Object.prototype.hasOwnProperty.call(FEE.inputs, mk);
+    const hasV = !(v==='' || v==null);
+    if(!hasV && !hasM) return;
     any = true;
-    let amt = 0, calc = '', bad = false;
-    if(c.k==='stage' && v===NOT_COUNTED){
-      amt = 0; calc = '手動設為不計';
-    } else if(c.k==='stage'){
-      const L = lookupStage(sh, c.t, v); amt = L.prize; bad = !L.ok;
-      calc = bad ? '「'+v+'」不在獎金表' : '依階段獎金表';
-    } else if(c.k==='count'){
-      const pv = (ru.prices||{})[c.h], price = num(pv);
-      amt = num(v) * price;
-      calc = num(v)+' 局 × '+fmt(price);
-      if(isNaN(Number(v))) bad = true;
-      if((pv==null || pv==='') && num(v)) { bad = true; calc = num(v)+' 局（每局單價未設定）'; }
-    } else if(c.k==='fx'){
-      const rv = (ru.rates||{})[c.h], rate = num(rv);
-      amt = num(v) * rate;
-      calc = fmt(num(v))+' × '+(+rate.toFixed(6));
-      if((rv==null || rv==='') && num(v)) { bad = true; calc = fmt(num(v))+'（換算倍率未設定）'; }
-    } else { amt = num(v); calc = '台幣'; }
+    let {amt, calc, bad} = hasV ? amountOf(sh, c, v, ru) : {amt:0, calc:'', bad:false};
+    const orig = amt;
+    let src2 = src;
+    if(hasM){
+      amt = num(FEE.inputs[mk]); bad = false;
+      calc = '手動輸入金額' + (hasV ? '（原本 '+calc+' ＝ '+fmt(orig)+'）' : '');
+      src2 = isAuto(sh, c.h) ? 'manual' : 'hand';
+    }
     total += amt;
-    items.push({col:c.h, kind:c.k, v, src, amt, calc, bad});
+    items.push({col:c.h, kind:c.k, v: hasV ? v : '', src: src2, amt, calc, bad, orig, money: hasM});
   });
   if(hasFx) total = roundX(total);
   // 金額調整（自動帶入的局數、階段不動，只在金額上加減，並記錄原因）
@@ -460,7 +487,14 @@ function recompute(){
   const badStages = [];
   rows.forEach(r=>SHEETS.forEach(s=>r.sheets[s.id].items.forEach(it=>{ if(it.bad) badStages.push({sh:s.id, p:r.p.name, col:it.col, v:it.v}); })));
   const manual = [];
-  Object.keys((FEE.inputs||{})).forEach(k=>{ const [sh, p, col] = k.split('|'); if(isAuto(sh, col)) manual.push({sh, p, col, v:FEE.inputs[k], auto:((AUTO[sh]||{})[p]||{})[col]}); });
+  Object.keys((FEE.inputs||{})).forEach(k=>{
+    const parts = k.split('|'), [sh, p, col] = parts;
+    if(!isAuto(sh, col)) return;
+    if(parts[3]==='$'){
+      const it = byName[p] && byName[p].sheets[sh] ? byName[p].sheets[sh].items.find(i=>i.col===col) : null;
+      manual.push({sh, p, col, v: fmt(num(FEE.inputs[k]))+' 元', auto: it && it.v!=='' ? fmt(it.orig)+' 元（'+it.v+(it.kind==='count'?' 局':'')+'）' : null});
+    } else manual.push({sh, p, col, v:FEE.inputs[k], auto:((AUTO[sh]||{})[p]||{})[col]});
+  });
   const adjusts = [];
   rows.forEach(r=>SHEETS.forEach(s=>{ const c = r.sheets[s.id]; if(c.adj || c.note) adjusts.push({sh:s.id, p:r.p.name, base:c.base, adj:c.adj, total:c.total, note:c.note}); }));
   const adjNoNote = adjusts.filter(a=>a.adj && !String(a.note).trim());
@@ -555,17 +589,20 @@ function updateStatus(){
 }
 
 /* ============ 寫入 ============ */
-async function setInput(sh, p, col, v){
-  const k = inputKey(sh, p, col);
-  const del = (v==='' || v==null);
+async function setInput(sh, p, col, v){ return setInputs({[inputKey(sh, p, col)]: v}); }
+// map = {鍵: 值}；值是空字串或 null 就刪掉那個鍵。一次送出，多人同時改不同格不會互蓋
+async function setInputs(map){
+  const keys = Object.keys(map);
   if(LOCAL_MODE){
     const db = localDB(); const d = db['y'+YEAR]; if(!d) return;
-    if(del) delete d.inputs[k]; else d.inputs[k] = v;
+    keys.forEach(k=>{ const v = map[k]; if(v==='' || v==null) delete d.inputs[k]; else d.inputs[k] = v; });
     saveLocalDB(db); FEE = JSON.parse(JSON.stringify(d)); onDataChanged(); toast('已儲存'); return;
   }
   try{
-    await feeDocRef().update(new firebase.firestore.FieldPath('inputs', k), del ? firebase.firestore.FieldValue.delete() : v,
-                             'updatedAt', firebase.firestore.FieldValue.serverTimestamp());
+    const args = [];
+    keys.forEach(k=>{ const v = map[k]; args.push(new firebase.firestore.FieldPath('inputs', k), (v==='' || v==null) ? firebase.firestore.FieldValue.delete() : v); });
+    args.push('updatedAt', firebase.firestore.FieldValue.serverTimestamp());
+    await feeDocRef().update(...args);
     toast('已儲存');
   }catch(e){ console.error(e); alert('儲存失敗：'+(e.message||e)); }
 }
@@ -806,24 +843,27 @@ function renderEvents(){
   h += '<div class="flex"><div class="grow"><div class="toolbar">'+
     '<label><input type="checkbox" '+(VIEW_STATE.onlyData?'checked':'')+' onchange="VIEW_STATE.onlyData=this.checked;renderEvents()"> 只顯示有資料的棋士</label>'+
     '<input type="search" placeholder="搜尋棋士" value="'+esc(VIEW_STATE.filter)+'" oninput="VIEW_STATE.filter=this.value;renderEventsBody()">'+
-    (autoCount ? '<span class="muted"><span class="badge auto">青綠</span> 自動從成績系統帶入；改了會變 <span class="badge manual">淺橘</span>，按 ↺ 恢復自動</span>' :
+    (autoCount ? '<span class="muted">格子裡都是<b>金額</b>。<span class="badge auto">青綠</span> 自動從成績系統算出（滑鼠移到格子上可看局數）；直接改金額會變 <span class="badge manual">淺橘</span>，按 ↺ 恢復自動</span>' :
                  '<span class="muted">這個賽事沒有自動帶入，請直接填寫（<span class="badge hand">黃底</span>）</span>')+'</div>';
   h += '<div class="tablewrap"><table class="grid"><thead><tr class="hdr">';
   h += '<th class="stick1" style="top:0;min-width:44px">序</th><th class="stick2" style="top:0">棋士</th>';
   s.cols.forEach(c=>{
     const a = isAuto(sh, c.h);
-    const unit = c.k==='count' ? '(局)' : c.k==='stage' ? '(選)' : '';
+    const unit = c.k==='fx' ? '(原幣)' : '';
     h += '<th style="top:0;background:'+(a?'var(--teal)':'var(--navy)')+';color:#fff">'+esc(c.h)+unit+'</th>';
   });
   h += '<th style="top:0;background:var(--gray);color:#fff">計算獎金</th>'+
        '<th style="top:0;background:#6A1B9A;color:#fff" title="要扣錢填負數（例如 -2000），補發填正數">調整金額</th>'+
-       '<th style="top:0;background:#6A1B9A;color:#fff;min-width:180px">調整原因</th>'+
+       '<th style="top:0;background:#6A1B9A;color:#fff">調整原因</th>'+
        '<th style="top:0;background:var(--orange);color:#fff">實發金額</th></tr>';
   h += '<tr class="sum"><th class="stick1" style="top:33px;background:var(--green-l)"></th><th class="stick2" style="top:33px;background:var(--green-l)">合計</th>';
   s.cols.forEach(c=>{
     let v = 0;
-    CALC.rows.forEach(r=>{ const cv = cellValue(sh, r.p.name, c.h).v; if(cv!=='' && cv!=null) v += (c.k==='stage') ? 1 : num(cv); });
-    h += '<th style="top:33px;background:var(--green-l)">'+(c.k==='stage' ? v+' 人' : c.k==='count' ? v+' 局' : fmt(v))+'</th>';
+    CALC.rows.forEach(r=>{
+      if(isMoneyMode(c)){ const it = r.sheets[sh].items.find(i=>i.col===c.h); if(it) v += it.amt; }
+      else { const cv = cellValue(sh, r.p.name, c.h).v; if(cv!=='' && cv!=null) v += num(cv); }
+    });
+    h += '<th class="num" style="top:33px;background:var(--green-l)">'+fmt(v)+'</th>';
   });
   const baseSum = CALC.rows.reduce((a,r)=>a+r.sheets[sh].base,0), adjSum = CALC.rows.reduce((a,r)=>a+r.sheets[sh].adj,0);
   h += '<th class="num" style="top:33px;background:var(--green-l)">'+fmt(baseSum)+'</th><th class="num" style="top:33px;background:var(--green-l)">'+(adjSum?(adjSum>0?'+':'')+fmt(adjSum):'')+'</th>'+
@@ -858,13 +898,18 @@ function renderEventsBody(){
       let cls = 'edit ' + (src==='manual' ? 'over' : a ? 'auto' : 'hand') + (item && item.bad ? ' badcell' : '');
       const data = 'data-p="'+esc(r.p.name)+'" data-c="'+esc(c.h)+'"';
       let ctl;
-      if(c.k==='stage'){
-        const o = opts(c); const vs = String(v);
-        ctl = '<select '+data+' onchange="cellChanged(this)"><option value=""></option>'+
-          (vs!=='' && o.indexOf(vs)<0 ? '<option selected>'+esc(vs)+'</option>' : '')+
-          o.map(x=>'<option'+(x===vs?' selected':'')+'>'+esc(x)+'</option>').join('')+'</select>';
+      if(isMoneyMode(c)){
+        // 局數、階段欄：直接顯示／輸入金額；階段名稱用小字標在旁邊，滑鼠移上去看計算方式
+        const it = item;
+        const srcNow = it ? it.src : '';
+        cls = 'edit money ' + (srcNow==='manual' ? 'over' : a ? 'auto' : 'hand') + (it && it.bad ? ' badcell' : '');
+        const tag = (c.k==='stage' && it && it.v!=='' && it.v!==NOT_COUNTED) ? '<span class="stg">'+esc(it.v)+'</span>' : '';
+        ctl = tag + '<input type="text" inputmode="numeric" class="amt" '+data+' value="'+(it ? fmt(it.amt)||'0' : '')+'" title="'+esc(it ? it.calc : '')+'" onchange="moneyChanged(this)">';
+        if(srcNow==='manual') ctl += '<button class="restore" title="恢復自動（'+esc(it.calc)+'）" onclick="restoreCell(VIEW_STATE.event,\''+esc(r.p.name)+'\',\''+esc(c.h)+'\')">↺</button>';
+        h += '<td class="'+cls+'"><div style="display:flex;align-items:center">'+ctl+'</div></td>';
+        return;
       } else {
-        ctl = '<input type="number" min="0" step="'+(c.k==='count'?'1':'any')+'" '+data+' value="'+esc(v)+'" onchange="cellChanged(this)">';
+        ctl = '<input type="number" min="0" step="any" '+data+' value="'+esc(v)+'" onchange="cellChanged(this)">';
       }
       if(src==='manual') ctl += '<button class="restore" title="恢復自動（成績系統的值：'+esc(((AUTO[sh]||{})[r.p.name]||{})[c.h]||'空白')+'）" onclick="restoreAuto(\''+esc(r.p.name)+'\',\''+esc(c.h)+'\')">↺</button>';
       h += '<td class="'+cls+'" style="display:table-cell"><div style="display:flex;align-items:center">'+ctl+'</div></td>';
@@ -872,7 +917,7 @@ function renderEventsBody(){
     const c = r.sheets[sh], dp = 'data-p="'+esc(r.p.name)+'"';
     const needNote = c.adj && !String(c.note).trim();
     h += '<td class="num">'+fmt0(c.base)+'</td>'+
-      '<td class="edit adjcell'+(c.adj?' adjon':'')+'"><input type="number" step="1" '+dp+' data-adj="amt" value="'+(c.adj||'')+'" placeholder="±" onchange="adjChanged(this)"></td>'+
+      '<td class="edit adjcell'+(c.adj?' adjon':'')+'"><input type="text" inputmode="numeric" class="adjamt" '+dp+' data-adj="amt" value="'+(c.adj?(c.adj>0?'+':'')+fmt(c.adj):'')+'" placeholder="±" onchange="adjChanged(this)"></td>'+
       '<td class="edit adjcell'+(needNote?' badcell':'')+'"><input type="text" style="text-align:left" '+dp+' data-adj="note" value="'+esc(c.note)+'" placeholder="'+(c.adj?'請寫原因':'')+'" onchange="adjChanged(this)"></td>'+
       '<td class="num tot">'+fmt0(c.total)+'</td></tr>';
   });
@@ -891,11 +936,31 @@ function cellChanged(el){
   }
   setInput(sh, p, col, v);
 }
-function restoreAuto(p, col){ setInput(VIEW_STATE.event, p, col, null); }
+function restoreAuto(p, col){ restoreCell(VIEW_STATE.event, p, col); }
+function restoreCell(sh, p, col){ setInputs({[inputKey(sh, p, col)]: null, [moneyKey(sh, p, col)]: null}); }
+function moneyChanged(el){
+  const sh = VIEW_STATE.event, p = el.dataset.p, col = el.dataset.c, c = SHEET[sh].cols.find(x=>x.h===col);
+  const k = inputKey(sh, p, col), mk = moneyKey(sh, p, col);
+  const auto = isAuto(sh, col);
+  const av = ((AUTO[sh]||{})[p]||{})[col];
+  const autoAmt = (auto && av!=null) ? amountOf(sh, c, av, sheetRules(sh)).amt : null;
+  let v = el.value.replace(/[,，\s]/g,'');
+  if(v===''){
+    // 清空：自動欄位原本有金額 → 記成 0 元（不發）；其他情況就是刪掉
+    setInputs(autoAmt ? {[mk]: 0, [k]: null} : {[mk]: null, [k]: null});
+    return;
+  }
+  v = Number(v);
+  if(isNaN(v) || v<0){ alert('請填 0 以上的金額'); renderEventsBody(); return; }
+  v = Math.round(v);
+  if(auto && autoAmt!=null && v===autoAmt){ restoreCell(sh, p, col); return; }   // 跟自動算的一樣＝恢復自動
+  if(!auto && v===0){ setInputs({[mk]: null, [k]: null}); return; }
+  setInputs({[mk]: v, [k]: null});
+}
 function adjChanged(el){
   const sh = VIEW_STATE.event, p = el.dataset.p;
   if(el.dataset.adj==='amt'){
-    let v = el.value.trim();
+    let v = el.value.replace(/[,，\s+]/g,'');
     if(v!==''){ v = Number(v); if(isNaN(v)){ alert('請填數字（扣款填負數，例如 -2000）'); renderEventsBody(); return; } if(v===0) v = ''; }
     setInput(sh, p, ADJ, v===''?null:Math.round(v));
   } else {
@@ -946,7 +1011,7 @@ function renderCheck(){
   h += '<div class="card"><h3 style="margin-top:0">6. 自動欄位被手動修改（'+ck.manual.length+'，提醒）</h3>';
   if(ck.manual.length){
     h += '<table class="list"><thead><tr><th>賽事</th><th>棋士</th><th>欄位</th><th>手動改成</th><th>成績系統算出</th><th></th></tr></thead><tbody>';
-    ck.manual.forEach(m=>{ h += '<tr><td>'+esc(m.sh)+'</td><td>'+esc(m.p)+'</td><td>'+esc(m.col)+'</td><td>'+esc(m.v)+'</td><td>'+esc(m.auto==null?'（空白）':m.auto)+'</td><td><button class="btn small" onclick="setInput(\''+esc(m.sh)+'\',\''+esc(m.p)+'\',\''+esc(m.col)+'\',null)">恢復自動</button></td></tr>'; });
+    ck.manual.forEach(m=>{ h += '<tr><td>'+esc(m.sh)+'</td><td>'+esc(m.p)+'</td><td>'+esc(m.col)+'</td><td>'+esc(m.v)+'</td><td>'+esc(m.auto==null?'（空白）':m.auto)+'</td><td><button class="btn small" onclick="restoreCell(\''+esc(m.sh)+'\',\''+esc(m.p)+'\',\''+esc(m.col)+'\')">恢復自動</button></td></tr>'; });
     h += '</tbody></table>';
   } else h += '<div class="muted">沒有</div>';
   h += '</div>';
@@ -1156,7 +1221,9 @@ function downloadAll(){
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), '總表');
   SHEETS.forEach(s=>{
     const a = [['棋士', ...s.cols.map(c=>c.h), '計算獎金', '調整金額', '調整原因', '實發金額']];
-    CALC.rows.forEach(r=>{ const c = r.sheets[s.id]; if(!c.any) return; a.push([r.p.name, ...s.cols.map(cc=>{ const v = cellValue(s.id, r.p.name, cc.h).v; return v===''?null:v; }), c.base, c.adj||null, c.note||null, c.total]); });
+    CALC.rows.forEach(r=>{ const c = r.sheets[s.id]; if(!c.any) return; a.push([r.p.name, ...s.cols.map(cc=>{
+      if(isMoneyMode(cc)){ const it = c.items.find(i=>i.col===cc.h); return it ? it.amt : null; }
+      const v = cellValue(s.id, r.p.name, cc.h).v; return v===''?null:v; }), c.base, c.adj||null, c.note||null, c.total]); });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(a), s.id.slice(0,31));
   });
   XLSX.writeFile(wb, YEAR+'對局費_'+new Date().toISOString().slice(0,10)+'.xlsx', {compression:true});
