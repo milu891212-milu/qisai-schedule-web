@@ -4959,6 +4959,15 @@ function renderQiwang19ChallengeStage(st){
 }
 
 function toggleWinner(stageId, matchId, slotIndex){
+  /* 循環圈的虛擬對局（只有 📷 匯入會用到）：勝方畫白圈、敗方畫黑圈 */
+  const qo = qwcParse(matchId);
+  if(qo){
+    const w=qwcCircleEl(stageId,qo,slotIndex), l=qwcCircleEl(stageId,qo,slotIndex===0?1:0);
+    if(w){ w.classList.remove('loser'); w.classList.add('winner'); }
+    if(l){ l.classList.remove('winner'); l.classList.add('loser'); }
+    saveState();
+    return;
+  }
   const match = matchRegistry[stageId] && matchRegistry[stageId][matchId];
   if(!match) return;
   const otherIdx = slotIndex===0?1:0;
@@ -5694,7 +5703,24 @@ function generateQiwang19ChallengeStage(){
 /* ============ 輸出：本輪成績登記表（列印） + 賽程圖（下載 SVG） ============ */
 let currentBracket = null;
 
+/* ============ 棋王賽循環圈的「虛擬對局」（2026-10-14 使用者要循環圈也能用 📷 匯入成績照片）============
+   循環圈沒有 matchRegistry 那種對戰樹，畫面上是每位選手每輪一個圈（白圈＝勝、黑圈＝負）。
+   為了讓匯入流程（找對局／判斷輪次／標勝負／下輪對陣）不用另寫一套，這裡把「第 r 輪 序號a 對 序號b」
+   編成虛擬對局編號 'qwc|r|a|b'（r＝1～7，加賽是 p1／p2；a<b），讓 getSlotName／slotIsWinner／
+   matchIsDecided／toggleWinner 認得它：名字查 QIWANG19_NAMES，勝負就是兩人在那一輪的圈。 */
+function qwcMatchId(r, a, b){ return 'qwc|'+r+'|'+Math.min(a,b)+'|'+Math.max(a,b); }
+function qwcParse(matchId){
+  if(typeof matchId!=='string' || matchId.indexOf('qwc|')!==0) return null;
+  const p=matchId.split('|');
+  return { r:p[1], a:parseInt(p[2],10), b:parseInt(p[3],10) };
+}
+function qwcCircleEl(stageId, o, idx){
+  const c = idx===0 ? o.a : o.b;
+  return document.getElementById('qw_'+stageId+'_'+(/^p/.test(o.r) ? o.r : 'r'+o.r)+'_c'+c);
+}
 function getSlotName(stageId,matchId,idx){
+  const qo=qwcParse(matchId);
+  if(qo) return QIWANG19_NAMES[(idx===0 ? qo.a : qo.b)-1] || '';
   const el=document.getElementById(inputId(stageId,matchId,idx));
   return el ? el.value.trim() : '';
 }
@@ -5782,7 +5808,7 @@ function buildMatchupPairs(idx){
      則是使用者自己在畫面上手動填的對手序號（跟printQiwang19ScoreSheet同一套讀法）。 */
   if(cb==='qiwang19circle'){
     const label = (QIWANG19_ROUND_LABELS[idx] || '循環圈').replace(/（[^）]*）/,'');
-    const pairs=[]; const seen={};
+    const pairs=[]; const seen={}; const ids=[];
     if(idx<7){
       const oppRow = QIWANG19_SCHEDULE[idx];
       for(let c=1;c<=8;c++){
@@ -5790,6 +5816,7 @@ function buildMatchupPairs(idx){
         const opp=oppRow[c-1];
         seen[c]=true; seen[opp]=true;
         pairs.push([QIWANG19_NAMES[c-1], QIWANG19_NAMES[opp-1]]);
+        ids.push(qwcMatchId(String(idx+1), c, opp));
       }
     } else {
       const p = idx===7 ? 'p1' : 'p2';
@@ -5800,9 +5827,11 @@ function buildMatchupPairs(idx){
         if(!opp || opp<1 || opp>8 || opp===c) continue;
         seen[c]=true; seen[opp]=true;
         pairs.push([QIWANG19_NAMES[c-1], QIWANG19_NAMES[opp-1]]);
+        ids.push(qwcMatchId(p, c, opp));
       }
     }
-    return { label, pairs, titlePrefix:'第19屆' };
+    /* ids 是給「📷 匯入成績照片」用的虛擬對局編號（2026-10-14 循環圈也開放匯入），見 qwcMatchId */
+    return { label, pairs, ids, titlePrefix:'第19屆' };
   }
 
   /* 棋王賽第20屆初賽：場次是「組別×part模板」組出match id（跟printQiwang20PrelimScoreSheet同一套）。 */
@@ -6011,6 +6040,8 @@ window.addEventListener('message', function(ev){
 });
 
 function slotIsWinner(stageId, matchId, idx){
+  const qo=qwcParse(matchId);
+  if(qo){ const ce=qwcCircleEl(stageId,qo,idx); return !!(ce && ce.classList.contains('winner')); }
   const el=document.getElementById(slotWrapId(stageId,matchId,idx));
   return !!(el && el.classList.contains('winner'));
 }
@@ -6024,6 +6055,10 @@ function matchManualFilled(stageId, matchId){
   return getSlotName(stageId, m.advanceTo.matchId, m.advanceTo.slotIndex);
 }
 function matchIsDecided(stageId, matchId){
+  const qo=qwcParse(matchId);
+  if(qo){ /* 循環圈：兩人那一輪的圈只要有任何一個畫了（白或黑），就算這局比完了 */
+    return [0,1].some(function(i){ const ce=qwcCircleEl(stageId,qo,i); return !!(ce && (ce.classList.contains('winner') || ce.classList.contains('loser'))); });
+  }
   return slotIsWinner(stageId,matchId,0) || slotIsWinner(stageId,matchId,1) || !!matchManualFilled(stageId, matchId);
 }
 /* 這一輪裡「兩邊名字都有、還沒分勝負、這次還沒被用掉」的對局，給使用者手動挑的下拉選單用 */
@@ -6215,7 +6250,11 @@ function applyScoreItems(sess, items){
   let nextText='', nextNote='';
   if(sel && nextIdx < sel.options.length){
     const built=buildMatchupText(nextIdx);
-    if(built.error){ nextNote='下輪對陣沒有產生：'+built.error; }
+    if(built.error){
+      nextNote = (currentStConfig && currentStConfig.customBracket==='qiwang19circle' && nextIdx>=7)
+        ? '下一輪是加賽：要等同分的人確定、在賽程表填好加賽對手後，才能產生加賽對陣（按「📋 產生對陣文字」）。'
+        : '下輪對陣沒有產生：'+built.error;
+    }
     else {
       nextText=built.text;
       sel.value=String(nextIdx);
@@ -6265,8 +6304,8 @@ function setupExportPanel(){
      （qiwang19challenge，固定同一組2人打7局，沒有「這輪誰對誰」可言）刻意不開放，
      其他賽事都已經逐一確認過資料結構、比照各自的成績登記表列印邏輯開放。 */
   document.getElementById('matchupTextBtn').style.display='none';
-  /* 「📷 匯入成績照片」跟對陣文字一樣先預設隱藏；循環圈（qiwang19circle）使用者說先不管，
-     所以只在棋王賽第20屆初賽/複賽跟通用路徑這三個分支打開。 */
+  /* 「📷 匯入成績照片」跟對陣文字一樣先預設隱藏，在棋王賽第20屆初賽/複賽、循環圈（2026-10-14 起）
+     跟通用路徑這幾個分支打開。 */
   document.getElementById('scoreImportBtn').style.display='none';
   /* 快棋爭霸戰初賽是一張平面的疊圖賽程表，沒有「輪次」這種分段結構，
      成績登記表列印也還沒支援這個模式，所以只留「下載賽程圖」按鈕，把跟輪次有關的部分藏起來。
@@ -6315,6 +6354,7 @@ function setupExportPanel(){
     roundField.style.display='';
     printBtn.style.display='';
     document.getElementById('matchupTextBtn').style.display='';
+    document.getElementById('scoreImportBtn').style.display=''; /* 2026-10-14 循環圈也開放，見 qwcMatchId */
     const qwSel=document.getElementById('exportRoundSelect');
     qwSel.innerHTML = QIWANG19_ROUND_LABELS.map(function(lbl, idx){
       return '<option value="'+idx+'">'+escapeHtml(lbl)+'</option>';
