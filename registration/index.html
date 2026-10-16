@@ -439,8 +439,18 @@ function dataIssues(C){
   DATA.roster.forEach(p=>{ const k=norm(p.name); nameCnt[k]=(nameCnt[k]||0)+1; });
   const dupNames = Object.keys(nameCnt).filter(k=>nameCnt[k]>1);
   if(dupNames.length) out.push(['bad','名冊有重複的名字', dupNames]);
-  const noDan = C.players.filter(p=>!p.fromDan).map(p=>p.name+'（暫用名冊段位：'+(p.dan||'空白')+'）');
-  if(noDan.length) out.push(['warn','名冊裡這些人在成績系統的段位資料找不到（可能是異體字或沒建檔）', noDan]);
+  /* 不在段位資料的人：看起來像同一人寫法不同（只差一個字，例如異體字）→ 紅；名冊沒記段位 → 紅；
+     名冊有記段位（使用者 2026-10-16 確認這種情況用名冊段位即可）→ 灰色提示就好 */
+  const rosterKeys0 = new Set(DATA.roster.map(p=>norm(p.name)));
+  const danOnlyKeys = DAN_LIST.map(p=>norm(p[0])).filter(k=>!rosterKeys0.has(k));
+  const similar = k=>danOnlyKeys.filter(d=>{ const a=[...k], b=[...d]; return a.length===b.length && a.filter((c,i)=>c===b[i]).length>=a.length-1; });
+  const missing = C.players.filter(p=>!p.fromDan);
+  const lookAlike = missing.filter(p=>similar(p.key).length).map(p=>p.name+' ↔ 段位資料的「'+similar(p.key).join('、')+'」（請把其中一邊改成一樣的寫法）');
+  if(lookAlike.length) out.push(['bad','名冊和段位資料有寫法不同、可能是同一個人', lookAlike]);
+  const noDanBlank = missing.filter(p=>!similar(p.key).length && !p.dan).map(p=>p.name);
+  if(noDanBlank.length) out.push(['bad','這些人不在段位資料、名冊也沒記段位（文宣會沒有段位）', noDanBlank]);
+  const noDanOk = missing.filter(p=>!similar(p.key).length && p.dan).map(p=>p.name+'（'+p.dan+'）');
+  if(noDanOk.length) out.push(['info','這些人不在成績系統的段位資料，使用名冊記的段位（段位正確就不用理會）', noDanOk]);
   const diff = C.players.filter(p=>p.fromDan && p.dan && p.dan!==p.effDan).map(p=>p.name+'：名冊記 '+p.dan+'，段位資料 '+p.effDan+'（目前用段位資料）');
   if(diff.length) out.push(['warn','名冊記的段位跟段位資料不同', diff]);
   const rosterKeys = new Set(DATA.roster.map(p=>norm(p.name)));
