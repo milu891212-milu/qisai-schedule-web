@@ -1649,7 +1649,20 @@ async function doLogin(){
     return;
   }
   refreshControls();
+  applyUrlQuery();
 })();
+/* 網址帶棋士直接查詢（官網棋士專區「完整成績」按鈕用）：?player=賴均輔，可再加 &year=2026 */
+function applyUrlQuery(){
+  const q = new URLSearchParams(location.search);
+  const p = (q.get('player')||'').trim();
+  if(!p || !GAMES.length) return;
+  document.getElementById('qPlayer').value = p;
+  const y = (q.get('year')||'').trim();
+  document.getElementById('qYearFrom').value = y;
+  document.getElementById('qYearTo').value = y;
+  document.getElementById('qDetails').checked = true;
+  runQuery();
+}
 </script>
 </body>
 </html>

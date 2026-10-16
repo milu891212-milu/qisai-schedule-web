@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>海峰棋院 職業棋士報名</title>
+<style>
+:root{
+  --navy:#2F5597; --navy-l:#DDEBF7; --green:#2E7D32; --green-l:#E2EFDA; --orange:#9C6500; --orange-l:#FFEB9C;
+  --red:#9C0006; --red-l:#FFC7CE; --gray-l:#F2F2F2; --line:#D0D0D0; --text:#222; --muted:#777;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:"微軟正黑體","Microsoft JhengHei","Noto Sans TC",sans-serif;color:var(--text);background:#F7F7F5;font-size:15px}
+button{font-family:inherit;font-size:14px;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:14px}
+.topbar{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.topbar .row1{display:flex;align-items:center;gap:14px;padding:10px 18px;flex-wrap:wrap}
+.brand{font-size:20px;font-weight:bold;color:var(--navy);white-space:nowrap}
+.spacer{flex:1}
+.status{font-size:13px;color:var(--muted)}
+.tabs{display:flex;gap:2px;padding:0 12px;overflow-x:auto}
+.tab{border:none;background:none;padding:9px 16px;border-bottom:3px solid transparent;color:#444;font-size:15px;white-space:nowrap}
+.tab.on{border-bottom-color:var(--navy);color:var(--navy);font-weight:bold}
+.btn{border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 12px}
+.btn:hover{background:#f3f3f3}
+.btn.primary{background:var(--navy);border-color:var(--navy);color:#fff}
+.btn.primary:hover{background:#244a86}
+.btn.small{padding:2px 8px;font-size:13px}
+.btn.danger{color:#C00000}
+.btn.on{background:var(--navy-l);border-color:var(--navy);color:var(--navy);font-weight:bold}
+main{padding:16px 18px 60px}
+.card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:14px}
+h2{font-size:18px;margin:0 0 10px;color:var(--navy)}
+h3{font-size:16px;margin:14px 0 8px}
+.muted{color:var(--muted);font-size:13px}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.toolbar input[type=search]{padding:6px 10px;border:1px solid var(--line);border-radius:6px;min-width:180px}
+.cards{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 14px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 14px;min-width:140px}
+.stat .lab{font-size:13px;color:var(--muted)}
+.stat .val{font-size:24px;font-weight:bold;margin-top:2px}
+.stat.green .val{color:var(--green)} .stat.navy .val{color:var(--navy)} .stat.red .val{color:#C00000} .stat.orange .val{color:var(--orange)}
+.stat.alert{border-color:#C00000;background:#FFF5F6}
+.recon{font-size:16px;font-weight:bold;padding:8px 12px;border-radius:6px;margin-bottom:12px}
+.recon.ok{background:var(--green-l);color:var(--green)}
+.recon.warn{background:var(--red-l);color:var(--red)}
+.flex{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.flex>.grow{flex:1;min-width:300px}
+textarea.paste{width:100%;height:62vh;min-height:300px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:16px;line-height:1.5;resize:vertical}
+.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:6px;background:#fff;max-height:calc(100vh - 230px)}
+table.grid{border-collapse:separate;border-spacing:0;font-size:15px;white-space:nowrap;width:100%}
+table.grid th,table.grid td{border-right:1px solid #E3E3E3;border-bottom:1px solid #E3E3E3;padding:5px 10px;line-height:1.35;text-align:center}
+table.grid thead th{position:sticky;top:0;background:var(--navy);color:#fff;z-index:3;font-weight:bold}
+table.grid thead th.sort{cursor:pointer}
+table.grid tbody tr:nth-child(even) td{background:#F7F7F7}
+table.grid tbody tr:hover td{background:#FFF6E5}
+table.grid tr.dup td{background:var(--orange-l)!important;color:var(--orange);font-weight:bold}
+table.grid tr.nf td{background:var(--red-l)!important;color:var(--red);font-weight:bold}
+table.grid tr.alert td{background:var(--red-l)!important;color:var(--red);font-weight:bold}
+table.grid td.l{text-align:left}
+.chk{color:var(--green);font-weight:bold}
+.fallback{color:#B26A00}
+.tag{display:inline-block;font-size:12px;padding:0 6px;border-radius:9px;border:1px solid;margin-left:4px}
+.tag.title{color:#6A1B9A;border-color:#B388C9;background:#F3E5F5}
+input.act{width:18px;height:18px;cursor:pointer;vertical-align:middle}
+textarea.out{width:100%;min-height:340px;padding:10px 12px;border:1px solid var(--line);border-radius:6px;font-size:17px;line-height:1.8;background:#FCFCFC}
+.note{background:#F4F6FA;border-left:4px solid var(--navy);padding:8px 12px;font-size:14px;margin:8px 0}
+.warnbox{background:#FFF5F6;border-left:4px solid #C00000;padding:8px 12px;font-size:14px;margin:8px 0}
+.okbox{background:var(--green-l);border-left:4px solid var(--green);padding:8px 12px;font-size:14px;margin:8px 0}
+.edit-table{border-collapse:collapse;font-size:14px}
+.edit-table th{background:#F4F6FA;padding:5px 6px;text-align:center;position:sticky;top:0;z-index:2}
+.edit-table td{padding:2px 4px;border-bottom:1px solid #EEE}
+.edit-table input,.edit-table select{border:1px solid var(--line);border-radius:4px;padding:3px 6px}
+.edit-table input.nm{width:120px} .edit-table input.bd{width:105px} .edit-table input.rk{width:70px} .edit-table input.tt{width:160px}
+.edit-table tr.badrow td{background:var(--red-l)}
+.scrollbox{max-height:60vh;overflow:auto;border:1px solid var(--line);border-radius:6px}
+ul.issues{margin:4px 0 10px;padding-left:22px} ul.issues li{margin:2px 0}
+#loginView{max-width:380px;margin:80px auto}
+#loginView input{width:100%;padding:8px 10px;margin:6px 0 10px;border:1px solid var(--line);border-radius:6px}
+.err{color:#C00000;font-size:14px;min-height:20px}
+#localBanner{background:#FFF3CD;color:#7a5b00;padding:6px 18px;font-size:13px;display:none}
+.toast{position:fixed;right:18px;bottom:18px;background:#333;color:#fff;padding:8px 14px;border-radius:6px;font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:99}
+.toast.show{opacity:.92}
+pre.rule{background:#272822;color:#f8f8f2;padding:10px 12px;border-radius:6px;white-space:pre-wrap;font-size:13px}
+</style>
+</head>
+<body>
+<div id="localBanner">本機測試模式（?local=1）：報名資料只存在這台電腦的瀏覽器，不會上傳；段位仍讀取正式成績系統（唯讀）。</div>
+<div class="topbar" id="topbar" style="display:none">
+  <div class="row1">
+    <div class="brand">海峰棋院 職業棋士報名</div>
+    <div class="spacer"></div>
+    <div class="status" id="statusLine"></div>
+    <button class="btn" id="logoutBtn" onclick="logout()">登出</button>
+  </div>
+  <div class="tabs" id="tabs"></div>
+</div>
+<main id="main" style="display:none"></main>
+<div id="loginView" class="card" style="display:none">
+  <h2>海峰棋院 職業棋士報名</h2>
+  <div class="muted">內部資料，請用院方帳號登入。</div>
+  <label>帳號（Email）<input id="loginEmail" type="email" autocomplete="username"></label>
+  <label>密碼<input id="loginPw" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></label>
+  <div class="err" id="loginErr"></div>
+  <button class="btn primary" id="loginBtn" onclick="doLogin()" style="width:100%">登入</button>
+</div>
+<div class="toast" id="toast"></div>
+<input type="file" id="xlsxFile" accept=".xlsx" style="display:none" onchange="pickExcel(this)">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script>
+/* ============ 海峰棋院 職業棋士報名（2026-10-16 網頁版） ============
+   取代桌面上的「職業棋士專用報名表格.xlsx」（報名名單／主頁／活躍棋士檢查／文宣格式 四頁）。
+   資料：
+     ・名冊、生日、獎金排名、頭銜、活躍標記、目前的報名名單：Firestore registration/main
+         { roster:"JSON字串"[{name,bday:'YYYYMMDD',dan,rank}], titles:"JSON字串"[[棋士,頭銜],…依文宣順序],
+           signup:"貼上的報名名單原文", active:{棋士:true}, updatedAt }
+       名字和生日只存在 Firestore（院方帳號登入才讀得到），這份網頁程式裡沒有任何個資（網站原始碼是公開的）。
+     ・段位：成績系統 results/danPlayers（公開可讀）[[姓名,目前段位,結算日期,勝場]]，升段只要在成績系統改。
+       名冊裡在段位資料找不到的人，才用名冊自己記的段位（設定→資料檢查會列出來）。
+   Firestore 規則：registration 只有院方帳號可讀寫（使用者要在 Firebase 後台加上）。
+   比對名字一律去掉半形／全形空白；報名名單每一列只取第一個欄位（Tab 前）。
+   文宣排序（跟 Excel 2026-10-16 版相同）：只列已報名者；有頭銜的最前面（照頭銜表由上往下，文字以頭銜取代段位），
+     接著九段→初段，同段位生日早（年長）的在前；生日空白的排同段位最後。
+   網址加 ?local=1 = 本機測試模式：報名資料存在 localStorage；段位照樣讀正式成績系統（唯讀）。
+   同一個 github.io 網站的頁面會共用登入狀態，所以用另外取名的 Firebase app（haifong-registration）。 */
+const firebaseConfig = {
+  apiKey: "AIzaSyAZAxRuD6MFG4i_FcOf5OX_qzrHunGXqnk",
+  authDomain: "test-5cfc9.firebaseapp.com",
+  projectId: "test-5cfc9",
+  storageBucket: "test-5cfc9.firebasestorage.app",
+  messagingSenderId: "892169332286",
+  appId: "1:892169332286:web:c16a82a686d1f3e024536f"
+};
+const LOCAL_MODE = new URLSearchParams(location.search).get('local') === '1';
+const LOCAL_KEY = 'haifong-registration-local-v1';
+const PREF_KEY = 'haifong-registration-pref-v1';
+const DAN_ORDER = ['初段','二段','三段','四段','五段','六段','七段','八段','九段'];
+const RULE_TEXT = "match /registration/{docId} { allow read, write: if request.auth != null && request.auth.token.email == 'haifongigo@gmail.com'; }";
+const TABS = [['signup','報名名單'],['roster','名冊'],['active','活躍棋士'],['press','文宣'],['settings','設定']];
+
+let fb = null, USER = null, unsubDoc = null;
+let DATA = emptyData(), DATA_LOADED = false, DATA_ERROR = null;
+let DAN = new Map(), DAN_LIST = [], DAN_LOADED = false, DAN_ERROR = null;
+let VIEW = 'signup';
+let PREF = loadPref();
+let rosterFilter = 'all', rosterSort = {k:'rank', dir:1}, rosterQ = '';
+let activeQ = '', activeOnly = false;
+let signupTimer = null, signupDirty = false;
+let EDIT = null;          // 設定頁正在編輯的名冊副本
+let EDIT_TITLES = null;   // 設定頁正在編輯的頭銜副本
+let IMPORT = null;        // 從 Excel 讀到、還沒套用的資料
+
+function emptyData(){ return {roster:[], titles:[], signup:'', active:{}}; }
+function loadPref(){ try{ return Object.assign({perLine:6}, JSON.parse(localStorage.getItem(PREF_KEY)||'{}')); }catch(e){ return {perLine:6}; } }
+function savePref(){ try{ localStorage.setItem(PREF_KEY, JSON.stringify(PREF)); }catch(e){} }
+function norm(s){ return String(s==null?'':s).replace(/[\s　 ]/g,''); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('show'), 2600); }
+function danIdx(d){ return DAN_ORDER.indexOf(d); }
+function bdayNorm(v){
+  if(v==null || v==='') return '';
+  if(typeof v === 'number') v = String(Math.round(v));
+  const s = String(v).trim();
+  let m = s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);
+  if(m) return m[1] + m[2].padStart(2,'0') + m[3].padStart(2,'0');
+  m = s.match(/^(\d{8})$/);
+  return m ? m[1] : s;   // 看不懂的格式原樣保留，資料檢查會列出來
+}
+function bdayOk(b){ return /^\d{8}$/.test(b||''); }
+function bdayKey(b){ return bdayOk(b) ? Number(b) : 99999999; }
+function bdayShow(b){
+  if(!b) return '';
+  if(!bdayOk(b)) return b;
+  return b.slice(4,6)==='00' ? b.slice(0,4)+'（月日不詳）' : b.slice(0,4)+'/'+b.slice(4,6)+'/'+b.slice(6,8);
+}
+function rankKey(r){ const n = Number(r); return (r===''||r==null||!isFinite(n)) ? 1e9 : n; }
+
+/* ============ 計算（每次資料變動都重算，人數很少不用最佳化） ============ */
+function parseSignup(text){
+  const out = [];
+  String(text||'').split(/\r?\n/).forEach((line, i)=>{
+    const first = line.split('\t').map(x=>x.trim()).find(x=>norm(x));
+    if(first) out.push({raw:first, key:norm(first), line:i+1});
+  });
+  return out;
+}
+function suggest(key){
+  const chars = [...key];
+  return DATA.roster.map(p=>{ const pk=[...norm(p.name)]; return {n:p.name, s:chars.filter(c=>pk.includes(c)).length, len:pk.length}; })
+    .filter(x=>x.s>=2 && Math.abs(x.len-chars.length)<=1).sort((a,b)=>b.s-a.s).slice(0,3).map(x=>x.n);
+}
+function compute(){
+  const byKey = new Map();
+  DATA.roster.forEach(p=>{ const k=norm(p.name); if(k && !byKey.has(k)) byKey.set(k, p); });
+  const entries = parseSignup(DATA.signup);
+  const cnt = {};
+  entries.forEach(e=>{ cnt[e.key]=(cnt[e.key]||0)+1; });
+  entries.forEach(e=>{ e.dup = cnt[e.key]>1; e.found = byKey.has(e.key); if(!e.found) e.sug = suggest(e.key); });
+  const distinct = Object.keys(cnt);
+  const notFound = distinct.filter(k=>!byKey.has(k));
+  const regKeys = new Set(distinct.filter(k=>byKey.has(k)));
+  const titleMap = new Map();
+  DATA.titles.forEach(([n,t],i)=>{ const k=norm(n), tt=String(t||'').trim(); if(k && tt && !titleMap.has(k)) titleMap.set(k, {title:tt, order:i}); });
+  const players = DATA.roster.map(p=>{
+    const k = norm(p.name), dd = DAN.get(k);
+    return Object.assign({}, p, {key:k, effDan: dd || p.dan || '', fromDan: !!dd, reg: regKeys.has(k),
+      act: !!DATA.active[p.name], title: titleMap.get(k) || null});
+  });
+  const act = players.filter(p=>p.act);
+  return {entries, nPaste:entries.length, nDup:entries.length-distinct.length, notFound, nReal:regKeys.size,
+          players, titleMap, nAct:act.length, nActReg:act.filter(p=>p.reg).length,
+          actMissing: act.filter(p=>!p.reg).sort((a,b)=>rankKey(a.rank)-rankKey(b.rank))};
+}
+function pressOrder(players){
+  const reg = players.filter(p=>p.reg);
+  const titled = reg.filter(p=>p.title).sort((a,b)=>a.title.order-b.title.order);
+  const rest = reg.filter(p=>!p.title).sort((a,b)=>
+    danIdx(b.effDan)-danIdx(a.effDan) || bdayKey(a.bday)-bdayKey(b.bday) ||
+    rankKey(a.rank)-rankKey(b.rank) || a.name.localeCompare(b.name,'zh-Hant'));
+  return titled.concat(rest);
+}
+function pressText(players, perLine){
+  const toks = pressOrder(players).map(p=>p.name + (p.title ? p.title.title : p.effDan) + '、');
+  const lines = [];
+  for(let i=0;i<toks.length;i+=perLine) lines.push(toks.slice(i,i+perLine).join(''));
+  return lines;
+}
+
+/* ============ 畫面 ============ */
+function renderTabs(){
+  document.getElementById('tabs').innerHTML = TABS.map(([k,l])=>
+    `<button class="tab${VIEW===k?' on':''}" onclick="go('${k}')">${l}</button>`).join('');
+}
+function go(v){ VIEW = v; if(v!=='settings'){ EDIT=null; EDIT_TITLES=null; } renderTabs(); render(); window.scrollTo(0,0); }
+function updateStatus(){
+  const s = [];
+  s.push(DAN_ERROR ? '<b style="color:#C00000">段位資料讀取失敗</b>' : DAN_LOADED ? '段位資料 '+DAN_LIST.length+' 位' : '段位資料讀取中…');
+  s.push(LOCAL_MODE ? '本機模式' : DATA_ERROR ? '<b style="color:#C00000">雲端讀取失敗</b>' : DATA_LOADED ? '已連線雲端' : '連線中…');
+  document.getElementById('statusLine').innerHTML = s.join('｜');
+}
+function render(){
+  updateStatus();
+  const el = document.getElementById('main');
+  if(DATA_ERROR){ el.innerHTML = permissionHelp(DATA_ERROR); return; }
+  if(!DATA_LOADED){ el.innerHTML = '<div class="card">讀取中…</div>'; return; }
+  if(!DATA.roster.length && VIEW!=='settings'){
+    el.innerHTML = '<div class="card"><h2>還沒有名冊資料</h2><p>第一次使用：請到「設定」→「從 Excel 匯入」，選桌面上的「職業棋士專用報名表格.xlsx」。</p>'+
+      '<button class="btn primary" onclick="go(\'settings\')">前往設定</button></div>';
+    return;
+  }
+  const C = compute();
+  /* 還沒存出去的打字內容不能被重畫蓋掉 */
+  const oldTa = document.getElementById('signupBox');
+  const keep = (oldTa && signupDirty) ? oldTa.value : null;
+  if(VIEW==='signup') el.innerHTML = viewSignup(C);
+  else if(VIEW==='roster') el.innerHTML = viewRoster(C);
+  else if(VIEW==='active') el.innerHTML = viewActive(C);
+  else if(VIEW==='press') el.innerHTML = viewPress(C);
+  else el.innerHTML = viewSettings(C);
+  if(VIEW==='signup'){
+    const ta = document.getElementById('signupBox');
+    if(ta){ ta.value = keep!=null ? keep : (DATA.signup || ''); }
+  }
+}
+function permissionHelp(err){
+  return '<div class="card"><h2>讀不到報名資料</h2><p class="err">'+esc(err.message||err)+'</p>'+
+    '<p>如果訊息是 <b>Missing or insufficient permissions</b>，代表 Firebase 還沒開放 registration 的權限。請到 Firebase 後台 → Firestore → 規則，'+
+    '在其他 match 旁邊加上這一行，按「發布」後重新整理這頁：</p><pre class="rule">'+esc(RULE_TEXT)+'</pre></div>';
+}
+function reconHtml(C){
+  const ok = C.nPaste === C.nReal;
+  return `<div class="recon ${ok?'ok':'warn'}">${ok?'✔':'⚠'} 貼上 ${C.nPaste} 筆｜重複多貼 ${C.nDup} 筆｜名冊查無 ${C.notFound.length} 人｜實際報名 ${C.nReal} 人</div>`;
+}
+
+function viewSignup(C){
+  const rows = C.entries.map((e,i)=>{
+    const cls = !e.found ? 'nf' : e.dup ? 'dup' : '';
+    const st = !e.found ? '名冊查無' + (e.sug && e.sug.length ? '（是不是：'+e.sug.map(esc).join('、')+'？）' : '') : e.dup ? '重複' : '<span class="chk">✔</span>';
+    return `<tr class="${cls}"><td>${i+1}</td><td>${esc(e.raw)}</td><td class="l">${st}</td></tr>`;
+  }).join('');
+  return `<div class="flex">
+    <div class="grow card" style="max-width:420px">
+      <h2>貼上報名名單</h2>
+      <div class="muted" style="margin-bottom:6px">把表單匯出的名單整欄貼進來，一行一位（多欄位只取第一欄）。會自動存到雲端。</div>
+      <textarea id="signupBox" class="paste" spellcheck="false" oninput="signupInput(this)" onblur="flushSignup()" placeholder="在這裡貼上報名名單…"></textarea>
+      <div class="toolbar" style="margin-top:8px"><span class="spacer"></span>
+        <button class="btn danger" onclick="clearSignup()">清空名單</button></div>
+    </div>
+    <div class="grow">
+      ${reconHtml(C)}
+      <div class="cards">
+        <div class="stat navy"><div class="lab">貼上筆數</div><div class="val">${C.nPaste}</div></div>
+        <div class="stat orange"><div class="lab">重複多貼</div><div class="val">${C.nDup}</div></div>
+        <div class="stat red"><div class="lab">名冊查無</div><div class="val">${C.notFound.length}</div></div>
+        <div class="stat green"><div class="lab">實際報名</div><div class="val">${C.nReal}</div></div>
+      </div>
+      <div class="muted" style="margin-bottom:6px">橘色＝重複貼了（忽略空白也算重複）；紅色＝名冊裡找不到（打錯字或不是名冊上的棋士）。</div>
+      <div class="tablewrap"><table class="grid"><thead><tr><th>#</th><th>名字</th><th>狀態</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="3" class="muted">還沒有貼上名單</td></tr>'}</tbody></table></div>
+    </div></div>`;
+}
+function signupInput(ta){
+  signupDirty = true;
+  clearTimeout(signupTimer);
+  signupTimer = setTimeout(()=>flushSignup(true), 700);
+}
+async function flushSignup(keepFocus){
+  clearTimeout(signupTimer);
+  const ta = document.getElementById('signupBox');
+  if(!ta || !signupDirty) return;
+  const text = ta.value;
+  signupDirty = false;
+  DATA.signup = text;
+  try{ await saveFields({signup:text}); }catch(e){ toast('儲存失敗：'+(e.message||e)); }
+  refreshSignupSide();
+}
+function refreshSignupSide(){
+  if(VIEW!=='signup') return;
+  const ta = document.getElementById('signupBox');
+  const focused = document.activeElement === ta;
+  const pos = ta ? [ta.selectionStart, ta.selectionEnd, ta.scrollTop] : null;
+  render();
+  const nta = document.getElementById('signupBox');
+  if(nta && focused){ nta.focus(); nta.setSelectionRange(pos[0], pos[1]); nta.scrollTop = pos[2]; }
+}
+async function clearSignup(){
+  if(!confirm('確定要清空目前的報名名單？')) return;
+  DATA.signup = ''; signupDirty = false;
+  await saveFields({signup:''});
+  render(); toast('已清空');
+}
+
+function viewRoster(C){
+  let list = C.players.slice();
+  if(rosterFilter==='reg') list = list.filter(p=>p.reg);
+  else if(rosterFilter==='unreg') list = list.filter(p=>!p.reg);
+  else if(rosterFilter==='act') list = list.filter(p=>p.act);
+  const q = norm(rosterQ);
+  if(q) list = list.filter(p=>p.key.includes(q) || (p.title && p.title.title.includes(q)) || p.effDan.includes(q));
+  const k = rosterSort.k, d = rosterSort.dir;
+  const keyf = {reg:p=>p.reg?0:1, name:p=>p.name, dan:p=>-danIdx(p.effDan), bday:p=>bdayKey(p.bday), rank:p=>rankKey(p.rank),
+                title:p=>p.title?p.title.order:1e9, act:p=>p.act?0:1}[k];
+  list.sort((a,b)=>{ const x=keyf(a), y=keyf(b); const c = typeof x==='string' ? x.localeCompare(y,'zh-Hant') : x-y;
+    return c*d || rankKey(a.rank)-rankKey(b.rank); });
+  const th = (key,label)=>`<th class="sort" onclick="sortRoster('${key}')">${label}${rosterSort.k===key?(rosterSort.dir>0?' ▲':' ▼'):''}</th>`;
+  const fb_ = (key,label,n)=>`<button class="btn${rosterFilter===key?' on':''}" onclick="rosterFilter='${key}';render()">${label}（${n}）</button>`;
+  const rows = list.map(p=>`<tr><td>${p.reg?'<span class="chk">✔</span>':''}</td><td>${esc(p.name)}</td>
+      <td${p.fromDan?'':' class="fallback" title="段位資料找不到這個名字，用名冊記的段位"'}>${esc(p.effDan)}${p.fromDan?'':' *'}</td>
+      <td>${esc(bdayShow(p.bday))}</td><td>${p.rank===''||p.rank==null?'':esc(p.rank)}</td>
+      <td>${p.title?'<span class="tag title">'+esc(p.title.title)+'</span>':''}</td><td>${p.act?'✓':''}</td></tr>`).join('');
+  return `<div class="card">
+    <div class="toolbar">
+      ${fb_('all','全部',C.players.length)}${fb_('reg','已報名',C.nReal)}${fb_('unreg','未報名',C.players.length-C.nReal)}${fb_('act','活躍棋士',C.nAct)}
+      <input type="search" placeholder="搜尋名字／段位／頭銜" value="${esc(rosterQ)}" oninput="rosterQ=this.value;clearTimeout(window._rq);window._rq=setTimeout(()=>{render();const s=document.querySelector('.toolbar input[type=search]');s.focus();s.setSelectionRange(s.value.length,s.value.length)},250)" autocomplete="off">
+      <span class="spacer"></span><span class="muted">顯示 ${list.length} 位｜點欄位名稱可排序</span>
+      <button class="btn" onclick="downloadRoster()">⬇ 下載 Excel</button>
+    </div>
+    <div class="tablewrap"><table class="grid"><thead><tr>${th('reg','報名')}${th('name','棋士')}${th('dan','段位')}${th('bday','生日')}${th('rank','獎金排名')}${th('title','頭銜')}${th('act','活躍')}</tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <div class="muted" style="margin-top:6px">段位讀自成績系統的段位資料；後面有 * 的表示段位資料找不到這個名字，暫用名冊記的段位（設定→資料檢查）。</div>
+  </div>`;
+}
+function sortRoster(k){ if(rosterSort.k===k) rosterSort.dir*=-1; else rosterSort={k, dir:1}; render(); }
+
+function viewActive(C){
+  let list = C.players.slice().sort((a,b)=>rankKey(a.rank)-rankKey(b.rank) || a.name.localeCompare(b.name,'zh-Hant'));
+  if(activeOnly) list = list.filter(p=>p.act);
+  const q = norm(activeQ);
+  if(q) list = list.filter(p=>p.key.includes(q));
+  /* 左邊單純記錄誰是活躍棋士，不整列反紅（使用者 2026-09 在 Excel 版要求）；警示只放右邊的獨立清單 */
+  const rows = list.map(p=>`<tr><td><input type="checkbox" class="act" ${p.act?'checked':''} onchange="toggleActive(${esc(JSON.stringify(p.name))}, this.checked)"></td>
+      <td>${esc(p.name)}</td><td>${esc(p.effDan)}</td><td>${p.reg?'已報名':'<span class="muted">未報名</span>'}</td></tr>`).join('');
+  const miss = C.actMissing.map(p=>`<tr class="alert"><td>${esc(p.name)}</td><td>${esc(p.effDan)}</td></tr>`).join('');
+  return `<div class="cards">
+      <div class="stat navy"><div class="lab">已標記活躍棋士</div><div class="val">${C.nAct}</div></div>
+      <div class="stat green"><div class="lab">已報名</div><div class="val">${C.nActReg}</div></div>
+      <div class="stat red${C.actMissing.length?' alert':''}"><div class="lab">尚未報名（需留意）</div><div class="val">${C.actMissing.length}</div></div>
+    </div>
+    <div class="flex">
+      <div class="grow card">
+        <h2>活躍棋士名單</h2>
+        <div class="toolbar">
+          <label><input type="checkbox" ${activeOnly?'checked':''} onchange="activeOnly=this.checked;render()"> 只看已勾選的</label>
+          <input type="search" placeholder="搜尋名字" value="${esc(activeQ)}" oninput="activeQ=this.value;clearTimeout(window._aq);window._aq=setTimeout(()=>{render();const s=document.querySelector('.toolbar input[type=search]');s.focus();s.setSelectionRange(s.value.length,s.value.length)},250)" autocomplete="off">
+          <span class="muted">勾選＝平常固定會報名的人，勾了就會存到雲端</span>
+        </div>
+        <div class="tablewrap"><table class="grid"><thead><tr><th>活躍</th><th>棋士</th><th>段位</th><th>這次報名</th></tr></thead><tbody>${rows}</tbody></table></div>
+      </div>
+      <div class="card" style="min-width:260px">
+        <h2 style="color:#C00000">⚠ 已標記但尚未報名</h2>
+        ${C.actMissing.length ? `<div class="tablewrap"><table class="grid"><thead><tr><th style="background:#C00000">棋士</th><th style="background:#C00000">段位</th></tr></thead><tbody>${miss}</tbody></table></div>`
+          : '<div class="okbox">勾選的活躍棋士都報名了。</div>'}
+      </div>
+    </div>`;
+}
+async function toggleActive(name, on){
+  if(on) DATA.active[name] = true; else delete DATA.active[name];
+  render();
+  try{
+    if(LOCAL_MODE){ saveLocal(); return; }
+    const ref = docRef();
+    if(on) await ref.set({active:{[name]:true}, updatedAt: firebase.firestore.FieldValue.serverTimestamp()}, {merge:true});
+    else await ref.update(new firebase.firestore.FieldPath('active', name), firebase.firestore.FieldValue.delete());
+  }catch(e){ toast('儲存失敗：'+(e.message||e)); }
+}
+
+function viewPress(C){
+  const per = Math.max(1, Math.min(20, Number(PREF.perLine)||6));
+  const lines = pressText(C.players, per);
+  const absentTitles = DATA.titles.filter(([n,t])=>String(t||'').trim() && norm(n) && !C.players.some(p=>p.key===norm(n) && p.reg));
+  return `<div class="card">
+    <h2>文宣格式</h2>
+    <div class="toolbar">
+      <span style="font-size:17px;font-weight:bold;color:var(--navy)">${C.nReal} 人已報名，共 ${lines.length} 行</span>
+      <label>每行 <input type="number" min="1" max="20" value="${per}" style="width:56px;padding:4px" autocomplete="off" onchange="PREF.perLine=Number(this.value)||6;savePref();render()"> 人</label>
+      <span class="spacer"></span>
+      <button class="btn primary" onclick="copyPress()">📋 複製全部</button>
+    </div>
+    <textarea class="out" id="pressOut" readonly>${esc(lines.join('\n'))}</textarea>
+    <div class="note">排序：有頭銜的排最前面（照「設定 → 頭銜對照表」由上往下，以頭銜取代段位）→ 九段到初段 → 同段位年長的在前（生日早的在前）。只列已報名的人。</div>
+    ${absentTitles.length ? '<div class="muted">頭銜者這次沒報名（不會出現在文宣）：'+absentTitles.map(([n,t])=>esc(n)+'（'+esc(t)+'）').join('、')+'</div>' : ''}
+  </div>`;
+}
+async function copyPress(){
+  const ta = document.getElementById('pressOut');
+  try{ await navigator.clipboard.writeText(ta.value); toast('已複製，可以直接貼到記事本或 Word'); }
+  catch(e){ ta.select(); document.execCommand('copy'); toast('已複製'); }
+}
+
+/* ============ 設定 ============ */
+function dataIssues(C){
+  const out = [];
+  const nameCnt = {};
+  DATA.roster.forEach(p=>{ const k=norm(p.name); nameCnt[k]=(nameCnt[k]||0)+1; });
+  const dupNames = Object.keys(nameCnt).filter(k=>nameCnt[k]>1);
+  if(dupNames.length) out.push(['bad','名冊有重複的名字', dupNames]);
+  const noDan = C.players.filter(p=>!p.fromDan).map(p=>p.name+'（暫用名冊段位：'+(p.dan||'空白')+'）');
+  if(noDan.length) out.push(['warn','名冊裡這些人在成績系統的段位資料找不到（可能是異體字或沒建檔）', noDan]);
+  const diff = C.players.filter(p=>p.fromDan && p.dan && p.dan!==p.effDan).map(p=>p.name+'：名冊記 '+p.dan+'，段位資料 '+p.effDan+'（目前用段位資料）');
+  if(diff.length) out.push(['warn','名冊記的段位跟段位資料不同', diff]);
+  const rosterKeys = new Set(DATA.roster.map(p=>norm(p.name)));
+  const danOnly = DAN_LIST.filter(p=>!rosterKeys.has(norm(p[0]))).map(p=>p[0]+'（'+p[1]+'）');
+  if(danOnly.length) out.push(['info','段位資料有、名冊沒有的人（如果是要報名的棋士，請加進名冊）', danOnly]);
+  const badB = DATA.roster.filter(p=>p.bday && !bdayOk(p.bday)).map(p=>p.name+'：'+p.bday);
+  if(badB.length) out.push(['bad','生日格式看不懂（請寫成 20000101 或 2000/01/01）', badB]);
+  const noB = DATA.roster.filter(p=>!p.bday).map(p=>p.name);
+  if(noB.length) out.push(['warn','沒有生日（文宣排在同段位最後）', noB]);
+  const partB = DATA.roster.filter(p=>bdayOk(p.bday) && (p.bday.slice(4,6)==='00' || p.bday.slice(6,8)==='00')).map(p=>p.name+'：'+bdayShow(p.bday));
+  if(partB.length) out.push(['info','生日不完整（同段位排序時當成該年最早）', partB]);
+  const noRank = DATA.roster.filter(p=>p.rank===''||p.rank==null).map(p=>p.name);
+  if(noRank.length) out.push(['info','沒有獎金排名（名冊排在最後）', noRank]);
+  const rk = {}; DATA.roster.forEach(p=>{ if(p.rank!==''&&p.rank!=null){ (rk[p.rank]=rk[p.rank]||[]).push(p.name); } });
+  const dupRank = Object.keys(rk).filter(r=>rk[r].length>1).map(r=>'第'+r+'名：'+rk[r].join('、'));
+  if(dupRank.length) out.push(['warn','獎金排名重複', dupRank]);
+  const tNot = DATA.titles.filter(([n,t])=>norm(n) && !rosterKeys.has(norm(n))).map(([n,t])=>n+'（'+t+'）');
+  if(tNot.length) out.push(['bad','頭銜表的名字不在名冊裡', tNot]);
+  const tKeys = {}; DATA.titles.forEach(([n])=>{ const k=norm(n); if(k) tKeys[k]=(tKeys[k]||0)+1; });
+  const tDup = Object.keys(tKeys).filter(k=>tKeys[k]>1);
+  if(tDup.length) out.push(['warn','頭銜表同一個人出現兩次（只用第一個，多個頭銜請寫在同一格）', tDup]);
+  return out;
+}
+function viewSettings(C){
+  if(!EDIT) EDIT = DATA.roster.map(p=>({name:p.name, bday:p.bday||'', dan:p.dan||'', rank:(p.rank===''||p.rank==null)?'':String(p.rank), orig:p.name}));
+  if(!EDIT_TITLES) EDIT_TITLES = DATA.titles.map(([n,t])=>[n,t]);
+  const issues = DAN_LOADED ? dataIssues(C) : null;
+  const cls = {bad:'warnbox', warn:'warnbox', info:'note'};
+  const issuesHtml = issues==null ? '<div class="muted">段位資料讀取中…</div>' : !issues.length ? '<div class="okbox">✔ 沒有發現問題。</div>' :
+    issues.map(([lv,title,list])=>`<div class="${cls[lv]}"><b>${esc(title)}（${list.length}）</b><ul class="issues">${list.map(x=>'<li>'+esc(x)+'</li>').join('')}</ul></div>`).join('');
+  const danOpts = d=>['<option value=""></option>'].concat(DAN_ORDER.slice().reverse().map(x=>`<option${x===d?' selected':''}>${x}</option>`)).join('');
+  const eRows = EDIT.map((p,i)=>`<tr><td>${i+1}</td>
+      <td><input class="nm" value="${esc(p.name)}" oninput="EDIT[${i}].name=this.value" autocomplete="off"></td>
+      <td><input class="bd" value="${esc(p.bday)}" oninput="EDIT[${i}].bday=this.value" placeholder="20000101" autocomplete="off"></td>
+      <td><select onchange="EDIT[${i}].dan=this.value" autocomplete="off">${danOpts(p.dan)}</select></td>
+      <td><input class="rk" value="${esc(p.rank)}" oninput="EDIT[${i}].rank=this.value" autocomplete="off"></td>
+      <td><button class="btn small danger" onclick="EDIT.splice(${i},1);render()">刪除</button></td></tr>`).join('');
+  const tRows = EDIT_TITLES.map((t,i)=>`<tr><td>${i+1}</td>
+      <td><input class="nm" value="${esc(t[0])}" oninput="EDIT_TITLES[${i}][0]=this.value" autocomplete="off"></td>
+      <td><input class="tt" value="${esc(t[1])}" oninput="EDIT_TITLES[${i}][1]=this.value" autocomplete="off"></td>
+      <td><button class="btn small" ${i?'':'disabled'} onclick="moveTitle(${i},-1)">▲</button>
+          <button class="btn small" ${i<EDIT_TITLES.length-1?'':'disabled'} onclick="moveTitle(${i},1)">▼</button>
+          <button class="btn small danger" onclick="EDIT_TITLES.splice(${i},1);render()">刪除</button></td></tr>`).join('');
+  return `
+  <div class="card"><h2>資料檢查</h2>${issuesHtml}</div>
+
+  <div class="card"><h2>從 Excel 匯入</h2>
+    <p class="muted">選桌面上的「職業棋士專用報名表格.xlsx」，會讀：主頁（棋士／段位／生日）、報名名單頁的獎金排名表、頭銜對照表、報名名單、活躍棋士檢查頁的✓。</p>
+    <button class="btn" onclick="document.getElementById('xlsxFile').click()">選擇 Excel 檔…</button>
+    ${IMPORT ? importPreview() : ''}
+  </div>
+
+  <div class="card"><h2>頭銜對照表</h2>
+    <div class="muted">由上往下＝文宣上的順序；文宣以頭銜取代段位，一個人有多個頭銜就全部寫在同一格（例如「龍星天元」）。</div>
+    <table class="edit-table" style="margin-top:8px"><thead><tr><th>#</th><th>棋士</th><th>頭銜</th><th></th></tr></thead><tbody>${tRows}</tbody></table>
+    <div class="toolbar" style="margin-top:8px">
+      <button class="btn" onclick="EDIT_TITLES.push(['','']);render()">＋ 新增一位</button><span class="spacer"></span>
+      <button class="btn" onclick="EDIT_TITLES=null;render()">還原</button>
+      <button class="btn primary" onclick="saveTitles()">儲存頭銜</button></div>
+  </div>
+
+  <div class="card"><h2>獎金排名整批更新</h2>
+    <div class="muted">每年新排名出來時用：從 Excel 複製「棋士、排名」兩欄貼進來（一行一位），只會更新排名，其他資料不動。名冊裡沒出現在這份排名的人，排名會清空。</div>
+    <textarea id="rankPaste" style="width:100%;height:140px;margin-top:6px" placeholder="王小明	1&#10;李小華	2"></textarea>
+    <div class="toolbar" style="margin-top:6px"><span class="spacer"></span><button class="btn primary" onclick="applyRankPaste()">套用排名</button></div>
+  </div>
+
+  <div class="card"><h2>名冊（${EDIT.length} 位）</h2>
+    <div class="muted">段位以成績系統的段位資料為準；這裡的「名冊段位」只在段位資料找不到這個人時才會用到。新入段棋士：按「新增一位」，填好按「儲存名冊」。改名字時，活躍標記會跟著搬過去。</div>
+    <div class="scrollbox" style="margin-top:8px"><table class="edit-table"><thead><tr><th>#</th><th>棋士</th><th>生日</th><th>名冊段位</th><th>獎金排名</th><th></th></tr></thead><tbody>${eRows}</tbody></table></div>
+    <div class="toolbar" style="margin-top:8px">
+      <button class="btn" onclick="EDIT.push({name:'',bday:'',dan:'',rank:'',orig:''});render();const b=document.querySelector('.scrollbox');b.scrollTop=b.scrollHeight">＋ 新增一位</button>
+      <span class="spacer"></span>
+      <button class="btn" onclick="EDIT=null;render()">還原</button>
+      <button class="btn primary" onclick="saveRoster()">儲存名冊</button></div>
+  </div>`;
+}
+function moveTitle(i, d){ const t = EDIT_TITLES[i]; EDIT_TITLES[i] = EDIT_TITLES[i+d]; EDIT_TITLES[i+d] = t; render(); }
+async function saveTitles(){
+  const t = EDIT_TITLES.map(([n,x])=>[String(n||'').trim(), String(x||'').trim()]).filter(([n,x])=>n||x);
+  if(t.some(([n,x])=>!n||!x)){ alert('每一列都要有棋士和頭銜（整列空白的會自動拿掉）。'); return; }
+  DATA.titles = t; EDIT_TITLES = null;
+  await saveFields({titles: JSON.stringify(t)});
+  render(); toast('頭銜已儲存');
+}
+function rosterFromEdit(){
+  const list = EDIT.map(p=>({name:String(p.name||'').trim(), bday:bdayNorm(p.bday), dan:p.dan||'', rank:String(p.rank).trim()===''?'':Number(p.rank), orig:p.orig}))
+                   .filter(p=>p.name || p.bday || p.rank!=='');
+  const errs = [];
+  list.forEach((p,i)=>{ if(!p.name) errs.push('第'+(i+1)+'列沒有名字'); if(p.rank!=='' && !isFinite(p.rank)) errs.push(p.name+' 的排名不是數字'); });
+  const cnt = {}; list.forEach(p=>{ const k=norm(p.name); cnt[k]=(cnt[k]||0)+1; });
+  Object.keys(cnt).filter(k=>k&&cnt[k]>1).forEach(k=>errs.push('名字重複：'+k));
+  return {list, errs};
+}
+async function saveRoster(){
+  const {list, errs} = rosterFromEdit();
+  if(errs.length){ alert('還不能儲存：\n'+errs.join('\n')); return; }
+  const newActive = {};
+  list.forEach(p=>{ if(DATA.active[p.name] || (p.orig && DATA.active[p.orig])) newActive[p.name] = true; });
+  const roster = list.map(({name,bday,dan,rank})=>({name,bday,dan,rank}));
+  DATA.roster = roster; DATA.active = newActive; EDIT = null;
+  await saveFields({roster: JSON.stringify(roster), active: newActive}, true);
+  render(); toast('名冊已儲存（'+roster.length+' 位）');
+}
+async function applyRankPaste(){
+  const text = document.getElementById('rankPaste').value;
+  const map = new Map(), bad = [];
+  text.split(/\r?\n/).forEach(line=>{
+    const f = line.split(/\t|,|\s+/).map(x=>x.trim()).filter(Boolean);
+    if(!f.length) return;
+    const nm = f.find(x=>!/^\d+$/.test(x)), rk = f.find(x=>/^\d+$/.test(x));
+    if(!nm || !rk){ bad.push(line.trim()); return; }
+    map.set(norm(nm), Number(rk));
+  });
+  if(!map.size){ alert('沒有讀到任何「棋士 排名」。'); return; }
+  const rosterKeys = new Set(DATA.roster.map(p=>norm(p.name)));
+  const notIn = [...map.keys()].filter(k=>!rosterKeys.has(k));
+  const msg = '讀到 '+map.size+' 筆排名。' + (notIn.length ? '\n名冊裡找不到（不會套用）：'+notIn.join('、') : '') +
+              (bad.length ? '\n看不懂的列：'+bad.slice(0,5).join('／') : '') + '\n\n確定套用？名冊裡沒出現在這份排名的人，排名會清空。';
+  if(!confirm(msg)) return;
+  DATA.roster = DATA.roster.map(p=>Object.assign({}, p, {rank: map.has(norm(p.name)) ? map.get(norm(p.name)) : ''}));
+  EDIT = null;
+  await saveFields({roster: JSON.stringify(DATA.roster)});
+  document.getElementById('rankPaste').value = '';
+  render(); toast('排名已更新');
+}
+
+/* ---- 從 Excel 匯入 ---- */
+function pickExcel(inp){
+  const f = inp.files && inp.files[0]; inp.value = '';
+  if(!f) return;
+  const r = new FileReader();
+  r.onload = e=>{ try{ IMPORT = readWorkbook(e.target.result); render(); } catch(err){ alert('讀取失敗：'+(err.message||err)); } };
+  r.readAsArrayBuffer(f);
+}
+function cellVal(ws, addr){ const c = ws && ws[addr]; return c ? (c.v!=null ? c.v : '') : ''; }
+function readWorkbook(buf){
+  const wb = XLSX.read(buf, {type:'array'});
+  const need = ['主頁','報名名單'];
+  need.forEach(n=>{ if(!wb.Sheets[n]) throw new Error('找不到「'+n+'」分頁，請確認選的是「職業棋士專用報名表格.xlsx」'); });
+  const main = wb.Sheets['主頁'], reg = wb.Sheets['報名名單'], chk = wb.Sheets['活躍棋士檢查'];
+  if(String(cellVal(main,'B1')).trim()!=='棋士') throw new Error('主頁 B1 不是「棋士」，格式跟預期不同');
+  const rank = new Map();
+  for(let r=8;r<=600;r++){ const n=norm(cellVal(reg,'E'+r)), k=cellVal(reg,'F'+r); if(n && k!=='' && isFinite(Number(k))) rank.set(n, Number(k)); }
+  const roster = [];
+  for(let r=2;r<=600;r++){
+    const name = String(cellVal(main,'B'+r)).trim();
+    if(!name) continue;
+    roster.push({name, dan:String(cellVal(main,'C'+r)).trim(), bday:bdayNorm(cellVal(main,'F'+r)), rank: rank.has(norm(name)) ? rank.get(norm(name)) : ''});
+  }
+  const titles = [];
+  if(String(cellVal(reg,'H7')).trim()==='棋士'){
+    for(let r=8;r<=200;r++){ const n=String(cellVal(reg,'H'+r)).trim(), t=String(cellVal(reg,'I'+r)).trim(); if(n&&t) titles.push([n,t]); }
+  }
+  const signup = [];
+  for(let r=8;r<=600;r++){ const v = String(cellVal(reg,'A'+r)).trim(); if(v) signup.push(v); }
+  const active = {};
+  if(chk){
+    const byKey = new Map(roster.map(p=>[norm(p.name), p.name]));
+    for(let r=8;r<=600;r++){ const n=norm(cellVal(chk,'B'+r)); if(n && String(cellVal(chk,'D'+r)).trim()==='✓' && byKey.has(n)) active[byKey.get(n)] = true; }
+  }
+  return {roster, titles, signup: signup.join('\n'), active, pick:{roster:true, titles:true, signup:true, active:true}};
+}
+function importPreview(){
+  const I = IMPORT, nA = Object.keys(I.active).length;
+  const opt = (k,label)=>`<label style="display:block;margin:3px 0"><input type="checkbox" ${I.pick[k]?'checked':''} onchange="IMPORT.pick.${k}=this.checked"> ${label}</label>`;
+  return `<div class="note" style="margin-top:10px"><b>讀到的內容（勾選要匯入的項目，會取代目前雲端上的同一項）：</b>
+    ${opt('roster','名冊 '+I.roster.length+' 位（含生日、名冊段位、獎金排名 '+I.roster.filter(p=>p.rank!=='').length+' 位）')}
+    ${opt('titles','頭銜對照表 '+I.titles.length+' 位：'+I.titles.map(([n,t])=>esc(n+t)).join('、'))}
+    ${opt('signup','報名名單 '+parseSignup(I.signup).length+' 筆')}
+    ${opt('active','活躍棋士標記 '+nA+' 位')}
+    <div class="toolbar" style="margin-top:8px"><button class="btn primary" onclick="applyImport()">匯入</button><button class="btn" onclick="IMPORT=null;render()">取消</button></div></div>`;
+}
+async function applyImport(){
+  const I = IMPORT, f = {};
+  if(!Object.values(I.pick).some(Boolean)){ alert('沒有勾選任何項目'); return; }
+  if(I.pick.roster){ DATA.roster = I.roster; f.roster = JSON.stringify(I.roster); }
+  if(I.pick.titles){ DATA.titles = I.titles; f.titles = JSON.stringify(I.titles); }
+  if(I.pick.signup){ DATA.signup = I.signup; f.signup = I.signup; }
+  if(I.pick.active){ DATA.active = I.active; f.active = I.active; }
+  await saveFields(f, true);
+  IMPORT = null; EDIT = null; EDIT_TITLES = null;
+  render(); toast('匯入完成');
+}
+
+/* ---- 下載 Excel ---- */
+function downloadRoster(){
+  const C = compute();
+  const a = [['報名','棋士','段位','生日','獎金排名','頭銜','活躍棋士']];
+  C.players.slice().sort((x,y)=>rankKey(x.rank)-rankKey(y.rank)).forEach(p=>a.push([p.reg?'✔':'', p.name, p.effDan, bdayShow(p.bday), p.rank===''?'':p.rank, p.title?p.title.title:'', p.act?'✓':'']));
+  const b = [['文宣（每行'+PREF.perLine+'人）']].concat(pressText(C.players, Number(PREF.perLine)||6).map(x=>[x]));
+  const s = [['報名名單','狀態']].concat(C.entries.map(e=>[e.raw, !e.found?'名冊查無':e.dup?'重複':'✔']));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(a), '名冊');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(s), '報名名單');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(b), '文宣');
+  const d = new Date(), ds = d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');
+  XLSX.writeFile(wb, '職業棋士報名_'+ds+'.xlsx', {compression:true});
+}
+
+/* ============ 資料存取 ============ */
+function docRef(){ return fb.db.collection('registration').doc('main'); }
+function parseDoc(d){
+  const j = (s, dft)=>{ try{ return JSON.parse(s||''); }catch(e){ return dft; } };
+  return {roster: j(d.roster, []), titles: j(d.titles, []), signup: d.signup||'', active: d.active||{}};
+}
+function saveLocal(){ localStorage.setItem(LOCAL_KEY, JSON.stringify(DATA)); }
+/* replaceActive=true 時 active 整個換掉（update 不會合併舊的鍵）；其他欄位用 merge 寫入 */
+async function saveFields(f, replaceActive){
+  if(LOCAL_MODE){ saveLocal(); return; }
+  const payload = Object.assign({}, f, {updatedAt: firebase.firestore.FieldValue.serverTimestamp()});
+  const ref = docRef();
+  if(replaceActive && 'active' in f){
+    const snap = await ref.get();
+    if(snap.exists){ await ref.update(payload); return; }
+  }
+  await ref.set(payload, {merge:true});
+}
+function subscribeData(){
+  if(unsubDoc){ unsubDoc(); unsubDoc = null; }
+  DATA_LOADED = false; DATA_ERROR = null;
+  if(LOCAL_MODE){
+    try{ DATA = Object.assign(emptyData(), JSON.parse(localStorage.getItem(LOCAL_KEY)||'{}')); }catch(e){ DATA = emptyData(); }
+    DATA_LOADED = true; render(); return;
+  }
+  unsubDoc = docRef().onSnapshot(snap=>{
+    const incoming = snap.exists ? parseDoc(snap.data()) : emptyData();
+    const ta = document.getElementById('signupBox');
+    const typing = signupDirty || (ta && document.activeElement === ta && ta.value !== incoming.signup);
+    if(typing) incoming.signup = DATA.signup;   // 正在打字時不要被雲端蓋掉
+    DATA = incoming; DATA_LOADED = true; DATA_ERROR = null;
+    if(VIEW==='signup' && ta && document.activeElement === ta) refreshSignupSide();
+    else if(!(VIEW==='settings' && (EDIT || EDIT_TITLES) && document.activeElement && document.activeElement.closest && document.activeElement.closest('#main'))) render();
+    else updateStatus();
+  }, err=>{ console.error(err); DATA_ERROR = err; DATA_LOADED = true; render(); });
+}
+async function loadDan(){
+  DAN_LOADED = false; DAN_ERROR = null;
+  try{
+    const snap = await fb.db.collection('results').doc('danPlayers').get({source:'server'});
+    DAN_LIST = snap.exists ? JSON.parse(snap.data().players||'[]') : [];
+    DAN = new Map(DAN_LIST.map(p=>[norm(p[0]), p[1]]));
+  }catch(e){ console.error(e); DAN_ERROR = e; DAN_LIST = []; DAN = new Map(); toast('段位資料讀取失敗，暫用名冊記的段位'); }
+  DAN_LOADED = true; render();
+}
+
+/* ============ 登入與啟動 ============ */
+async function doLogin(){
+  const email = document.getElementById('loginEmail').value.trim(), pw = document.getElementById('loginPw').value;
+  const err = document.getElementById('loginErr'), btn = document.getElementById('loginBtn');
+  if(!email || !pw){ err.textContent = '請輸入帳號和密碼'; return; }
+  btn.disabled = true; err.textContent = '';
+  try{ await fb.auth.signInWithEmailAndPassword(email, pw); document.getElementById('loginPw').value=''; }
+  catch(e){ const c = e.code||''; err.textContent = (c.indexOf('invalid')>=0||c.indexOf('wrong')>=0||c.indexOf('not-found')>=0) ? '帳號或密碼不對' : '登入失敗：'+(e.message||c); }
+  finally{ btn.disabled = false; }
+}
+async function logout(){ if(LOCAL_MODE) return; await fb.auth.signOut(); }
+function showApp(on){
+  document.getElementById('topbar').style.display = on ? '' : 'none';
+  document.getElementById('main').style.display = on ? '' : 'none';
+  document.getElementById('loginView').style.display = on ? 'none' : '';
+  if(LOCAL_MODE) document.getElementById('logoutBtn').style.display = 'none';
+}
+window.addEventListener('beforeunload', e=>{ if(signupDirty){ flushSignup(); e.preventDefault(); e.returnValue=''; } });
+(function init(){
+  const app = firebase.initializeApp(firebaseConfig, 'haifong-registration');
+  fb = {auth: app.auth(), db: app.firestore()};
+  renderTabs();
+  if(LOCAL_MODE){
+    document.getElementById('localBanner').style.display = 'block';
+    showApp(true); subscribeData(); loadDan();
+    return;
+  }
+  fb.auth.onAuthStateChanged(u=>{
+    USER = u;
+    if(u){ showApp(true); subscribeData(); loadDan(); }
+    else {
+      if(unsubDoc){ unsubDoc(); unsubDoc = null; }
+      DATA = emptyData(); DATA_LOADED = false;
+      showApp(false); document.getElementById('loginEmail').focus();
+    }
+  });
+})();
+</script>
+</body>
+</html>
