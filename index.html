@@ -5517,6 +5517,9 @@ function displayBracket(key){
   activeBracketKey = key;
   setupExportPanel();
   if(__xlRepaired) saveState(); /* 補上的4強名字存回去（含雲端），只有真的補到才存 */
+  /* 官網賽程對接：這個階段第一次在新版打開，存一次把輪次結構記下來（見 buildPubStruct）。
+     封存的不存：saveState 會重建這筆紀錄、把 archived 記號洗掉（封存的本來就不送官網）。 */
+  else if(!rec.pubStruct && !rec.archived) saveState();
   return true;
 }
 function showExistingStage(key, stageDef){
@@ -5899,6 +5902,172 @@ function generateMatchupText(){
      猜測日期或用詞。 */
   document.getElementById('matchupTextarea').value = built.text;
   document.getElementById('matchupTextModal').style.display='flex';
+}
+
+/* ============ 協會官網賽程對接（2026-10-16）============
+   協會官網（cpga.org.tw）棋士專區的「我的賽程」要讀我們的對陣。規格見 Downloads\賽程資料交換規格.md
+   與對方回覆 Downloads\賽程資料交換規格_回覆.md（v1.1），重點：
+   - 方案B：每次雲端存檔後，把「所有沒封存的賽事」整理成規格 JSON，整份存成字串欄位 json，
+     寫到 Firestore public_pairings/current（公開唯讀，對方每天用 REST 網址抓一次）。
+   - 每筆 {event, round, date:'YYYY-MM-DD', time?:'HH:MM', players:[甲,乙|null], winner?}。
+     沒日期的輪次不輸出；兩邊都還沒有人不輸出；輪空（對手格是「棄」）不輸出；
+     雙棄權照輸出、winner 不填；已下完的保留到封存（帶 winner）；非職業棋士也照輸出（官網自己略過）。
+   - 上午填 10:00、下午填 14:00（對方統計公告用的值）；不確定就不填。
+   - 日期一律用底圖上印的（PUB_DEFAULT_DATES），賽程表這邊不提供改期。使用者決定：改期常常只改某一盤，
+     由協會官網後台處理，用每筆的 id（階段key:對局編號，番棋多天再加 #第幾天）指定是哪一盤。
+   做法：對陣名字平常只能從「畫面上正在顯示的那一場」讀（getSlotName 讀 input），沒辦法直接讀其他賽事。
+   所以每個階段存檔時（saveState）順便記下它的「輪次→對局編號」結構 pubStruct（結構是固定的、很小），
+   送出時再用各階段存檔裡的 dom.inputs／dom.winners 把名字和勝方填回去——跨階段晉級（資格賽→初賽）
+   直接改存檔的 dom.inputs，也會跟著反映。
+   ⚠ 一個階段要在這個版本上線後「打開過一次」才會有 pubStruct，才會被送出。 */
+const PUB_DOC_URL = 'https://firestore.googleapis.com/v1/projects/test-5cfc9/databases/(default)/documents/public_pairings/current';
+const PUB_EXCLUDE_PRESETS = ['test']; /* 測試用比賽永遠不送官網 */
+
+/* 目前畫面上這個階段的「輪次→對局編號」結構；跟列印成績表／對陣文字／📷匯入用同一份 stageRoundInfos */
+function buildPubStruct(){
+  if(!currentBracket || !currentStConfig) return null;
+  const stageId = currentBracket.stageId;
+  const sel = document.getElementById('exportRoundSelect');
+  const infos = stageRoundInfos();
+  if(!infos.length) return null;
+  const reg = matchRegistry[stageId] || {};
+  const adv = {};
+  const rounds = infos.map(function(r){
+    r.ids.forEach(function(mid){ const m=reg[mid]; if(m && m.advanceTo) adv[mid]=[m.advanceTo.matchId, m.advanceTo.slotIndex]; });
+    return { idx:r.idx, label:(sel && sel.options[r.idx]) ? sel.options[r.idx].text : r.label, ids:r.ids.slice() };
+  });
+  return { event:(infos[0].titlePrefix||'')+currentBracket.title, stageName:currentBracket.stageName||'', rounds:rounds, adv:adv };
+}
+
+function pubCleanName(s){ return String(s==null?'':s).replace(/\s+/g,''); }
+function pubPad2(n){ return String(n).padStart(2,'0'); }
+/* 循環圈的輪次標籤本來就寫了日期，例如「第七輪（10/20）」：沒另外填日期時拿來當預設 */
+function pubLabelDate(label){
+  const m = String(label).match(/（(\d{1,2})\/(\d{1,2})）/);
+  if(!m) return '';
+  const now = new Date(), mon = parseInt(m[1],10);
+  let y = now.getFullYear();
+  if(mon-(now.getMonth()+1) > 6) y--; else if((now.getMonth()+1)-mon > 6) y++;
+  return y+'-'+pubPad2(mon)+'-'+pubPad2(m[2]);
+}
+function pubRoundText(struct, r){
+  const label = String(r.label).replace(/（\d{1,2}\/\d{1,2}）/,'').trim();
+  return struct.stageName ? (struct.stageName+' '+label) : label;
+}
+/* 底圖上印的日期（2026-10-16 照 images\view\ 各張底圖逐一讀出來的），賽程表送官網的日期就是這些，固定不改；
+   個別某一盤改期由官網後台處理。底圖沒印的（中環碁聖決賽「11月＿日」、玄樂盃決賽 10/22 以後幾局）日期確定後加在這裡，
+   一輪好幾天就寫成陣列，例如 '決賽':['2026-11-05','2026-11-06','2026-11-12']。
+   key 是 customBracket，裡面用輪次選單上的文字對應。上午＝10:00、下午＝14:00（官網那邊統計公告用的值），
+   底圖沒寫上下午的就不填時間。⚠ 換新一屆的底圖時，這裡也要跟著換。 */
+const PUB_DEFAULT_DATES = {
+  zhonghuan69: { '1回賽':'2026-09-04', '2回賽':'2026-09-11', '3回賽':'2026-09-18', '16強賽':'2026-10-16', '8強賽':'2026-10-23', '4強賽':'2026-10-30' },
+  guoshou22: { '1回賽':'2026-09-07', '2回賽':'2026-09-14', '3回賽':'2026-09-21', '16強賽':'2026-10-05', '8強賽':'2026-11-02', '4強賽':'2026-11-09', '挑戰者決定賽':'2026-11-16' },
+  xuanleMain48: { '48強':'2026-09-10', '32強':'2026-09-17', '16強':'2026-10-01', '8強':'2026-10-08', '4強':'2026-10-15', '決賽':'2026-10-22' },
+  qiwang20prelim: {
+    '勝部1回 (1~28號)':'2026-09-29 10:00', '勝部2回 (1~28號)':'2026-09-29 14:00', '敗部1回 (1~28號)':'2026-09-29 14:00',
+    '勝部1回 (29~56號)':'2026-10-06 10:00', '勝部2回 (29~56號)':'2026-10-06 14:00', '敗部1回 (29~56號)':'2026-10-06 14:00',
+    '敗部2回 (1~56號)':'2026-10-13 10:00' },
+  qiwang20fusai: { '勝部1回':'2026-11-03', '勝部2回':'2026-11-10', '勝部準決賽':'2026-11-17', '勝部決賽':'2026-11-24',
+    '敗部1回':'2026-11-10', '敗部2回':'2026-11-17', '敗部3回':'2026-11-24', '敗部準決賽':'2026-12-01', '敗部決賽':'2026-12-08' }
+};
+function pubSessionsOf(rec, r){
+  const v = PUB_DEFAULT_DATES[rec.stConfig && rec.stConfig.customBracket];
+  const t = v && v[r.label];
+  if(t) return [].concat(t).map(function(x){ const p = String(x).split(' '); return {date:p[0], time:p[1]||''}; });
+  const d = pubLabelDate(r.label); /* 循環圈：輪次標籤上的（MM/DD） */
+  return d ? [{date:d, time:''}] : [];
+}
+/* 從某個階段的存檔讀出一局：{a, b, winner}；不該輸出（兩邊都空、輪空）回傳 null */
+function pubGame(stageId, mid, dom, adv){
+  const inputs = dom.inputs || {};
+  const win = dom.winners || [], lose = dom.losers || [];
+  let a, b, w0=false, w1=false;
+  const qo = qwcParse(mid);
+  if(qo){
+    const cid = function(c){ return 'qw_'+stageId+'_'+(/^p/.test(qo.r) ? qo.r : 'r'+qo.r)+'_c'+c; };
+    a = QIWANG19_NAMES[qo.a-1] || ''; b = QIWANG19_NAMES[qo.b-1] || '';
+    w0 = win.indexOf(cid(qo.a))>=0 || lose.indexOf(cid(qo.b))>=0;
+    w1 = !w0 && (win.indexOf(cid(qo.b))>=0 || lose.indexOf(cid(qo.a))>=0);
+  } else {
+    a = inputs[inputId(stageId,mid,0)] || ''; b = inputs[inputId(stageId,mid,1)] || '';
+    w0 = win.indexOf(slotWrapId(stageId,mid,0))>=0;
+    w1 = win.indexOf(slotWrapId(stageId,mid,1))>=0;
+    /* 沒點勝方、晉級格卻有字（右鍵手動填的）：字是其中一人就算他贏；寫「棄」之類的＝雙棄權，winner 不填 */
+    if(!w0 && !w1 && adv && adv[mid]){
+      const t = pubCleanName(inputs[inputId(stageId, adv[mid][0], adv[mid][1])]);
+      if(t && t===pubCleanName(a)) w0 = true; else if(t && t===pubCleanName(b)) w1 = true;
+    }
+  }
+  a = pubCleanName(a); b = pubCleanName(b);
+  if(/^棄/.test(a) || /^棄/.test(b)) return null;   /* 對手是「棄」＝輪空，那天不用來，不輸出 */
+  if(!a && !b) return null;
+  return { a:a||null, b:b||null, winner: (w0 && a) ? a : ((w1 && b) ? b : null) };
+}
+/* 整理所有沒封存的賽事 → {pairings, stages:[{label, count, noStruct}]} */
+function buildPublicPairings(){
+  const pairings = [], stages = [];
+  sortedBracketKeys(function(key){ const rec=savedBrackets[key]; return !!rec && !rec.archived; }).forEach(function(key){
+    const rec = savedBrackets[key];
+    const presetId = key.slice(0, key.lastIndexOf('__')), stageIdx = parseInt(key.slice(key.lastIndexOf('__')+2),10);
+    const preset = PRESET_TOURNAMENTS.find(function(p){ return p.id===presetId; });
+    if(!preset || preset.hidden || PUB_EXCLUDE_PRESETS.indexOf(presetId)>=0) return;
+    const label = preset.label + (preset.stages[stageIdx] && preset.stages.length>1 ? '　'+preset.stages[stageIdx].name : '');
+    const struct = rec.pubStruct;
+    if(!struct){ stages.push({label:label, count:0, noStruct:true}); return; }
+    const stageId = (rec.currentBracket && rec.currentBracket.stageId) || (rec.stConfig && rec.stConfig.id);
+    const dom = rec.dom || {};
+    /* 賽事名稱用選單上的名稱（「第22屆 中環國手賽」→「第22屆中環國手賽」），階段名稱前面的「第N屆」拿掉（「第22屆本賽」→「本賽」） */
+    const eventName = preset.label.replace(/\s+/g,'') || struct.event;
+    const st = { stageName: String(struct.stageName||'').replace(/^第\d+屆\s*/,'') };
+    let count = 0;
+    struct.rounds.forEach(function(r){
+      const sessions = pubSessionsOf(rec, r);
+      if(!sessions.length) return;
+      const roundText = pubRoundText(st, r);
+      r.ids.forEach(function(mid, i){
+        const g = pubGame(stageId, mid, dom, struct.adv);
+        if(!g) return;
+        /* 一輪好幾天：天數剛好等於局數（中環碁聖決賽三局各自一個對局）→ 第i局配第i天；
+           否則（玄樂盃五番棋只有一個對局）→ 每一天都是這組人，勝方只標在最後一天 */
+        let sess = (sessions.length>1 && sessions.length===r.ids.length) ? [sessions[i]] : sessions;
+        /* 番棋已經分出勝負（例如五番棋 3:0 提早結束）：還沒到的那幾天不要再送，免得棋士以為要來 */
+        if(sess.length>1 && g.winner){
+          const today = pubTaipeiIso(new Date()).slice(0,10);
+          const past = sess.filter(function(s){ return s.date<=today; });
+          if(past.length) sess = past;
+        }
+        const mapped = sess.length===1 && sessions.length>1 && sessions.length===r.ids.length;
+        sess.forEach(function(s, j){
+          /* id：固定不變的對局編號，官網後台改期／比對用。名字還沒填、勝負改了都不會變；
+             番棋同一個對局下好幾天，再加 #第幾天（照原本的天數順序，不受提早結束影響） */
+          const p = { id: key+':'+mid+((sessions.length>1 && !mapped) ? '#'+(sessions.indexOf(s)+1) : ''),
+                      event:eventName, round:roundText, date:s.date };
+          if(s.time) p.time = s.time;
+          p.players = [g.a, g.b];
+          if(g.winner && j===sess.length-1) p.winner = g.winner;
+          pairings.push(p); count++;
+        });
+      });
+    });
+    stages.push({label:label, count:count});
+  });
+  pairings.sort(function(x,y){ return (x.date+(x.time||'')).localeCompare(y.date+(y.time||'')) || x.event.localeCompare(y.event,'zh-Hant') || x.round.localeCompare(y.round,'zh-Hant'); });
+  return { pairings:pairings, stages:stages };
+}
+function pubTaipeiIso(d){ return new Date(d.getTime()+8*3600000).toISOString().slice(0,19)+'+08:00'; }
+
+/* 雲端存檔成功後呼叫：內容有變才寫（同一個分頁裡比對上一次送出的內容） */
+let pubLastSent = null;
+function publishPublicPairings(){
+  if(!CLOUD_ENABLED || !cloudAuth || !cloudAuth.currentUser || !cloudDb) return;
+  let built;
+  try{ built = buildPublicPairings(); }catch(e){ console.error('官網賽程整理失敗', e); return; }
+  const key = JSON.stringify(built.pairings);
+  if(key===pubLastSent) return;
+  const payload = { updated: pubTaipeiIso(new Date()), pairings: built.pairings };
+  cloudDb.collection('public_pairings').doc('current').set({ json: JSON.stringify(payload) })
+    .then(function(){ pubLastSent = key; console.log('官網賽程已送出 '+built.pairings.length+' 筆'); })
+    .catch(function(err){ console.error('官網賽程送出失敗', err); });
 }
 
 function roundLabelFor(idx){
@@ -7071,7 +7240,12 @@ function saveState(){
   saveTimer = setTimeout(function(){
     try{
       if(activeBracketKey && currentBracket && currentStConfig){
+        /* 官網賽程對接（見 buildPubStruct）：結構 pubStruct 重新算，算不出來就沿用舊的 */
+        const prevRec = savedBrackets[activeBracketKey] || {};
+        let pubStruct = null;
+        try{ pubStruct = buildPubStruct(); }catch(e){ console.warn('官網賽程結構整理失敗', e); }
         savedBrackets[activeBracketKey] = {
+          pubStruct: pubStruct || prevRec.pubStruct,
           stConfig: currentStConfig,
           currentBracket: {
             stageId: currentBracket.stageId, title: currentBracket.title, org: currentBracket.org,
@@ -7282,7 +7456,7 @@ function pushToCloud(obj){
      以前這種錯誤會變成主控台的Uncaught錯誤、畫面上還顯示舊的「已同步」，沒人發現。 */
   try{
     cloudDocRef.set(cloudObj)
-      .then(function(){ setCloudStatus('已同步到雲端：'+formatSavedAt(cloudObj.savedAt)); })
+      .then(function(){ setCloudStatus('已同步到雲端：'+formatSavedAt(cloudObj.savedAt)); publishPublicPairings(); })
       .catch(onFail);
   }catch(err){ onFail(err); }
 }
