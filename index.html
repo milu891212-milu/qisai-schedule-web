@@ -441,6 +441,11 @@ const firebaseConfig = {
 };
 const CLOUD_ENABLED = firebaseConfig.apiKey !== "YOUR_API_KEY";
 let cloudAuth = null, cloudDb = null, cloudDocRef = null;
+/* 雲端存檔版本號（2026-10-19）：brackets/main 是整份覆蓋，以前任何一個開很久的舊分頁一存檔，就把別台剛改的全部蓋掉
+   （10/16、10/19 各出事一次：結構消失、玄樂盃4強被標反、已清掉的測試名單復活）。現在每次寫入 rev 都要剛好 +1，
+   Firestore 規則也只接受「雲端 rev + 1」的寫入，所以基於舊資料的分頁（或還在跑舊版程式的分頁）會被擋下來。
+   cloudRev＝這個分頁目前所知的雲端版本（還沒讀到雲端前是 null，這時不推）；cloudConflict＝已經被擋過，不再重試。 */
+let cloudRev = null, cloudConflict = false;
 let __cloudSyncedOnce = false;
 let __prefetchedCloudDocPromise = null;
 if(CLOUD_ENABLED){
@@ -7333,7 +7338,8 @@ function buildSaveObject(){
     brackets: savedBrackets,
     bgImage: bgImageDataUrl,
     playerRanks: playerRanks,
-    stageBackups: stageBackups
+    stageBackups: stageBackups,
+    rev: cloudRev /* 這份資料是建立在雲端第幾版上（見 cloudRev）；推上雲端時才 +1 */
   };
 }
 
@@ -7399,6 +7405,8 @@ function importSaveFile(file){
   reader.onload = function(){
     try{
       const obj = JSON.parse(reader.result);
+      /* 匯入的存檔當作「建立在目前雲端版本上」，F5 之後才會照舊推上雲端（見 syncWithCloud 的版本號判斷） */
+      if(cloudRev!==null) obj.rev = cloudRev;
       localStorage.setItem(SAVE_KEY, JSON.stringify(obj));
       restoreFromSaved(obj);
     }catch(e){
@@ -7554,12 +7562,32 @@ function pushToCloud(obj){
      也讓上傳的內容跟本機localStorage存的（一樣是JSON.stringify過的）完全一致。 */
   const cloudObj = JSON.parse(JSON.stringify(obj));
   delete cloudObj.bgImage; /* 使用者自行上傳的賽程底圖不同步到雲端，避免超過 Firestore 單一文件 1MB 上限 */
-  function onFail(err){ console.error('雲端同步失敗', err); setCloudStatus('⚠ 雲端同步失敗（'+err.message+'），已保留在本機'); }
+  /* 版本號（見 cloudRev）：還沒讀到雲端前不推（讀完 syncWithCloud 會決定要不要推）；被擋過就不再重試 */
+  if(cloudRev===null || cloudConflict) return;
+  const nextRev = cloudRev + 1;
+  cloudObj.rev = nextRev;
+  function onFail(err){
+    console.error('雲端同步失敗', err);
+    if(err && (err.code==='permission-denied' || /permission/i.test(err.message||''))){
+      /* 規則只收「雲端版本 + 1」：被擋代表別台電腦（或別的分頁）已經先存過新的資料，這個分頁的資料是舊的 */
+      cloudConflict = true;
+      setCloudStatus('⚠ 別台電腦已經更新過賽程，你剛才的修改「沒有」上傳。請按 F5 重新整理，再重做一次剛才的修改');
+      alert('⚠ 別台電腦已經更新過賽程，這個畫面的資料是舊的，剛才的修改沒有上傳到雲端。\n\n請按 F5 重新整理（會載入最新的賽程），再重做一次剛才的修改。');
+      return;
+    }
+    setCloudStatus('⚠ 雲端同步失敗（'+err.message+'），已保留在本機');
+  }
   /* set()遇到資料格式錯誤是「當場丟錯」而不是回傳失敗的promise，.catch()接不到，
      以前這種錯誤會變成主控台的Uncaught錯誤、畫面上還顯示舊的「已同步」，沒人發現。 */
   try{
     cloudDocRef.set(cloudObj)
-      .then(function(){ setCloudStatus('已同步到雲端：'+formatSavedAt(cloudObj.savedAt)); publishPublicPairings(); })
+      .then(function(){
+        cloudRev = nextRev;
+        /* 本機存檔也記上新的版本號，下次打開才知道本機跟雲端是同一版 */
+        try{ const raw = localStorage.getItem(SAVE_KEY); if(raw){ const o = JSON.parse(raw); if(o.savedAt===cloudObj.savedAt){ o.rev = nextRev; localStorage.setItem(SAVE_KEY, JSON.stringify(o)); } } }catch(e){}
+        setCloudStatus('已同步到雲端：'+formatSavedAt(cloudObj.savedAt));
+        publishPublicPairings();
+      })
       .catch(onFail);
   }catch(err){ onFail(err); }
 }
@@ -7577,7 +7605,12 @@ function syncWithCloud(manualPull){
     const localObj = localRaw ? (function(){ try{ return JSON.parse(localRaw); }catch(e){ return null; } })() : null;
     const cloudTime = cloudObj && cloudObj.savedAt ? new Date(cloudObj.savedAt).getTime() : 0;
     const localTime = localObj && localObj.savedAt ? new Date(localObj.savedAt).getTime() : 0;
-    if(cloudObj && (manualPull || cloudTime > localTime)){
+    const cRev = (cloudObj && typeof cloudObj.rev==='number') ? cloudObj.rev : 0;
+    const lRev = (localObj && typeof localObj.rev==='number') ? localObj.rev : 0;
+    cloudRev = cRev; cloudConflict = false;
+    /* 本機存檔是建立在比較舊的雲端版本上（lRev < cRev）＝別台已經改過，一律以雲端為準，不能拿本機去蓋。
+       只有「本機跟雲端同一版、本機又比較新」（離線時改的、或剛匯入存檔）才推本機上去。 */
+    if(cloudObj && (manualPull || cloudTime > localTime || lRev < cRev)){
       localStorage.setItem(SAVE_KEY, JSON.stringify(cloudObj));
       restoreFromSaved(cloudObj);
       setCloudStatus('已從雲端載入最新賽程（'+formatSavedAt(cloudObj.savedAt)+'）');
