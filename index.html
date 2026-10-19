@@ -5517,9 +5517,9 @@ function displayBracket(key){
   activeBracketKey = key;
   setupExportPanel();
   if(__xlRepaired) saveState(); /* 補上的4強名字存回去（含雲端），只有真的補到才存 */
-  /* 官網賽程對接：這個階段第一次在新版打開，存一次把輪次結構記下來（見 buildPubStruct）。
-     封存的不存：saveState 會重建這筆紀錄、把 archived 記號洗掉（封存的本來就不送官網）。 */
-  else if(!rec.pubStruct && !rec.archived) saveState();
+  /* 官網賽程對接：打開時把輪次結構另存（見 pubRememberStruct）。不呼叫 saveState——只是打開就整份推上雲端，
+     萬一這個分頁的資料比較舊，會把別人剛改的蓋掉（2026-10-16 就因為這樣，國手／循環圈的結構被另一個分頁蓋掉）。 */
+  if(!rec.archived){ try{ pubRememberStruct(key, buildPubStruct()); }catch(e){ console.warn('官網賽程結構整理失敗', e); } }
   return true;
 }
 function showExistingStage(key, stageDef){
@@ -5919,7 +5919,40 @@ function generateMatchupText(){
    所以每個階段存檔時（saveState）順便記下它的「輪次→對局編號」結構 pubStruct（結構是固定的、很小），
    送出時再用各階段存檔裡的 dom.inputs／dom.winners 把名字和勝方填回去——跨階段晉級（資格賽→初賽）
    直接改存檔的 dom.inputs，也會跟著反映。
-   ⚠ 一個階段要在這個版本上線後「打開過一次」才會有 pubStruct，才會被送出。 */
+   ⚠ 一個階段要在這個版本上線後「打開過一次」才會有 pubStruct，才會被送出。
+   2026-10-16 修正：brackets/main 是整份覆蓋（誰最後存就以誰為準），另一個比較舊的分頁存檔時，把別的分頁剛記下的
+   pubStruct 蓋掉了（國手、循環圈因此從官網資料消失）。所以結構另存一份在 public_pairings/structs
+   （{階段key: JSON字串}，merge 寫入、不會互蓋），送出時也改成先從雲端重讀最新的賽程存檔再整理，不用分頁裡可能過時的資料。 */
+const PUB_STRUCT_LS = 'qisai_pub_structs_v1';
+let pubStructStore = {};
+try{ pubStructStore = JSON.parse(localStorage.getItem(PUB_STRUCT_LS) || '{}') || {}; }catch(e){ pubStructStore = {}; }
+let pubStructLoaded = null;
+const pubStructInCloud = {}; /* 已確定雲端有、而且內容一樣的 key（本機有但雲端沒有的，下次還是要寫上去） */
+function pubLoadStructs(){
+  if(pubStructLoaded) return pubStructLoaded;
+  if(!CLOUD_ENABLED || !cloudDb) return Promise.resolve();
+  pubStructLoaded = cloudDb.collection('public_pairings').doc('structs').get({source:'server'}).then(function(s){
+    const f = s.exists ? s.data() : {};
+    Object.keys(f).forEach(function(k){
+      try{ const v = typeof f[k]==='string' ? JSON.parse(f[k]) : f[k]; if(v && v.rounds){ pubStructStore[k] = v; pubStructInCloud[k] = JSON.stringify(v); } }catch(e){}
+    });
+    try{ localStorage.setItem(PUB_STRUCT_LS, JSON.stringify(pubStructStore)); }catch(e){}
+  }).catch(function(e){ console.warn('讀取官網賽程結構失敗', e); pubStructLoaded = null; });
+  return pubStructLoaded;
+}
+/* 記下某個階段的結構；跟上次一樣就不寫。有新結構時順便重送一次官網資料 */
+function pubRememberStruct(key, struct){
+  if(!key || !struct) return;
+  const s = JSON.stringify(struct);
+  if(pubStructInCloud[key]===s) return;
+  pubStructStore[key] = struct;
+  try{ localStorage.setItem(PUB_STRUCT_LS, JSON.stringify(pubStructStore)); }catch(e){}
+  if(!CLOUD_ENABLED || !cloudDb || !cloudAuth || !cloudAuth.currentUser) return;
+  const o = {}; o[key] = s;
+  cloudDb.collection('public_pairings').doc('structs').set(o, {merge:true})
+    .then(function(){ pubStructInCloud[key] = s; publishPublicPairings(); })
+    .catch(function(e){ console.warn('官網賽程結構另存失敗', e); });
+}
 const PUB_DOC_URL = 'https://firestore.googleapis.com/v1/projects/test-5cfc9/databases/(default)/documents/public_pairings/current';
 const PUB_EXCLUDE_PRESETS = ['test']; /* 測試用比賽永遠不送官網 */
 
@@ -5931,12 +5964,18 @@ function buildPubStruct(){
   const infos = stageRoundInfos();
   if(!infos.length) return null;
   const reg = matchRegistry[stageId] || {};
-  const adv = {};
+  /* 整個階段所有對局（含「晉級後姓名」顯示格）的晉級去向：adv＝勝者去哪一格、ladv＝敗者去哪一格（敗部）。
+     adv 也用來認「晉級格手動填的字」；兩個一起倒推「這一格還空著，可能是誰會來」（見 pubCandidates） */
+  const adv = {}, ladv = {};
+  Object.keys(reg).forEach(function(mid){
+    const m = reg[mid];
+    if(m && m.advanceTo) adv[mid] = [m.advanceTo.matchId, m.advanceTo.slotIndex];
+    if(m && m.loserAdvanceTo) ladv[mid] = [m.loserAdvanceTo.matchId, m.loserAdvanceTo.slotIndex];
+  });
   const rounds = infos.map(function(r){
-    r.ids.forEach(function(mid){ const m=reg[mid]; if(m && m.advanceTo) adv[mid]=[m.advanceTo.matchId, m.advanceTo.slotIndex]; });
     return { idx:r.idx, label:(sel && sel.options[r.idx]) ? sel.options[r.idx].text : r.label, ids:r.ids.slice() };
   });
-  return { event:(infos[0].titlePrefix||'')+currentBracket.title, stageName:currentBracket.stageName||'', rounds:rounds, adv:adv };
+  return { event:(infos[0].titlePrefix||'')+currentBracket.title, stageName:currentBracket.stageName||'', rounds:rounds, adv:adv, ladv:ladv };
 }
 
 function pubCleanName(s){ return String(s==null?'':s).replace(/\s+/g,''); }
@@ -5960,22 +5999,25 @@ function pubRoundText(struct, r){
    key 是 customBracket，裡面用輪次選單上的文字對應。上午＝10:00、下午＝14:00（官網那邊統計公告用的值），
    底圖沒寫上下午的就不填時間。⚠ 換新一屆的底圖時，這裡也要跟著換。 */
 const PUB_DEFAULT_DATES = {
-  zhonghuan69: { '1回賽':'2026-09-04', '2回賽':'2026-09-11', '3回賽':'2026-09-18', '16強賽':'2026-10-16', '8強賽':'2026-10-23', '4強賽':'2026-10-30' },
-  guoshou22: { '1回賽':'2026-09-07', '2回賽':'2026-09-14', '3回賽':'2026-09-21', '16強賽':'2026-10-05', '8強賽':'2026-11-02', '4強賽':'2026-11-09', '挑戰者決定賽':'2026-11-16' },
-  xuanleMain48: { '48強':'2026-09-10', '32強':'2026-09-17', '16強':'2026-10-01', '8強':'2026-10-08', '4強':'2026-10-15', '決賽':'2026-10-22' },
+  zhonghuan69: { '1回賽':'2026-09-04', '2回賽':'2026-09-11', '3回賽':'2026-09-18', '16強賽':'2026-10-16 11:00', '8強賽':'2026-10-23 11:00', '4強賽':'2026-10-30 11:00' },
+  guoshou22: { '1回賽':'2026-09-07', '2回賽':'2026-09-14', '3回賽':'2026-09-21', '16強賽':'2026-10-05', '8強賽':'2026-11-02 11:00', '4強賽':'2026-11-09 11:00', '挑戰者決定賽':'2026-11-16 11:00' },
+  xuanleMain48: { '48強':'2026-09-10', '32強':'2026-09-17', '16強':'2026-10-01', '8強':'2026-10-08', '4強':'2026-10-15', '決賽':'2026-10-22 11:00' },
   qiwang20prelim: {
     '勝部1回 (1~28號)':'2026-09-29 10:00', '勝部2回 (1~28號)':'2026-09-29 14:00', '敗部1回 (1~28號)':'2026-09-29 14:00',
     '勝部1回 (29~56號)':'2026-10-06 10:00', '勝部2回 (29~56號)':'2026-10-06 14:00', '敗部1回 (29~56號)':'2026-10-06 14:00',
     '敗部2回 (1~56號)':'2026-10-13 10:00' },
-  qiwang20fusai: { '勝部1回':'2026-11-03', '勝部2回':'2026-11-10', '勝部準決賽':'2026-11-17', '勝部決賽':'2026-11-24',
-    '敗部1回':'2026-11-10', '敗部2回':'2026-11-17', '敗部3回':'2026-11-24', '敗部準決賽':'2026-12-01', '敗部決賽':'2026-12-08' }
+  qiwang20fusai: { '勝部1回':'2026-11-03 11:00', '勝部2回':'2026-11-10 11:00', '勝部準決賽':'2026-11-17 11:00', '勝部決賽':'2026-11-24 11:00',
+    '敗部1回':'2026-11-10 11:00', '敗部2回':'2026-11-17 11:00', '敗部3回':'2026-11-24 11:00', '敗部準決賽':'2026-12-01 11:00', '敗部決賽':'2026-12-08 11:00' }
 };
+/* 開賽時間（2026-10-19 使用者確認）：中環碁聖、中環國手、玄樂盃決賽、棋王循環圈、棋王複賽都是 11:00。
+   上面已經寫在各輪日期後面；循環圈的日期是從輪次標籤讀的，時間另外在這裡給。已經比完的早期輪次沒問，就不填。 */
+const PUB_LABEL_DATE_TIME = { qiwang19circle: '11:00' };
 function pubSessionsOf(rec, r){
   const v = PUB_DEFAULT_DATES[rec.stConfig && rec.stConfig.customBracket];
   const t = v && v[r.label];
   if(t) return [].concat(t).map(function(x){ const p = String(x).split(' '); return {date:p[0], time:p[1]||''}; });
   const d = pubLabelDate(r.label); /* 循環圈：輪次標籤上的（MM/DD） */
-  return d ? [{date:d, time:''}] : [];
+  return d ? [{date:d, time:PUB_LABEL_DATE_TIME[rec.stConfig && rec.stConfig.customBracket] || ''}] : [];
 }
 /* 從某個階段的存檔讀出一局：{a, b, winner}；不該輸出（兩邊都空、輪空）回傳 null */
 function pubGame(stageId, mid, dom, adv){
@@ -6000,19 +6042,44 @@ function pubGame(stageId, mid, dom, adv){
   }
   a = pubCleanName(a); b = pubCleanName(b);
   if(/^棄/.test(a) || /^棄/.test(b)) return null;   /* 對手是「棄」＝輪空，那天不用來，不輸出 */
-  if(!a && !b) return null;
   return { a:a||null, b:b||null, winner: (w0 && a) ? a : ((w1 && b) ? b : null) };
 }
+/* 某一格還空著時，倒推「可能會來下這一格的人」：找出勝者（adv）或敗者（ladv）會送到這一格的對局，
+   那些對局裡的人都有可能；那些對局的格子也還空著就再往前推。中環碁聖決賽三局（zh69_game0~2）
+   的名字是從決賽 zh69_136 同步過去的，所以借用 zh69_136 的來源。跨階段（資格賽→初賽、初賽→複賽的「入X」）推不到，就是空的。 */
+function pubCandidates(stageId, dom, struct, mid, slot){
+  const inputs = dom.inputs || {};
+  const rev = {};
+  [['adv', struct.adv||{}], ['ladv', struct.ladv||{}]].forEach(function(pair){
+    Object.keys(pair[1]).forEach(function(f){ const t = pair[1][f]; const k = t[0]+'|'+t[1]; (rev[k] = rev[k] || []).push(f); });
+  });
+  const out = [], seenMatch = {};
+  (function walk(m, s, depth){
+    if(depth > 10) return;
+    let feeders = rev[m+'|'+s];
+    if(!feeders && /^zh69_game\d$/.test(m)) feeders = rev['zh69_136|'+s];
+    (feeders||[]).forEach(function(f){
+      if(seenMatch[f+'|'+m+'|'+s]) return; seenMatch[f+'|'+m+'|'+s] = true;
+      [0,1].forEach(function(i){
+        const n = pubCleanName(inputs[inputId(stageId, f, i)]);
+        if(n){ if(!/^棄/.test(n) && out.indexOf(n)<0) out.push(n); }
+        else walk(f, i, depth+1);
+      });
+    });
+  })(mid, slot, 0);
+  return out;
+}
 /* 整理所有沒封存的賽事 → {pairings, stages:[{label, count, noStruct}]} */
-function buildPublicPairings(){
+function buildPublicPairings(brackets){
+  brackets = brackets || savedBrackets;
   const pairings = [], stages = [];
-  sortedBracketKeys(function(key){ const rec=savedBrackets[key]; return !!rec && !rec.archived; }).forEach(function(key){
-    const rec = savedBrackets[key];
+  Object.keys(brackets).filter(function(key){ const rec=brackets[key]; return !!rec && !rec.archived; }).forEach(function(key){
+    const rec = brackets[key];
     const presetId = key.slice(0, key.lastIndexOf('__')), stageIdx = parseInt(key.slice(key.lastIndexOf('__')+2),10);
     const preset = PRESET_TOURNAMENTS.find(function(p){ return p.id===presetId; });
     if(!preset || preset.hidden || PUB_EXCLUDE_PRESETS.indexOf(presetId)>=0) return;
     const label = preset.label + (preset.stages[stageIdx] && preset.stages.length>1 ? '　'+preset.stages[stageIdx].name : '');
-    const struct = rec.pubStruct;
+    const struct = pubStructStore[key] || rec.pubStruct;
     if(!struct){ stages.push({label:label, count:0, noStruct:true}); return; }
     const stageId = (rec.currentBracket && rec.currentBracket.stageId) || (rec.stConfig && rec.stConfig.id);
     const dom = rec.dom || {};
@@ -6024,9 +6091,30 @@ function buildPublicPairings(){
       const sessions = pubSessionsOf(rec, r);
       if(!sessions.length) return;
       const roundText = pubRoundText(st, r);
+      /* 預排（2026-10-19 協會需求「預排賽程與開賽時間」）：已排定但兩邊都還不知道是誰、也推不出可能人選的，
+         整輪只送一筆 {players:[], status:'scheduled'}（例如複賽在初賽打完前、循環圈加賽對手還沒定），
+         不要一盤一筆塞一堆空的。id 用「階段:round輪次編號」。 */
+      let roundLevelSent = false;
+      function sendRoundLevel(){
+        if(roundLevelSent) return; roundLevelSent = true;
+        sessions.forEach(function(s, j){
+          const p = { id: key+':round'+r.idx+(sessions.length>1 ? '#'+(j+1) : ''), event:eventName, round:roundText, date:s.date };
+          if(s.time) p.time = s.time;
+          p.players = []; p.status = 'scheduled';
+          pairings.push(p); count++;
+        });
+      }
+      if(!r.ids.length) sendRoundLevel();
       r.ids.forEach(function(mid, i){
         const g = pubGame(stageId, mid, dom, struct.adv);
         if(!g) return;
+        /* 還有空格：倒推可能會來的人（candidates），官網才知道這一場要顯示給誰看（「若晉級」） */
+        let cands = [];
+        if(!g.a || !g.b){
+          [0,1].forEach(function(slot){ if(!(slot===0 ? g.a : g.b)) pubCandidates(stageId, dom, struct, mid, slot).forEach(function(n){ if(cands.indexOf(n)<0) cands.push(n); }); });
+          cands = cands.filter(function(n){ return n!==g.a && n!==g.b; });
+        }
+        if(!g.a && !g.b && !cands.length){ sendRoundLevel(); return; }
         /* 一輪好幾天：天數剛好等於局數（中環碁聖決賽三局各自一個對局）→ 第i局配第i天；
            否則（玄樂盃五番棋只有一個對局）→ 每一天都是這組人，勝方只標在最後一天 */
         let sess = (sessions.length>1 && sessions.length===r.ids.length) ? [sessions[i]] : sessions;
@@ -6043,7 +6131,12 @@ function buildPublicPairings(){
           const p = { id: key+':'+mid+((sessions.length>1 && !mapped) ? '#'+(sessions.indexOf(s)+1) : ''),
                       event:eventName, round:roundText, date:s.date };
           if(s.time) p.time = s.time;
-          p.players = [g.a, g.b];
+          /* players：兩邊都知道 [甲,乙]；知道一邊 [甲,null]（跟之前一樣）；都不知道 []。
+             status：至少知道一邊＝'drawn'（已排進賽程表位置），都不知道＝'scheduled'。
+             candidates：空著的那一格可能會是誰（之前的對局還沒下完），官網拿來顯示「若晉級」 */
+          p.players = (g.a || g.b) ? [g.a, g.b] : [];
+          p.status = (g.a || g.b) ? 'drawn' : 'scheduled';
+          if(cands.length) p.candidates = cands;
           if(g.winner && j===sess.length-1) p.winner = g.winner;
           pairings.push(p); count++;
         });
@@ -6056,18 +6149,28 @@ function buildPublicPairings(){
 }
 function pubTaipeiIso(d){ return new Date(d.getTime()+8*3600000).toISOString().slice(0,19)+'+08:00'; }
 
-/* 雲端存檔成功後呼叫：內容有變才寫（同一個分頁裡比對上一次送出的內容） */
-let pubLastSent = null;
+/* 雲端存檔成功後（或記下新結構後）呼叫。先從雲端重讀「最新的賽程存檔＋所有結構」再整理，
+   不用這個分頁裡的 savedBrackets（分頁開很久、資料比較舊時，會把已經刪掉的東西又送出去）。
+   內容沒變就不寫；同時只跑一次，跑的期間又被叫就等這次跑完再補跑一次。 */
+let pubLastSent = null, pubRunning = false, pubAgain = false;
 function publishPublicPairings(){
   if(!CLOUD_ENABLED || !cloudAuth || !cloudAuth.currentUser || !cloudDb) return;
-  let built;
-  try{ built = buildPublicPairings(); }catch(e){ console.error('官網賽程整理失敗', e); return; }
-  const key = JSON.stringify(built.pairings);
-  if(key===pubLastSent) return;
-  const payload = { updated: pubTaipeiIso(new Date()), pairings: built.pairings };
-  cloudDb.collection('public_pairings').doc('current').set({ json: JSON.stringify(payload) })
-    .then(function(){ pubLastSent = key; console.log('官網賽程已送出 '+built.pairings.length+' 筆'); })
-    .catch(function(err){ console.error('官網賽程送出失敗', err); });
+  if(pubRunning){ pubAgain = true; return; }
+  pubRunning = true;
+  Promise.all([ pubLoadStructs(), cloudDocRef.get({source:'server'}) ]).then(function(res){
+    const snap = res[1];
+    const brackets = (snap.exists && snap.data().brackets) || {};
+    const built = buildPublicPairings(brackets);
+    const key = JSON.stringify(built.pairings);
+    if(key===pubLastSent) return;
+    const payload = { updated: pubTaipeiIso(new Date()), pairings: built.pairings };
+    return cloudDb.collection('public_pairings').doc('current').set({ json: JSON.stringify(payload) })
+      .then(function(){ pubLastSent = key; console.log('官網賽程已送出 '+built.pairings.length+' 筆'); });
+  }).catch(function(err){ console.error('官網賽程送出失敗', err); })
+    .then(function(){
+      pubRunning = false;
+      if(pubAgain){ pubAgain = false; publishPublicPairings(); }
+    });
 }
 
 function roundLabelFor(idx){
@@ -7243,7 +7346,7 @@ function saveState(){
         /* 官網賽程對接（見 buildPubStruct）：結構 pubStruct 重新算，算不出來就沿用舊的 */
         const prevRec = savedBrackets[activeBracketKey] || {};
         let pubStruct = null;
-        try{ pubStruct = buildPubStruct(); }catch(e){ console.warn('官網賽程結構整理失敗', e); }
+        try{ pubStruct = buildPubStruct(); pubRememberStruct(activeBracketKey, pubStruct); }catch(e){ console.warn('官網賽程結構整理失敗', e); }
         savedBrackets[activeBracketKey] = {
           pubStruct: pubStruct || prevRec.pubStruct,
           stConfig: currentStConfig,
