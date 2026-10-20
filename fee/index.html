@@ -622,6 +622,116 @@ async function saveFeeFields(fields){
   else { if(!data.inputs) data.inputs = {}; if(!data.players) data.players='[]'; if(!data.rules) data.rules='{}'; await feeDocRef().set(data); }
 }
 
+/* ============ 發布給官網（2026-10-20）============
+   協會官網棋士專區要給棋士看「自己的」對局費。對局費不能公開，所以：
+   - 院方核對好後按「發布給官網」，才把每位棋士的明細存成一份快照 fee_release/yYYYY {json:字串, published_at, count, total}。
+     平常在這裡改金額，官網看到的不會跟著變，要再按一次發布（使用者決定：確認過才給棋士看）。
+   - 這份快照不公開。鑰匙做在網址裡（使用者決定，不另開官網帳號）：文件 id ＝「一串 32 字的亂碼-y年份」，
+     亂碼存在 fees/release_key（只有院方帳號讀得到）；規則對 fee_release 只開「知道完整 id 才能 get」、不能 list，
+     所以沒拿到網址的人猜不到也列不出來。官網把這條網址當密碼放在伺服器端 Secrets，在伺服器端抓，
+     再依登入的棋士只給他看自己那一份。網址外洩時按「換一組新網址」。
+   - 內容（使用者決定）：今年總額＋各賽事明細；有「金額調整」只列調整金額，不給院內寫的原因；不給排名、不給來源標記、
+     不給「手動輸入（原本…）」這種院內說明。 */
+const FEE_RELEASE_BASE = 'https://firestore.googleapis.com/v1/projects/test-5cfc9/databases/(default)/documents/fee_release/';
+let RELEASE_KEY = null;
+function genReleaseKey(){
+  const b = new Uint8Array(24); crypto.getRandomValues(b);
+  return btoa(String.fromCharCode.apply(null, b)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+/* 取得網址裡的亂碼；create＝還沒有就產生一組存起來 */
+async function getReleaseKey(create){
+  if(RELEASE_KEY) return RELEASE_KEY;
+  if(LOCAL_MODE){
+    RELEASE_KEY = localStorage.getItem(LOCAL_KEY+'-relkey') || null;
+    if(!RELEASE_KEY && create){ RELEASE_KEY = genReleaseKey(); localStorage.setItem(LOCAL_KEY+'-relkey', RELEASE_KEY); }
+    return RELEASE_KEY;
+  }
+  const ref = fb.db.collection('fees').doc('release_key');
+  const s = await ref.get({source:'server'});
+  if(s.exists && s.data().key){ RELEASE_KEY = s.data().key; return RELEASE_KEY; }
+  if(!create) return null;
+  const k = genReleaseKey();
+  await ref.set({ key: k, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+  RELEASE_KEY = k; return k;
+}
+function releaseDocId(key, y){ return key+'-y'+(y||YEAR); }
+function releaseUrl(key, y){ return FEE_RELEASE_BASE + releaseDocId(key, y); }
+function feeReleaseRef(key, y){ return fb.db.collection('fee_release').doc(releaseDocId(key, y)); }
+function feeTaipeiIso(d){ return new Date(d.getTime()+8*3600000).toISOString().slice(0,19)+'+08:00'; }
+function buildFeeRelease(){
+  const players = [];
+  CALC.rows.forEach(r=>{
+    const events = [];
+    SHEETS.forEach(s=>{
+      const c = r.sheets[s.id];
+      if(!c.any) return;
+      const items = c.items.filter(it=>it.amt).map(it=>{
+        if(it.adj) return {item:'金額調整', amount: it.amt};
+        const o = {item: it.col, amount: it.amt};
+        /* 「3 局 × 2,000」「8強 → 40,000」這種計算說明給棋士看；手動輸入的金額沒有計算式（只寫院內說明），就只給內容 */
+        const detail = it.money ? (it.kind==='count' && it.v!=='' ? it.v+' 局' : String(it.v||'')) : String(it.calc||'');
+        if(detail) o.detail = detail;
+        return o;
+      });
+      if(!items.length && !c.total) return;
+      events.push({event: s.id, group: s.grp, items: items, subtotal: c.total});
+    });
+    if(!events.length) return;
+    players.push({name: r.p.name, total: r.full, events: events});
+  });
+  return { year: YEAR, published_at: feeTaipeiIso(new Date()), players: players };
+}
+async function loadFeeReleaseMeta(){
+  const key = await getReleaseKey(false);
+  if(!key) return null;
+  if(LOCAL_MODE){ try{ const d = JSON.parse(localStorage.getItem(LOCAL_KEY+'-release')||'{}')[releaseDocId(key)]; return d ? {key, published_at:d.published_at, count:d.count, total:d.total} : {key}; }catch(e){ return {key}; } }
+  const s = await feeReleaseRef(key).get({source:'server'});
+  if(!s.exists) return {key};
+  const d = s.data();
+  return {key, published_at: d.published_at, count: d.count, total: d.total};
+}
+/* 網址外洩時：換一組新的亂碼，舊網址的今年／去年發布版刪掉（舊網址就讀不到了），之後要再按一次發布，並把新網址給官網 */
+async function rotateReleaseKey(){
+  if(!confirm('要換一組新的官網網址嗎？\n\n舊網址會立刻失效（官網會抓不到），換完要：\n① 再按一次「發布」\n② 把新網址交給官網負責人更新')) return;
+  try{
+    const old = await getReleaseKey(false);
+    if(LOCAL_MODE){
+      const all = JSON.parse(localStorage.getItem(LOCAL_KEY+'-release')||'{}');
+      if(old){ delete all[releaseDocId(old)]; delete all[releaseDocId(old, YEAR-1)]; }
+      localStorage.setItem(LOCAL_KEY+'-release', JSON.stringify(all));
+      RELEASE_KEY = genReleaseKey(); localStorage.setItem(LOCAL_KEY+'-relkey', RELEASE_KEY);
+    } else {
+      if(old){ await feeReleaseRef(old).delete(); await feeReleaseRef(old, YEAR-1).delete(); }
+      RELEASE_KEY = genReleaseKey();
+      await fb.db.collection('fees').doc('release_key').set({ key: RELEASE_KEY, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    }
+    toast('已換新網址，請再按一次發布');
+    renderSettings();
+  }catch(e){ console.error(e); alert('換網址失敗：'+(e.message||e)); }
+}
+function copyReleaseUrl(){
+  const el = document.getElementById('relUrl'); if(!el) return;
+  navigator.clipboard.writeText(el.value).then(()=>toast('已複製網址'), ()=>{ el.select(); document.execCommand('copy'); toast('已複製網址'); });
+}
+async function publishFeeRelease(){
+  if(!FEE || !CALC){ alert(YEAR+' 年還沒有對局費資料'); return; }
+  if(CALC.issues && !confirm('「檢核」還有 '+CALC.issues+' 項待處理，確定要照目前的金額發布嗎？')) return;
+  const rel = buildFeeRelease();
+  const total = rel.players.reduce((a,p)=>a+p.total, 0);
+  if(!confirm('要把 '+YEAR+' 年對局費發布給官網嗎？\n\n共 '+rel.players.length+' 位棋士、總額 '+fmt(total)+' 元。\n發布後，棋士登入官網棋士專區就看得到自己的金額（官網大約隔天更新）。\n之後再改金額，要再按一次發布才會更新。')) return;
+  const doc = { year: YEAR, published_at: rel.published_at, count: rel.players.length, total: total, json: JSON.stringify(rel) };
+  try{
+    const key = await getReleaseKey(true);
+    if(LOCAL_MODE){
+      const all = JSON.parse(localStorage.getItem(LOCAL_KEY+'-release')||'{}'); all[releaseDocId(key)] = doc; localStorage.setItem(LOCAL_KEY+'-release', JSON.stringify(all));
+    } else {
+      await feeReleaseRef(key).set(doc);
+    }
+    toast('已發布給官網');
+    renderSettings();
+  }catch(e){ console.error(e); alert('發布失敗：'+(e.message||e)+(/permission/i.test(e.message||'') ? '\n（可能是 Firebase 規則還沒加 fee_release，請找負責的人處理）' : '')); }
+}
+
 /* ============ 畫面 ============ */
 const TABS = [['summary','總表'],['query','查詢'],['rank','排行榜'],['events','各賽事'],['check','檢核'],['settings','設定']];
 function renderTabs(){
@@ -1043,8 +1153,32 @@ function renderSettings(){
   h += '<div class="toolbar"><button class="btn primary" onclick="document.getElementById(\'xlsxFile\').click()">從 Excel 匯入…</button>'+
        '<button class="btn" onclick="copyFromYear()">從 '+(YEAR-1)+' 年複製名單與獎金規則</button></div>'+
        '<div class="muted">「從 Excel 匯入」讀取「2026對局費計算_優化版.xlsx」格式：棋士名單、各賽事獎金規則、手填與手動修改的格子，會<b>整份取代</b>這一年的資料。</div></div>';
-  if(FEE){ h += playersEditorHtml(); h += rulesEditorHtml(); }
+  if(FEE){
+    h += '<div class="card"><h2>📤 發布給官網</h2>'+
+      '<div class="muted">按下去，會把目前每位棋士的對局費（總額＋各賽事明細，不含調整原因、排名）發布到協會官網棋士專區，棋士只看得到自己的。'+
+      '在這裡改金額<b>不會</b>自動更新官網，核對好之後要再按一次。</div>'+
+      '<p id="relMeta" class="muted">讀取上次發布紀錄中…</p>'+
+      '<div class="toolbar"><button class="btn primary" onclick="publishFeeRelease()">發布 '+YEAR+' 年對局費給官網</button></div>'+
+      '<div id="relUrlBox"></div></div>';
+    h += playersEditorHtml(); h += rulesEditorHtml();
+  }
   document.getElementById('main').innerHTML = h;
+  if(FEE){
+    const yr = YEAR;
+    loadFeeReleaseMeta().then(m=>{
+      const el = document.getElementById('relMeta'); if(!el || yr!==YEAR) return;
+      el.innerHTML = (m && m.published_at) ? '上次發布：<b>'+esc(String(m.published_at||'').replace('T',' ').slice(0,16))+'</b>　'+m.count+' 位棋士、總額 '+fmt(m.total)+' 元' : '這一年還沒發布過。';
+      const box = document.getElementById('relUrlBox');
+      if(box && m && m.key){
+        box.innerHTML = '<div style="margin-top:10px;padding:10px;border:1px solid #e0b4b4;border-radius:6px;background:#fff8f6">'+
+          '<b>給官網的網址</b>　<span class="bad">⚠ 這條網址等於密碼：拿到的人就看得到所有棋士的對局費。只給官網負責人，請她放在伺服器的保密設定裡，不要貼在群組或網頁上。</span>'+
+          '<div class="toolbar" style="margin-top:6px"><input id="relUrl" readonly style="flex:1;min-width:260px;font-family:monospace;font-size:12px" value="'+esc(releaseUrl(m.key).replace(/-y\d{4}$/,'-y{年份}'))+'">'+
+          '<button class="btn" onclick="copyReleaseUrl()">複製</button>'+
+          '<button class="btn danger" onclick="rotateReleaseKey()">網址外洩了，換一組新網址</button></div>'+
+          '<div class="muted">網址最後的 {年份} 由官網換成要抓的年份，例如 2026。</div></div>';
+      }
+    }).catch(e=>{ const el = document.getElementById('relMeta'); if(el) el.textContent = '讀不到發布紀錄（'+(e.message||e)+'）'; });
+  }
 }
 function playersEditorHtml(){
   const ps = FEE.players||[];
