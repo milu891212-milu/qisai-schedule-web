@@ -236,6 +236,9 @@ table.ss-table.ss-table-wide.ss-table-challenge col.c-notary{width:13.5%;}
 .zh-slot:hover{background:rgba(156,43,35,0.12);}
 .zh-slot.winner{background:rgba(156,43,35,0.22);box-shadow:0 0 0 1.5px var(--seal) inset;}
 .zh-slot.loser{opacity:0.4;}
+/* 玄樂盃決賽：結果直接畫「某某 勝」在灰色欄上，半邊的紅底/變淡反而干擾 */
+.zh-slot.xf-slot.winner{background:transparent;box-shadow:none;}
+.zh-slot.xf-slot.loser{opacity:1;}
 .zh-slot-input{
   position:static;width:100%;height:100%;border:none;background:transparent;padding:0;margin:0;
   font-family:"Noto Sans CJK TC","Noto Sans TC",sans-serif;font-weight:700;color:transparent;caret-color:transparent;
@@ -489,7 +492,9 @@ const PRESET_TOURNAMENTS = [
     org: '中華職業圍棋協會／海峰棋院',
     stages: [
       { name:'初賽', type:'single', defaultCount:51, pairing:'sequential', advance:'', customBracket:'xuanlePrelim' },
-      { name:'本賽', type:'single', defaultCount:48, pairing:'sequential', advance:'', customBracket:'xuanleMain48' }
+      { name:'本賽', type:'single', defaultCount:48, pairing:'sequential', advance:'', customBracket:'xuanleMain48' },
+      /* 2026-10-21 加：決賽五番勝負獨立一張底圖（兩人姓名印在圖上，不用貼名單），見 renderXuanleFinalOverlay */
+      { name:'決賽', type:'single', customBracket:'xuanleFinal' }
     ]
   },
   {
@@ -1002,6 +1007,7 @@ function renderFlatRoundColumn(stageId, round, label, totalH){
 const KUAIQI7_PRELIM_IMAGE_URL = 'images/kuaiqi7_prelim.jpg';
 const XUANLE_PRELIM_IMAGE_URL = 'images/xuanle_prelim.jpg';
 const XUANLE_MAIN48_IMAGE_URL = 'images/xuanle_main48.jpg';
+const XUANLE_FINAL_IMAGE_URL = 'images/xuanle_final.jpg';
 const ZH69_IMAGE_URL = 'images/zhonghuan69.jpg';
 /* 畫面上顯示用輕量版底圖（images/view/，寬2000像素，由 工具\產生畫面用輕量底圖.py 產生），
    開頁面快很多；下載賽程圖（downloadXxxComposite）仍用上面這些原圖，下載品質不變。 */
@@ -1014,7 +1020,7 @@ function viewImageUrl(url){ return url.replace('images/', 'images/view/'); }
 const FULL_IMAGE_WIDTHS = {
   'images/guoshou22.jpg':6532, 'images/qiwang19.jpg':3269, 'images/qiwang20_fusai.jpg':6539,
   'images/qiwang20_prelim.jpg':6418, 'images/qiwang20_qualifier.jpg':1038, 'images/xuanle_main48.jpg':6539,
-  'images/xuanle_prelim.jpg':3968, 'images/zhonghuan69.jpg':6532
+  'images/xuanle_prelim.jpg':3968, 'images/zhonghuan69.jpg':6532, 'images/xuanle_final.jpg':2646
 };
 function fullImageWidth(url, img){ return FULL_IMAGE_WIDTHS[url] || img.naturalWidth; }
 
@@ -2467,6 +2473,187 @@ function downloadXuanleMain48Composite(){
     }, 'image/jpeg', 0.85);
   };
   img.src = viewImageUrl(XUANLE_MAIN48_IMAGE_URL); /* 2026-10-08 改用畫面那張輕量底圖（已在快取，馬上就好） */
+}
+
+/* ============ 玄樂盃・決賽五番勝負（2026-10-21）============
+   底圖 images/xuanle_final.jpg（原圖 2646×3024）：兩位選手姓名印在圖上（左許皓鋐、右賴均輔），
+   右下 5 條灰色欄＝第1~5局成績。每局是一場 match（xf_g1~xf_g5，兩格都是固定的兩人，不晉級），
+   灰色欄左半邊＝slot0（左邊那位）、右半邊＝slot1（右邊那位），點哪半邊就標誰贏，再點一次取消；
+   欄裡畫「某某 勝」。輪次選單＝第1局~第5局，所以對陣文字／📷匯入／官網賽程都是一局一筆。
+   灰色欄位置是用 Python 在原圖上量的像素（x 1314~2151，高 95）。 */
+const XUANLE_FINAL_NAMES = ['許皓鋐', '賴均輔'];
+const XUANLE_FINAL_BAR = { W:2646, H:3024, x0:1314, x1:2151, h:95, ys:[2311, 2446, 2581, 2717, 2852] };
+function xuanleFinalBarRect(g){ /* g = 0~4，回傳百分比 */
+  const B = XUANLE_FINAL_BAR;
+  return { x: B.x0/B.W*100, y: B.ys[g]/B.H*100, w: (B.x1-B.x0+1)/B.W*100, h: B.h/B.H*100 };
+}
+function buildXuanleFinalMatches(){
+  return XUANLE_FINAL_BAR.ys.map(function(_, g){
+    return { id:'xf_g'+(g+1), slots:[{seed:null,isBye:false},{seed:null,isBye:false}], advanceTo:null, redrawOnToggle:true };
+  });
+}
+const XUANLE_FINAL_TITLES = ['名人', '碁聖']; /* 跟海報上印的一樣 */
+/* 2026-10-21 使用者指定格式「許皓鋐名人　持白中盤勝」：姓名＋頭銜、空格、持＋成績。
+   成績（例「白中盤勝」）存在每局一個隱藏欄位 xfres_<階段>_<局>（class mini-input，snapshotOutputDOM 會一起存）。
+   沒填成績時只顯示「許皓鋐名人　勝」。 */
+function xuanleFinalResId(stageId, g){ return 'xfres_'+stageId+'_'+(g+1); }
+function xuanleFinalGetRes(stageId, g){
+  const el = document.getElementById(xuanleFinalResId(stageId, g));
+  return el ? el.value.trim() : '';
+}
+function xuanleFinalSetRes(stageId, g, text){
+  const el = document.getElementById(xuanleFinalResId(stageId, g));
+  if(el) el.value = String(text||'').trim().replace(/^持/, '');
+}
+function xuanleFinalWinnerIdx(stageId, g){
+  const mid = 'xf_g'+(g+1);
+  return slotIsWinner(stageId, mid, 0) ? 0 : (slotIsWinner(stageId, mid, 1) ? 1 : -1);
+}
+function xuanleFinalResultText(stageId, g){
+  const i = xuanleFinalWinnerIdx(stageId, g);
+  if(i<0) return '';
+  const who = (getSlotName(stageId, 'xf_g'+(g+1), i) || XUANLE_FINAL_NAMES[i]) + XUANLE_FINAL_TITLES[i];
+  const res = xuanleFinalGetRes(stageId, g);
+  return res ? (who+'　持'+res) : (who+'　勝');
+}
+/* 標完勝方後問成績；hint＝預先填好的文字（📷匯入時知道執黑執白，先幫忙填顏色） */
+function xuanleFinalAskRes(stageId, g, hint){
+  const i = xuanleFinalWinnerIdx(stageId, g);
+  if(i<0) return;
+  const cur = xuanleFinalGetRes(stageId, g);
+  const ans = prompt('第'+(g+1)+'局　'+XUANLE_FINAL_NAMES[i]+XUANLE_FINAL_TITLES[i]+' 勝\n請輸入成績（例：白中盤勝、黑3目半勝）。不填就只顯示「勝」。', cur || hint || '');
+  if(ans===null) return;
+  xuanleFinalSetRes(stageId, g, ans);
+  if(zhRedrawFns[stageId]) zhRedrawFns[stageId]();
+  saveState();
+}
+function drawXuanleFinalResults(ctx, stageId, W, H){
+  XUANLE_FINAL_BAR.ys.forEach(function(_, g){
+    const text = xuanleFinalResultText(stageId, g);
+    if(!text) return;
+    const r = xuanleFinalBarRect(g);
+    const x = r.x/100*W, y = r.y/100*H, w = r.w/100*W, h = r.h/100*H;
+    const family = '"Noto Sans CJK TC","Noto Sans TC","Microsoft JhengHei",sans-serif';
+    let fs = Math.round(h*0.74);
+    ctx.font = '700 '+fs+'px '+family;
+    while(fs>10 && ctx.measureText(text).width > w*0.94){ fs--; ctx.font = '700 '+fs+'px '+family; }
+    ctx.fillStyle = '#1f2d5c';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, x+w/2, y+h/2+h*0.03);
+  });
+}
+function renderXuanleFinalOverlay(st){
+  const stageId = st.id;
+  const allMatches = buildXuanleFinalMatches();
+  const wrap = document.createElement('div');
+  wrap.className = 'zh-overlay-wrap';
+  wrap.style.maxWidth = '900px'; /* 直式海報，太寬畫面要捲很久 */
+  const img = document.createElement('img');
+  img.src = viewImageUrl(XUANLE_FINAL_IMAGE_URL);
+  img.className = 'zh-overlay-img';
+  img.draggable = false;
+  wrap.appendChild(img);
+  attachOverlayLoadingHint(wrap, img);
+  const canvasEl = document.createElement('canvas');
+  canvasEl.className = 'zh-overlay-canvas';
+  wrap.appendChild(canvasEl);
+
+  function doRedraw(){
+    if(!img.naturalWidth) return;
+    if(canvasEl.width!==img.naturalWidth || canvasEl.height!==img.naturalHeight){
+      canvasEl.width = img.naturalWidth; canvasEl.height = img.naturalHeight;
+    }
+    const ctx = canvasEl.getContext('2d');
+    ctx.clearRect(0,0,canvasEl.width,canvasEl.height);
+    drawXuanleFinalResults(ctx, stageId, canvasEl.width, canvasEl.height);
+  }
+  zhRedrawFns[stageId] = doRedraw;
+  img.addEventListener('load', doRedraw);
+
+  allMatches.forEach(function(m, g){
+    matchRegistry[stageId][m.id] = m;
+    const r = xuanleFinalBarRect(g);
+    [0,1].forEach(function(slotIdx){
+      const container = document.createElement('div');
+      container.id = slotWrapId(stageId, m.id, slotIdx);
+      container.className = 'zh-slot xf-slot';
+      container.title = '第'+(g+1)+'局：點這裡標「'+XUANLE_FINAL_NAMES[slotIdx]+'」勝（再點一次取消；按右鍵改成績）';
+      container.style.left = (r.x + (slotIdx ? r.w/2 : 0))+'%'; container.style.top = r.y+'%';
+      container.style.width = (r.w/2)+'%'; container.style.height = r.h+'%';
+      const el = document.createElement('input');
+      el.type = 'text'; el.readOnly = true;
+      el.id = inputId(stageId, m.id, slotIdx);
+      el.className = 'zh-slot-input';
+      el.value = XUANLE_FINAL_NAMES[slotIdx]; /* 從存檔讀回時 restoreOutputDOM 會再寫一次，一樣的名字 */
+      container.addEventListener('click', function(){
+        const wasThis = slotIsWinner(stageId, m.id, slotIdx);
+        xuanleFinalSetRes(stageId, g, ''); /* 取消或換人贏，舊成績都不算了 */
+        toggleWinner(stageId, m.id, slotIdx);
+        if(!wasThis) xuanleFinalAskRes(stageId, g, '');
+      });
+      container.addEventListener('contextmenu', function(e){
+        if(xuanleFinalWinnerIdx(stageId, g)<0) return;
+        e.preventDefault();
+        xuanleFinalAskRes(stageId, g, '');
+      });
+      container.appendChild(el);
+      wrap.appendChild(container);
+    });
+    const res = document.createElement('input');
+    res.type = 'hidden'; res.className = 'mini-input';
+    res.id = xuanleFinalResId(stageId, g);
+    wrap.appendChild(res);
+  });
+
+  /* 從存檔讀回時，勝方是在這個函式結束後才由 restoreOutputDOM 補上，所以晚一拍再畫一次 */
+  if(img.complete && img.naturalWidth){ doRedraw(); }
+  setTimeout(doRedraw, 0);
+  return {wrap, data:{
+    rounds: allMatches.map(function(m){ return [m]; }),
+    customLabels: allMatches.map(function(_, g){ return '第'+(g+1)+'局'; }),
+    hasChampion:false, irregularPrefix:0
+  }};
+}
+function downloadXuanleFinalComposite(){
+  const img = new Image();
+  img.onload = function(){
+    const W = fullImageWidth(XUANLE_FINAL_IMAGE_URL, img), H = img.naturalHeight * W / img.naturalWidth;
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, W, H);
+    drawXuanleFinalResults(ctx, currentBracket.stageId, W, H);
+    canvas.toBlob(function(blob){
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (currentBracket.title||'賽程圖')+'_'+(currentBracket.stageName||'')+'.jpg';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 'image/jpeg', 0.88);
+  };
+  img.src = viewImageUrl(XUANLE_FINAL_IMAGE_URL);
+}
+/* 決賽不用貼名單：跟 generateQiwang19Stage 一樣直接產生 */
+function generateXuanleFinalStage(){
+  const preset=PRESET_TOURNAMENTS.find(function(p){return p.id===opState.presetId;});
+  const stageDef=preset.stages[opState.stageIdx];
+  const id=newStageId();
+  const st={ id:id, name:stageDef.name, type:stageDef.type, count:2,
+    advance:1, pairing:'sequential', customBracket:'xuanleFinal' };
+  matchRegistry[id]={};
+  const out=document.getElementById('output');
+  out.innerHTML='';
+  const built=renderStage(st, opState.title);
+  out.appendChild(built.section);
+  currentBracket = { stageId:id, title:opState.title, org:opState.org, stageName:stageDef.name,
+    rounds:built.data.rounds, hasChampion:!!built.data.hasChampion,
+    customLabels: built.data.customLabels||null, irregularPrefix: built.data.irregularPrefix||0 };
+  currentStConfig = st;
+  activeBracketKey = bracketKey(opState.presetId, opState.stageIdx);
+  setupExportPanel();
+  renderStageMenu();
+  saveState();
 }
 
 
@@ -4875,6 +5062,9 @@ function renderSingleElimStage(st){
   if(st.customBracket==='xuanleMain48'){
     return renderXuanleMain48Overlay(st);
   }
+  if(st.customBracket==='xuanleFinal'){
+    return renderXuanleFinalOverlay(st);
+  }
   if(st.customBracket==='kuaiqi7prelimImg' && st.count===39 && KUAIQI7_PRELIM_IMAGE_URL && KUAIQI7_PRELIM_IMAGE_URL.indexOf('PLACEHOLDER')!==0){
     return renderKuaiqi7PrelimOverlay(st);
   }
@@ -4926,7 +5116,7 @@ function renderStage(st, title){
   section.className='stage-block';
   const isOverlay = (st.customBracket==='qiwang19circle') || (st.customBracket==='qiwang20prelim') || (st.customBracket==='qiwang20fusai') || (st.customBracket==='guoshou22') || (st.customBracket==='qiwang20qualifier') || (st.customBracket==='zhonghuan69')
     || (st.customBracket==='kuaiqi7prelimImg' && st.count===39 && KUAIQI7_PRELIM_IMAGE_URL && KUAIQI7_PRELIM_IMAGE_URL.indexOf('PLACEHOLDER')!==0)
-    || st.customBracket==='xuanlePrelim' || st.customBracket==='xuanleMain48';
+    || st.customBracket==='xuanlePrelim' || st.customBracket==='xuanleMain48' || st.customBracket==='xuanleFinal';
   if(!isOverlay){
     const header=document.createElement('div');
     header.className='stage-header';
@@ -5042,6 +5232,8 @@ function toggleWinner(stageId, matchId, slotIndex){
       clearSlotDownstream(stageId, match.loserAdvanceTo.matchId, match.loserAdvanceTo.slotIndex);
     }
   }
+  /* 沒有晉級去向、但畫面要畫勝負結果的（玄樂盃決賽「某某 勝」），標完/取消都要重畫 */
+  if(match.redrawOnToggle && zhRedrawFns[stageId]) zhRedrawFns[stageId]();
   saveState();
 }
 function clearSlotDownstream(stageId, matchId, slotIndex){
@@ -5378,6 +5570,11 @@ function renderStageEntry(){
     generateQiwang19Stage();
     return;
   }
+  /* 玄樂盃決賽：兩人姓名印在底圖上，一樣跳過填選手 */
+  if(stageDef.customBracket==='xuanleFinal'){
+    generateXuanleFinalStage();
+    return;
+  }
 
   /* 棋王挑戰賽七番勝負：不是「貼一份籤號 姓名名單」那種多人賽事，固定就只有2位選手，
      用專屬的兩個姓名欄位取代通用的textarea貼名單流程，比較不會誤會成要貼一串籤號清單。 */
@@ -5537,7 +5734,8 @@ function showExistingStage(key, stageDef){
   const box=document.createElement('div');
   box.innerHTML =
     '<p class="hint" style="margin-top:0;">「'+escapeHtml(stageDef.name)+'」已經有資料，下面顯示的就是目前的賽程表，可以直接繼續記錄勝負。'+
-      (MANUAL_EDIT_BRACKETS.indexOf(stageDef.customBracket)!==-1 ? '<br>特殊情況（例如雙方都沒到要寫「棄」）：在格子上按<b>滑鼠右鍵</b>可以直接修改那一格的文字。' : '')+'</p>'+
+      (MANUAL_EDIT_BRACKETS.indexOf(stageDef.customBracket)!==-1 ? '<br>特殊情況（例如雙方都沒到要寫「棄」）：在格子上按<b>滑鼠右鍵</b>可以直接修改那一格的文字。' : '')+
+      (stageDef.customBracket==='xuanleFinal' ? '<br>記錄勝負：點該局灰色欄的<b>左半邊＝'+XUANLE_FINAL_NAMES[0]+'勝</b>、<b>右半邊＝'+XUANLE_FINAL_NAMES[1]+'勝</b>，接著輸入成績（例：白中盤勝）；再點一次取消；成績打錯在欄上按<b>滑鼠右鍵</b>修改。' : '')+'</p>'+
     '<div class="setup-actions"><button type="button" class="btn secondary small" onclick="confirmRegenerateStage()">重新輸入名單（會清除本階段目前資料）</button></div>';
   area.appendChild(box);
   document.getElementById('printBar').style.display='flex';
@@ -6006,7 +6204,9 @@ function pubRoundText(struct, r){
 const PUB_DEFAULT_DATES = {
   zhonghuan69: { '1回賽':'2026-09-04', '2回賽':'2026-09-11', '3回賽':'2026-09-18', '16強賽':'2026-10-16 11:00', '8強賽':'2026-10-23 11:00', '4強賽':'2026-10-30 11:00' },
   guoshou22: { '1回賽':'2026-09-07', '2回賽':'2026-09-14', '3回賽':'2026-09-21', '16強賽':'2026-10-05', '8強賽':'2026-11-02 11:00', '4強賽':'2026-11-09 11:00', '挑戰者決定賽':'2026-11-16 11:00' },
-  xuanleMain48: { '48強':'2026-09-10', '32強':'2026-09-17', '16強':'2026-10-01', '8強':'2026-10-08', '4強':'2026-10-15', '決賽':'2026-10-22 11:00' },
+  /* 本賽的「決賽」2026-10-21 起改由獨立的「決賽」階段（xuanleFinal，一局一筆、各局各自標勝方）送，這裡拿掉免得重複 */
+  xuanleMain48: { '48強':'2026-09-10', '32強':'2026-09-17', '16強':'2026-10-01', '8強':'2026-10-08', '4強':'2026-10-15' },
+  xuanleFinal: { '第1局':'2026-10-22 11:00', '第2局':'2026-10-29 11:00', '第3局':'2026-11-05 11:00', '第4局':'2026-11-26 11:00', '第5局':'2026-12-03 11:00' },
   qiwang20prelim: {
     '勝部1回 (1~28號)':'2026-09-29 10:00', '勝部2回 (1~28號)':'2026-09-29 14:00', '敗部1回 (1~28號)':'2026-09-29 14:00',
     '勝部1回 (29~56號)':'2026-10-06 10:00', '勝部2回 (29~56號)':'2026-10-06 14:00', '敗部1回 (29~56號)':'2026-10-06 14:00',
@@ -6017,6 +6217,7 @@ const PUB_DEFAULT_DATES = {
 /* 開賽時間（2026-10-19 使用者確認）：中環碁聖、中環國手、玄樂盃決賽、棋王循環圈、棋王複賽都是 11:00。
    上面已經寫在各輪日期後面；循環圈的日期是從輪次標籤讀的，時間另外在這裡給。已經比完的早期輪次沒問，就不填。 */
 const PUB_LABEL_DATE_TIME = { qiwang19circle: '11:00' };
+const PUB_SERIES_WINS = { xuanleFinal: 3 }; /* 五番勝負先拿3勝 */
 function pubSessionsOf(rec, r){
   const v = PUB_DEFAULT_DATES[rec.stConfig && rec.stConfig.customBracket];
   const t = v && v[r.label];
@@ -6092,6 +6293,16 @@ function buildPublicPairings(brackets){
     const eventName = preset.label.replace(/\s+/g,'') || struct.event;
     const st = { stageName: String(struct.stageName||'').replace(/^第\d+屆\s*/,'') };
     let count = 0;
+    /* 一局一個對局的番棋（玄樂盃決賽）：有人先拿到該拿的勝場就結束，後面還沒下的局不送 */
+    const seriesNeed = PUB_SERIES_WINS[rec.stConfig && rec.stConfig.customBracket];
+    let seriesOver = false;
+    if(seriesNeed){
+      const wins = {};
+      struct.rounds.forEach(function(r){ r.ids.forEach(function(mid){
+        const g = pubGame(stageId, mid, dom, struct.adv);
+        if(g && g.winner){ wins[g.winner] = (wins[g.winner]||0)+1; if(wins[g.winner]>=seriesNeed) seriesOver = true; }
+      }); });
+    }
     struct.rounds.forEach(function(r){
       const sessions = pubSessionsOf(rec, r);
       if(!sessions.length) return;
@@ -6113,6 +6324,7 @@ function buildPublicPairings(brackets){
       r.ids.forEach(function(mid, i){
         const g = pubGame(stageId, mid, dom, struct.adv);
         if(!g) return;
+        if(seriesOver && !g.winner) return;
         /* 還有空格：倒推可能會來的人（candidates），官網才知道這一場要顯示給誰看（「若晉級」） */
         let cands = [];
         if(!g.a || !g.b){
@@ -6508,6 +6720,13 @@ function applyScoreItems(sess, items){
     /* 套用前再檢查一次：同一批裡前面的局晉級後可能改到這場（理論上同一輪不會，保險起見） */
     if(matchIsDecided(stageId,it.matchId)) { it.status = slotIsWinner(stageId,it.matchId,it.slotIdx) ? 'already' : 'problem'; return; }
     toggleWinner(stageId, it.matchId, it.slotIdx);
+    /* 玄樂盃決賽：欄上要寫「持白中盤勝」，照片上知道勝方執黑或執白，先幫忙填顏色再問勝法 */
+    if(currentStConfig && currentStConfig.customBracket==='xuanleFinal'){
+      const gIdx = parseInt(String(it.matchId).replace('xf_g',''),10)-1;
+      const win = normPlayerName(it.game && it.game.winner);
+      const color = win && win===normPlayerName(it.game.black) ? '黑' : (win && win===normPlayerName(it.game.white) ? '白' : '');
+      if(gIdx>=0) xuanleFinalAskRes(stageId, gIdx, color);
+    }
     it.status='applied';
     applied++;
   });
@@ -6697,6 +6916,16 @@ function printRoundScoreSheet(){
      對不上，另外寫一支專用的列印函式處理。 */
   if(currentStConfig && currentStConfig.customBracket==='qiwang20fusai'){
     printQiwang20FusaiScoreSheet(idx);
+    return;
+  }
+  /* 玄樂盃決賽（獨立階段）：選哪一局都印五局長版 */
+  if(currentStConfig && currentStConfig.customBracket==='xuanleFinal'){
+    const sid=currentBracket.stageId;
+    const games=XUANLE_FINAL_BAR.ys.map(function(_, g){
+      const mid='xf_g'+(g+1);
+      return { n0:getSlotName(sid,mid,0), n1:getSlotName(sid,mid,1) };
+    });
+    printSeriesScoreSheet(currentBracket.title+'　決賽五番勝負　成績紀錄表', '決賽', games);
     return;
   }
   const round=currentBracket.rounds[idx];
@@ -7229,6 +7458,10 @@ function downloadBracketSVG(){
   }
   if(currentStConfig && currentStConfig.customBracket==='qiwang20qualifier'){
     downloadQiwang20QualifierComposite();
+    return;
+  }
+  if(currentStConfig && currentStConfig.customBracket==='xuanleFinal'){
+    downloadXuanleFinalComposite();
     return;
   }
   if(currentStConfig && currentStConfig.customBracket==='zhonghuan69'){
