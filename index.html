@@ -2924,18 +2924,29 @@ function drawLongxing2(ctx, rootEl, stageId, W, H){
     if(slotEl.classList.contains('lx-champ-slot')) drawNameHorizontal(ctx, name, x, y, w, h);
     else drawZhName(ctx, name, x, y, w, h, font);
   });
+  /* 2026-10-27 使用者要求三局的名字、成績各自上下對齊：固定兩欄，名字欄留3個字寬（4個字的名字自動壓扁）、
+     成績欄留「持黑11.5目勝」的寬度（最長的情況），三局用同一個字級，整塊在紅字後面的空間置中 */
   const B = LONGXING2_BAR;
-  B.ys.forEach(function(by, g){
-    const text = longxing2ResultText(stageId, g);
-    if(!text) return;
-    const x = B.tx/LONGXING2_BOX.W*W, w = (B.x1-B.tx)/LONGXING2_BOX.W*W;
-    const y = by/LONGXING2_BOX.H*H, h = B.h/LONGXING2_BOX.H*H;
-    let fs = Math.round(h*0.62);
+  const x = B.tx/LONGXING2_BOX.W*W, w = (B.x1-B.tx)/LONGXING2_BOX.W*W, h = B.h/LONGXING2_BOX.H*H;
+  let fs = Math.round(h*0.62), nameW, gap, resW;
+  for(;;){
     ctx.font = '700 '+fs+'px '+family;
-    while(fs>8 && ctx.measureText(text).width > w*0.94){ fs--; ctx.font = '700 '+fs+'px '+family; }
-    ctx.fillStyle = '#1f2d5c';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(text, x+w/2, y+h/2+h*0.03);
+    nameW = ctx.measureText('曾品傑').width; gap = fs*0.9; resW = ctx.measureText('持黑11.5目勝').width;
+    if(fs<=8 || nameW+gap+resW <= w*0.96) break;
+    fs--;
+  }
+  const x0 = x + (w-(nameW+gap+resW))/2;
+  ctx.fillStyle = '#1f2d5c';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  B.ys.forEach(function(by, g){
+    const i = longxing2WinnerIdx(stageId, g);
+    if(i<0) return;
+    const who = getSlotName(stageId, 'lx_g'+(g+1), i);
+    if(!who) return;
+    const res = longxing2GetRes(stageId, g);
+    const cy = by/LONGXING2_BOX.H*H + h/2 + h*0.03;
+    ctx.fillText(who, x0, cy, nameW);
+    ctx.fillText(res ? '持'+res : '勝', x0+nameW+gap, cy, resW);
   });
 }
 function renderLongxing2Overlay(st){
