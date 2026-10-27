@@ -576,6 +576,16 @@ const PRESET_TOURNAMENTS = [
     ]
   },
   {
+    /* 2026-10-27：固定32人單淘汰，決賽是中央三條灰欄的三番勝負（見 renderLongxing2Overlay）。 */
+    id: 'longxing2',
+    label: '第2屆 龍星賽',
+    title: '龍星賽',
+    org: '中華職業圍棋協會／海峰棋院',
+    stages: [
+      { name:'本賽', type:'single', defaultCount:32, pairing:'sequential', advance:'', customBracket:'longxing2' }
+    ]
+  },
+  {
     id: 'kuaiqi7',
     label: '第七屆快棋爭霸戰',
     title: '第七屆快棋爭霸戰',
@@ -1021,6 +1031,7 @@ const XUANLE_PRELIM_IMAGE_URL = 'images/xuanle_prelim.jpg';
 const XUANLE_MAIN48_IMAGE_URL = 'images/xuanle_main48.jpg';
 const XUANLE_FINAL_IMAGE_URL = 'images/xuanle_final.jpg';
 const QIXIAN2_IMAGE_URL = 'images/qixian2.jpg';
+const LONGXING2_IMAGE_URL = 'images/longxing2.jpg';
 const ZH69_IMAGE_URL = 'images/zhonghuan69.jpg';
 /* 畫面上顯示用輕量版底圖（images/view/，寬2000像素，由 工具\產生畫面用輕量底圖.py 產生），
    開頁面快很多；下載賽程圖（downloadXxxComposite）仍用上面這些原圖，下載品質不變。 */
@@ -1034,7 +1045,7 @@ const FULL_IMAGE_WIDTHS = {
   'images/guoshou22.jpg':6532, 'images/qiwang19.jpg':3269, 'images/qiwang20_fusai.jpg':6539,
   'images/qiwang20_prelim.jpg':6418, 'images/qiwang20_qualifier.jpg':1038, 'images/xuanle_main48.jpg':6539,
   'images/xuanle_prelim.jpg':3968, 'images/zhonghuan69.jpg':6532, 'images/xuanle_final.jpg':2646,
-  'images/qixian2.jpg':2309
+  'images/qixian2.jpg':2309, 'images/longxing2.jpg':3402
 };
 function fullImageWidth(url, img){ return FULL_IMAGE_WIDTHS[url] || img.naturalWidth; }
 
@@ -2794,6 +2805,259 @@ function downloadQixian2Composite(){
     }, 'image/jpeg', 0.88);
   };
   img.src = viewImageUrl(QIXIAN2_IMAGE_URL);
+}
+
+/* ============ 第2屆龍星賽（2026-10-27）============
+   底圖 images/longxing2.jpg（原圖 3402×3402），固定32人單淘汰（籤號01~32，01對02、03對04…）：
+   32強→16強→8強→4強→決賽兩格（lx_fin，不能點）→最上面冠軍格（lx_champ）。
+   決賽是中央三條灰欄的三番勝負：每局一場 match（lx_g1~lx_g3），兩人由 lx_fin 同步過去（每次重畫時做），
+   灰欄左半邊＝左邊那位勝、右半邊＝右邊那位勝，點了再輸入成績（跟玄樂盃決賽一樣），
+   欄裡「決賽第N局」字後面畫「某某　持白中盤勝」；先拿2勝的自動帶入冠軍格。
+   格子位置是用 Python 在原圖上偵測白格量的（白色內框左上角，直格 54×194）。 */
+const LONGXING2_BOX = { W:3402, H:3402, w:54, h:194 };
+const LONGXING2_ROWS = [ /* 32強、16強、8強、4強、決賽 這幾排格子的 [x,y] */
+  [81,175,266,361,468,564,655,747,841,935,1026,1121,1228,1324,1415,1508,1837,1931,2022,2116,2224,2319,2412,2504,2598,2692,2789,2884,2992,3087,3173,3265].map(function(x){ return [x,3073]; }),
+  [127,316,513,701,888,1076,1273,1462,1885,2073,2270,2458,2645,2833,3040,3219].map(function(x){ return [x,2710]; }),
+  [[224,2343],[609,2341],[985,2343],[1372,2341],[1981,2343],[2369,2341],[2742,2343],[3131,2341]],
+  [[417,1989],[1178,1987],[2175,1989],[2934,1987]],
+  [[800,1641],[2556,1641]]
+];
+const LONGXING2_CHAMP = { x:1600, y:1443, w:194, h:54 };
+const LONGXING2_BAR = { x0:1360, x1:2042, tx:1600, h:63, ys:[1657, 1735, 1813] }; /* tx＝紅字「決賽第N局」後面，成績從這裡開始畫 */
+const LONGXING2_LABELS = ['32強','16強','8強','4強'];
+function longxing2Pct(x, y, w, h){
+  const B = LONGXING2_BOX;
+  return { x:x/B.W*100, y:y/B.H*100, w:w/B.W*100, h:h/B.H*100 };
+}
+function buildLongxing2Matches(){
+  const S = function(seed){ return {seed:seed, isBye:false}; };
+  const rounds = [];
+  for(let r=0; r<4; r++){
+    const n = LONGXING2_ROWS[r].length/2, ms = [];
+    for(let k=1; k<=n; k++){
+      ms.push({ id:'lx_r'+r+'_'+k,
+        slots: r===0 ? [S(2*k-1), S(2*k)] : [S(null), S(null)],
+        advanceTo: r<3 ? {matchId:'lx_r'+(r+1)+'_'+Math.ceil(k/2), slotIndex:(k-1)%2} : {matchId:'lx_fin', slotIndex:k-1} });
+    }
+    rounds.push(ms);
+  }
+  const games = LONGXING2_BAR.ys.map(function(_, g){
+    return { id:'lx_g'+(g+1), slots:[S(null),S(null)], advanceTo:null, redrawOnToggle:true };
+  });
+  return {
+    rounds: rounds,
+    fin: { id:'lx_fin', slots:[S(null),S(null)], advanceTo:null },
+    champ: { id:'lx_champ', slots:[S(null)], advanceTo:null },
+    games: games
+  };
+}
+function longxing2ResId(stageId, g){ return 'lxres_'+stageId+'_'+(g+1); }
+function longxing2GetRes(stageId, g){
+  const el = document.getElementById(longxing2ResId(stageId, g));
+  return el ? el.value.trim() : '';
+}
+function longxing2SetRes(stageId, g, text){
+  const el = document.getElementById(longxing2ResId(stageId, g));
+  if(el) el.value = String(text||'').trim().replace(/^持/, '');
+}
+function longxing2WinnerIdx(stageId, g){
+  const mid = 'lx_g'+(g+1);
+  return slotIsWinner(stageId, mid, 0) ? 0 : (slotIsWinner(stageId, mid, 1) ? 1 : -1);
+}
+function longxing2ResultText(stageId, g){
+  const i = longxing2WinnerIdx(stageId, g);
+  if(i<0) return '';
+  const who = getSlotName(stageId, 'lx_g'+(g+1), i);
+  if(!who) return '';
+  const res = longxing2GetRes(stageId, g);
+  return res ? (who+'　持'+res) : (who+'　勝');
+}
+function longxing2AskRes(stageId, g, hint){
+  const i = longxing2WinnerIdx(stageId, g);
+  if(i<0) return;
+  const cur = longxing2GetRes(stageId, g);
+  const ans = prompt('決賽第'+(g+1)+'局　'+getSlotName(stageId, 'lx_g'+(g+1), i)+' 勝\n請輸入成績（例：白中盤勝、黑3目半勝）。不填就只顯示「勝」。', cur || hint || '');
+  if(ans===null) return;
+  longxing2SetRes(stageId, g, ans);
+  if(zhRedrawFns[stageId]) zhRedrawFns[stageId]();
+  saveState();
+}
+/* 決賽兩人 → 三局的兩格；決賽的人換了（例如4強取消重點），那一局之前標的勝負和成績就不算了。
+   再依三局勝場算冠軍格。每次重畫都跑一次，所以晉級、取消、讀存檔、📷匯入都會跟著更新。 */
+function longxing2Sync(stageId){
+  const names = [getSlotName(stageId, 'lx_fin', 0), getSlotName(stageId, 'lx_fin', 1)];
+  LONGXING2_BAR.ys.forEach(function(_, g){
+    const mid = 'lx_g'+(g+1);
+    [0,1].forEach(function(i){
+      const el = document.getElementById(inputId(stageId, mid, i));
+      if(!el || el.value.trim()===names[i]) return;
+      if(el.value.trim()){
+        [0,1].forEach(function(j){ const s = document.getElementById(slotWrapId(stageId, mid, j)); if(s) s.classList.remove('winner','loser'); });
+        longxing2SetRes(stageId, g, '');
+      }
+      el.value = names[i];
+      const b = document.getElementById(seedBadgeId(stageId, mid, i));
+      if(b) b.textContent = getSlotSeed(stageId, 'lx_fin', i);
+    });
+    [0,1].forEach(function(i){
+      const s = document.getElementById(slotWrapId(stageId, mid, i));
+      if(s) s.title = names[i] ? ('決賽第'+(g+1)+'局：點這裡標「'+names[i]+'」勝（再點一次取消；按右鍵改成績）') : '決賽兩位選手還沒確定';
+    });
+  });
+  const wins = [0,0];
+  LONGXING2_BAR.ys.forEach(function(_, g){ const i = longxing2WinnerIdx(stageId, g); if(i>=0) wins[i]++; });
+  const ci = wins[0]>=2 ? 0 : (wins[1]>=2 ? 1 : -1);
+  const cEl = document.getElementById(inputId(stageId, 'lx_champ', 0));
+  if(cEl) cEl.value = ci>=0 ? names[ci] : '';
+  const cb = document.getElementById(seedBadgeId(stageId, 'lx_champ', 0));
+  if(cb) cb.textContent = ci>=0 ? getSlotSeed(stageId, 'lx_fin', ci) : '';
+}
+function drawLongxing2(ctx, rootEl, stageId, W, H){
+  const font = computeStandardZhFontSize(LONGXING2_BOX.w/LONGXING2_BOX.W*W, LONGXING2_BOX.h/LONGXING2_BOX.H*H);
+  const family = '"Noto Sans CJK TC","Noto Sans TC","Microsoft JhengHei",sans-serif';
+  rootEl.querySelectorAll('.zh-slot.lx-name-slot').forEach(function(slotEl){
+    const inputEl = slotEl.querySelector('.zh-slot-input');
+    const name = inputEl ? inputEl.value.trim() : '';
+    if(!name) return;
+    const x = parseFloat(slotEl.style.left)/100*W, y = parseFloat(slotEl.style.top)/100*H;
+    const w = parseFloat(slotEl.style.width)/100*W, h = parseFloat(slotEl.style.height)/100*H;
+    if(slotEl.classList.contains('lx-champ-slot')) drawNameHorizontal(ctx, name, x, y, w, h);
+    else drawZhName(ctx, name, x, y, w, h, font);
+  });
+  const B = LONGXING2_BAR;
+  B.ys.forEach(function(by, g){
+    const text = longxing2ResultText(stageId, g);
+    if(!text) return;
+    const x = B.tx/LONGXING2_BOX.W*W, w = (B.x1-B.tx)/LONGXING2_BOX.W*W;
+    const y = by/LONGXING2_BOX.H*H, h = B.h/LONGXING2_BOX.H*H;
+    let fs = Math.round(h*0.62);
+    ctx.font = '700 '+fs+'px '+family;
+    while(fs>8 && ctx.measureText(text).width > w*0.94){ fs--; ctx.font = '700 '+fs+'px '+family; }
+    ctx.fillStyle = '#1f2d5c';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, x+w/2, y+h/2+h*0.03);
+  });
+}
+function renderLongxing2Overlay(st){
+  const stageId = st.id;
+  const built = buildLongxing2Matches();
+  const wrap = document.createElement('div');
+  wrap.className = 'zh-overlay-wrap';
+  wrap.style.maxWidth = '1200px';
+  const img = document.createElement('img');
+  img.src = viewImageUrl(LONGXING2_IMAGE_URL);
+  img.className = 'zh-overlay-img';
+  img.draggable = false;
+  wrap.appendChild(img);
+  attachOverlayLoadingHint(wrap, img);
+  const canvasEl = document.createElement('canvas');
+  canvasEl.className = 'zh-overlay-canvas';
+  wrap.appendChild(canvasEl);
+
+  function doRedraw(){
+    longxing2Sync(stageId);
+    if(!img.naturalWidth) return;
+    if(canvasEl.width!==img.naturalWidth || canvasEl.height!==img.naturalHeight){
+      canvasEl.width = img.naturalWidth; canvasEl.height = img.naturalHeight;
+    }
+    const ctx = canvasEl.getContext('2d');
+    ctx.clearRect(0,0,canvasEl.width,canvasEl.height);
+    drawLongxing2(ctx, wrap, stageId, canvasEl.width, canvasEl.height);
+  }
+  zhRedrawFns[stageId] = doRedraw;
+  img.addEventListener('load', doRedraw);
+
+  function addSlot(m, slotIdx, r, cls, clickable){
+    const container = document.createElement('div');
+    container.id = slotWrapId(stageId, m.id, slotIdx);
+    container.className = 'zh-slot '+cls;
+    container.style.left = r.x+'%'; container.style.top = r.y+'%';
+    container.style.width = r.w+'%'; container.style.height = r.h+'%';
+    if(!clickable) container.style.cursor = 'default';
+    const el = document.createElement('input');
+    el.type = 'text'; el.readOnly = true;
+    el.id = inputId(stageId, m.id, slotIdx);
+    el.className = 'zh-slot-input';
+    container.appendChild(el);
+    wrap.appendChild(container);
+    const badge = document.createElement('span');
+    badge.id = seedBadgeId(stageId, m.id, slotIdx);
+    badge.className = 'seed-badge';
+    badge.style.display = 'none';
+    const seed = m.slots[slotIdx].seed;
+    badge.textContent = seed!=null ? String(seed).padStart(2,'0') : '';
+    wrap.appendChild(badge);
+    return container;
+  }
+  const B = LONGXING2_BOX;
+  const boxPct = function(p){ return longxing2Pct(p[0], p[1], B.w, B.h); };
+  built.rounds.forEach(function(ms, r){
+    ms.forEach(function(m, mi){
+      matchRegistry[stageId][m.id] = m;
+      [0,1].forEach(function(slotIdx){
+        const c = addSlot(m, slotIdx, boxPct(LONGXING2_ROWS[r][mi*2+slotIdx]), 'lx-name-slot', true);
+        c.addEventListener('click', function(){ toggleWinner(stageId, m.id, slotIdx); });
+      });
+    });
+  });
+  matchRegistry[stageId][built.fin.id] = built.fin;
+  [0,1].forEach(function(slotIdx){ addSlot(built.fin, slotIdx, boxPct(LONGXING2_ROWS[4][slotIdx]), 'lx-name-slot zh-champion-slot', false); });
+  matchRegistry[stageId][built.champ.id] = built.champ;
+  const C = LONGXING2_CHAMP;
+  addSlot(built.champ, 0, longxing2Pct(C.x, C.y, C.w, C.h), 'lx-name-slot lx-champ-slot zh-champion-slot', false);
+
+  const BAR = LONGXING2_BAR;
+  built.games.forEach(function(m, g){
+    matchRegistry[stageId][m.id] = m;
+    const r = longxing2Pct(BAR.x0, BAR.ys[g], BAR.x1-BAR.x0, BAR.h);
+    [0,1].forEach(function(slotIdx){
+      const c = addSlot(m, slotIdx, {x:r.x+(slotIdx ? r.w/2 : 0), y:r.y, w:r.w/2, h:r.h}, 'xf-slot', true);
+      c.addEventListener('click', function(){
+        if(!getSlotName(stageId, m.id, slotIdx)){ alert('決賽兩位選手還沒確定（4強下完、點了勝方就會自動帶入）。'); return; }
+        const wasThis = slotIsWinner(stageId, m.id, slotIdx);
+        longxing2SetRes(stageId, g, ''); /* 取消或換人贏，舊成績都不算了 */
+        toggleWinner(stageId, m.id, slotIdx);
+        if(!wasThis) longxing2AskRes(stageId, g, '');
+      });
+      c.addEventListener('contextmenu', function(e){
+        if(longxing2WinnerIdx(stageId, g)<0) return;
+        e.preventDefault();
+        longxing2AskRes(stageId, g, '');
+      });
+    });
+    const res = document.createElement('input');
+    res.type = 'hidden'; res.className = 'mini-input';
+    res.id = longxing2ResId(stageId, g);
+    wrap.appendChild(res);
+  });
+
+  if(img.complete && img.naturalWidth){ doRedraw(); }
+  setTimeout(doRedraw, 0); /* 從存檔讀回時名字／勝方是之後才由 restoreOutputDOM 補上 */
+  return {wrap, data:{
+    rounds: built.rounds.concat(built.games.map(function(m){ return [m]; })),
+    customLabels: LONGXING2_LABELS.concat(built.games.map(function(_, g){ return '決賽第'+(g+1)+'局'; })),
+    hasChampion:false, irregularPrefix:0
+  }};
+}
+function downloadLongxing2Composite(){
+  const img = new Image();
+  img.onload = function(){
+    const W = fullImageWidth(LONGXING2_IMAGE_URL, img), H = img.naturalHeight * W / img.naturalWidth;
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, W, H);
+    drawLongxing2(ctx, document.getElementById('output'), currentBracket.stageId, W, H);
+    canvas.toBlob(function(blob){
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (currentBracket.title||'賽程圖')+'_'+(currentBracket.stageName||'')+'.jpg';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 'image/jpeg', 0.88);
+  };
+  img.src = viewImageUrl(LONGXING2_IMAGE_URL);
 }
 
 /* 決賽不用貼名單：跟 generateQiwang19Stage 一樣直接產生 */
@@ -5230,6 +5494,9 @@ function renderSingleElimStage(st){
   if(st.customBracket==='qixian2'){
     return renderQixian2Overlay(st);
   }
+  if(st.customBracket==='longxing2'){
+    return renderLongxing2Overlay(st);
+  }
   if(st.customBracket==='kuaiqi7prelimImg' && st.count===39 && KUAIQI7_PRELIM_IMAGE_URL && KUAIQI7_PRELIM_IMAGE_URL.indexOf('PLACEHOLDER')!==0){
     return renderKuaiqi7PrelimOverlay(st);
   }
@@ -5281,7 +5548,7 @@ function renderStage(st, title){
   section.className='stage-block';
   const isOverlay = (st.customBracket==='qiwang19circle') || (st.customBracket==='qiwang20prelim') || (st.customBracket==='qiwang20fusai') || (st.customBracket==='guoshou22') || (st.customBracket==='qiwang20qualifier') || (st.customBracket==='zhonghuan69')
     || (st.customBracket==='kuaiqi7prelimImg' && st.count===39 && KUAIQI7_PRELIM_IMAGE_URL && KUAIQI7_PRELIM_IMAGE_URL.indexOf('PLACEHOLDER')!==0)
-    || st.customBracket==='xuanlePrelim' || st.customBracket==='xuanleMain48' || st.customBracket==='xuanleFinal' || st.customBracket==='qixian2';
+    || st.customBracket==='xuanlePrelim' || st.customBracket==='xuanleMain48' || st.customBracket==='xuanleFinal' || st.customBracket==='qixian2' || st.customBracket==='longxing2';
   if(!isOverlay){
     const header=document.createElement('div');
     header.className='stage-header';
@@ -5770,6 +6037,9 @@ function renderStageEntry(){
     : stageDef.customBracket==='qixian2'
       ? ('<input type="hidden" id="opCount" value="16">'+
          '<p class="hint" style="margin-top:0;"><b>初選</b> 16 位照籤號貼「01 姓名」～「16 姓名」；<b>決選</b>已確定的 4 位在籤號前加「決」，寫成「決01 姓名」「決03 姓名」「決05 姓名」「決07 姓名」。決選的 02／04／06／08 由初選各組優勝自動帶入，不用貼。</p>')
+    : stageDef.customBracket==='longxing2'
+      ? ('<input type="hidden" id="opCount" value="32">'+
+         '<p class="hint" style="margin-top:0;">固定 32 個籤位，照籤號貼「01 姓名」～「32 姓名」（01 對 02、03 對 04…）。</p>')
     : stageDef.customBracket
       ? ('<input type="hidden" id="opCount" value="'+(stageDef.defaultCount||8)+'">'+
          '<p class="hint" style="margin-top:0;">這個階段套用固定底圖，人數以下面貼的名單筆數為準，不用另外填人數。</p>')
@@ -5903,6 +6173,7 @@ function showExistingStage(key, stageDef){
   box.innerHTML =
     '<p class="hint" style="margin-top:0;">「'+escapeHtml(stageDef.name)+'」已經有資料，下面顯示的就是目前的賽程表，可以直接繼續記錄勝負。'+
       (MANUAL_EDIT_BRACKETS.indexOf(stageDef.customBracket)!==-1 ? '<br>特殊情況（例如雙方都沒到要寫「棄」）：在格子上按<b>滑鼠右鍵</b>可以直接修改那一格的文字。' : '')+
+      (stageDef.customBracket==='longxing2' ? '<br>決賽三番勝負：4強打完後，兩位決賽選手會自動帶入中央三條灰欄。點該局灰欄的<b>左半邊＝左邊那位勝</b>、<b>右半邊＝右邊那位勝</b>，接著輸入成績（例：白中盤勝）；再點一次取消；成績打錯在欄上按<b>滑鼠右鍵</b>修改。先拿 2 勝的自動填進最上面的冠軍格。' : '')+
       (stageDef.customBracket==='xuanleFinal' ? '<br>記錄勝負：點該局灰色欄的<b>左半邊＝'+XUANLE_FINAL_NAMES[0]+'勝</b>、<b>右半邊＝'+XUANLE_FINAL_NAMES[1]+'勝</b>，接著輸入成績（例：白中盤勝）；再點一次取消；成績打錯在欄上按<b>滑鼠右鍵</b>修改。' : '')+'</p>'+
     '<div class="setup-actions"><button type="button" class="btn secondary small" onclick="confirmRegenerateStage()">重新輸入名單（會清除本階段目前資料）</button></div>';
   area.appendChild(box);
@@ -6379,6 +6650,11 @@ const PUB_DEFAULT_DATES = {
   guoshou22: { '1回賽':'2026-09-07', '2回賽':'2026-09-14', '3回賽':'2026-09-21', '16強賽':'2026-10-05', '8強賽':'2026-11-02 11:00', '4強賽':'2026-11-09 11:00', '挑戰者決定賽':'2026-11-16 11:00' },
   /* 本賽的「決賽」2026-10-21 起改由獨立的「決賽」階段（xuanleFinal，一局一筆、各局各自標勝方）送，這裡拿掉免得重複 */
   xuanleMain48: { '48強':'2026-09-10', '32強':'2026-09-17', '16強':'2026-10-01', '8強':'2026-10-08', '4強':'2026-10-15' },
+  /* 龍星賽8強／4強每一盤時間不同：陣列長度＝這輪對局數，第i盤配第i個（8強左到右：11/18上午、11/18下午、11/25上午、11/25下午）。
+     決賽底圖只印「12月9日 13:00」一個時間，三局都先填同一天，第2、3局時間不確定就不填 */
+  longxing2: { '32強':'2026-11-11 10:00', '16強':'2026-11-11 14:00',
+    '8強':['2026-11-18 10:00','2026-11-18 14:00','2026-11-25 10:00','2026-11-25 14:00'], '4強':['2026-12-02 10:00','2026-12-02 14:00'],
+    '決賽第1局':'2026-12-09 13:00', '決賽第2局':'2026-12-09', '決賽第3局':'2026-12-09' },
   qixian2: { '初選1回':'2026-10-28 10:00', '初選2回':'2026-10-28 14:00', '決選四強':'2026-11-04 10:00', '決選決賽':'2026-11-04 14:00' },
   xuanleFinal: { '第1局':'2026-10-22 11:00', '第2局':'2026-10-29 11:00', '第3局':'2026-11-05 11:00', '第4局':'2026-11-26 11:00', '第5局':'2026-12-03 11:00' },
   qiwang20prelim: {
@@ -6391,7 +6667,8 @@ const PUB_DEFAULT_DATES = {
 /* 開賽時間（2026-10-19 使用者確認）：中環碁聖、中環國手、玄樂盃決賽、棋王循環圈、棋王複賽都是 11:00。
    上面已經寫在各輪日期後面；循環圈的日期是從輪次標籤讀的，時間另外在這裡給。已經比完的早期輪次沒問，就不填。 */
 const PUB_LABEL_DATE_TIME = { qiwang19circle: '11:00' };
-const PUB_SERIES_WINS = { xuanleFinal: 3 }; /* 五番勝負先拿3勝 */
+/* 番棋先拿幾勝；整個階段都是番棋的寫數字，只有後面幾輪是番棋的（龍星賽決賽）寫 {need, label:輪次文字的規則} */
+const PUB_SERIES_WINS = { xuanleFinal: 3, longxing2: {need:2, label:/^決賽第\d局$/} }; /* 五番勝負先拿3勝；三番勝負先拿2勝 */
 function pubSessionsOf(rec, r){
   const v = PUB_DEFAULT_DATES[rec.stConfig && rec.stConfig.customBracket];
   const t = v && v[r.label];
@@ -6438,6 +6715,7 @@ function pubCandidates(stageId, dom, struct, mid, slot){
     if(depth > 10) return;
     let feeders = rev[m+'|'+s];
     if(!feeders && /^zh69_game\d$/.test(m)) feeders = rev['zh69_136|'+s];
+    if(!feeders && /^lx_g\d$/.test(m)) feeders = rev['lx_fin|'+s]; /* 龍星賽決賽三局，一樣從決賽兩格同步 */
     (feeders||[]).forEach(function(f){
       if(seenMatch[f+'|'+m+'|'+s]) return; seenMatch[f+'|'+m+'|'+s] = true;
       [0,1].forEach(function(i){
@@ -6468,11 +6746,14 @@ function buildPublicPairings(brackets){
     const st = { stageName: String(struct.stageName||'').replace(/^第\d+屆\s*/,'') };
     let count = 0;
     /* 一局一個對局的番棋（玄樂盃決賽）：有人先拿到該拿的勝場就結束，後面還沒下的局不送 */
-    const seriesNeed = PUB_SERIES_WINS[rec.stConfig && rec.stConfig.customBracket];
+    const seriesCfg = PUB_SERIES_WINS[rec.stConfig && rec.stConfig.customBracket];
+    const seriesNeed = seriesCfg && (seriesCfg.need || seriesCfg);
+    const seriesLabel = seriesCfg && seriesCfg.label;
+    const isSeriesRound = function(r){ return !seriesLabel || seriesLabel.test(String(r.label)); };
     let seriesOver = false;
     if(seriesNeed){
       const wins = {};
-      struct.rounds.forEach(function(r){ r.ids.forEach(function(mid){
+      struct.rounds.filter(isSeriesRound).forEach(function(r){ r.ids.forEach(function(mid){
         const g = pubGame(stageId, mid, dom, struct.adv);
         if(g && g.winner){ wins[g.winner] = (wins[g.winner]||0)+1; if(wins[g.winner]>=seriesNeed) seriesOver = true; }
       }); });
@@ -6498,7 +6779,7 @@ function buildPublicPairings(brackets){
       r.ids.forEach(function(mid, i){
         const g = pubGame(stageId, mid, dom, struct.adv);
         if(!g) return;
-        if(seriesOver && !g.winner) return;
+        if(seriesOver && !g.winner && isSeriesRound(r)) return;
         /* 還有空格：倒推可能會來的人（candidates），官網才知道這一場要顯示給誰看（「若晉級」） */
         let cands = [];
         if(!g.a || !g.b){
@@ -6901,6 +7182,12 @@ function applyScoreItems(sess, items){
       const color = win && win===normPlayerName(it.game.black) ? '黑' : (win && win===normPlayerName(it.game.white) ? '白' : '');
       if(gIdx>=0) xuanleFinalAskRes(stageId, gIdx, color);
     }
+    if(currentStConfig && currentStConfig.customBracket==='longxing2' && /^lx_g\d$/.test(it.matchId)){
+      const gIdx = parseInt(String(it.matchId).replace('lx_g',''),10)-1;
+      const win = normPlayerName(it.game && it.game.winner);
+      const color = win && win===normPlayerName(it.game.black) ? '黑' : (win && win===normPlayerName(it.game.white) ? '白' : '');
+      longxing2AskRes(stageId, gIdx, color);
+    }
     it.status='applied';
     applied++;
   });
@@ -7100,6 +7387,16 @@ function printRoundScoreSheet(){
       return { n0:getSlotName(sid,mid,0), n1:getSlotName(sid,mid,1) };
     });
     printSeriesScoreSheet(currentBracket.title+'　決賽五番勝負　成績紀錄表', '決賽', games);
+    return;
+  }
+  /* 龍星賽：選決賽第幾局都印三局長版 */
+  if(currentStConfig && currentStConfig.customBracket==='longxing2' && idx>=LONGXING2_LABELS.length){
+    const sid=currentBracket.stageId;
+    const games=LONGXING2_BAR.ys.map(function(_, g){
+      const mid='lx_g'+(g+1);
+      return { n0:getSlotName(sid,mid,0), n1:getSlotName(sid,mid,1) };
+    });
+    printSeriesScoreSheet(currentBracket.title+'　決賽三番勝負　成績紀錄表', '決賽', games);
     return;
   }
   const round=currentBracket.rounds[idx];
@@ -7640,6 +7937,10 @@ function downloadBracketSVG(){
   }
   if(currentStConfig && currentStConfig.customBracket==='qixian2'){
     downloadQixian2Composite();
+    return;
+  }
+  if(currentStConfig && currentStConfig.customBracket==='longxing2'){
+    downloadLongxing2Composite();
     return;
   }
   if(currentStConfig && currentStConfig.customBracket==='zhonghuan69'){
