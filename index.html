@@ -564,6 +564,18 @@ const PRESET_TOURNAMENTS = [
     ]
   },
   {
+    /* 2026-10-27：初選、決選畫在同一張底圖上，所以做成「一個階段」：初選16人（籤號01~16）各組優勝者
+       自動帶入決選的 02／04／06／08（底圖上的「入2/入4/入6/入8」），決選 01／03／05／07 是已經確定的4位，
+       貼名單時寫成「決01 姓名」。見 renderQixian2Overlay。 */
+    id: 'qixian2',
+    label: '第2屆 世界棋仙戰台灣代表選拔',
+    title: '世界棋仙戰台灣代表選拔',
+    org: '海峰棋院',
+    stages: [
+      { name:'選拔賽', type:'single', defaultCount:16, pairing:'sequential', advance:'', customBracket:'qixian2' }
+    ]
+  },
+  {
     id: 'kuaiqi7',
     label: '第七屆快棋爭霸戰',
     title: '第七屆快棋爭霸戰',
@@ -1008,6 +1020,7 @@ const KUAIQI7_PRELIM_IMAGE_URL = 'images/kuaiqi7_prelim.jpg';
 const XUANLE_PRELIM_IMAGE_URL = 'images/xuanle_prelim.jpg';
 const XUANLE_MAIN48_IMAGE_URL = 'images/xuanle_main48.jpg';
 const XUANLE_FINAL_IMAGE_URL = 'images/xuanle_final.jpg';
+const QIXIAN2_IMAGE_URL = 'images/qixian2.jpg';
 const ZH69_IMAGE_URL = 'images/zhonghuan69.jpg';
 /* 畫面上顯示用輕量版底圖（images/view/，寬2000像素，由 工具\產生畫面用輕量底圖.py 產生），
    開頁面快很多；下載賽程圖（downloadXxxComposite）仍用上面這些原圖，下載品質不變。 */
@@ -1020,7 +1033,8 @@ function viewImageUrl(url){ return url.replace('images/', 'images/view/'); }
 const FULL_IMAGE_WIDTHS = {
   'images/guoshou22.jpg':6532, 'images/qiwang19.jpg':3269, 'images/qiwang20_fusai.jpg':6539,
   'images/qiwang20_prelim.jpg':6418, 'images/qiwang20_qualifier.jpg':1038, 'images/xuanle_main48.jpg':6539,
-  'images/xuanle_prelim.jpg':3968, 'images/zhonghuan69.jpg':6532, 'images/xuanle_final.jpg':2646
+  'images/xuanle_prelim.jpg':3968, 'images/zhonghuan69.jpg':6532, 'images/xuanle_final.jpg':2646,
+  'images/qixian2.jpg':2309
 };
 function fullImageWidth(url, img){ return FULL_IMAGE_WIDTHS[url] || img.naturalWidth; }
 
@@ -2634,6 +2648,154 @@ function downloadXuanleFinalComposite(){
   };
   img.src = viewImageUrl(XUANLE_FINAL_IMAGE_URL);
 }
+/* ============ 第2屆世界棋仙戰台灣代表選拔（2026-10-27）============
+   底圖 images/qixian2.jpg（原圖 2309×2760），上半「決選」、下半「初選」畫在同一張：
+   - 初選 4 組各 4 人（籤號 01~04／05~08／09~12／13~16），1回→2回→組優勝（底圖「入2/入4/入6/入8」顯示格），
+     組優勝顯示格再往下傳到決選的 02／04／06／08（toggleWinner 對「單格又有 advanceTo」的顯示格會再傳一格）。
+   - 決選 01／03／05／07 是已確定的 4 位（內部籤號 101/103/105/107，貼名單寫「決01 姓名」），
+     四強→決賽→「代表」顯示格（兩位代表）。
+   格子位置是用 Python 在原圖上偵測藍框量的（左上角像素，每格 176×67）。 */
+const QIXIAN2_BOX = { W:2309, H:2760, w:176, h:67 };
+const QIXIAN2_POS = {
+  F1_0:[256,648], F1_1:[256,730], F2_0:[258,811], F2_1:[257,893], F3_0:[257,978], F3_1:[257,1059], F4_0:[258,1139], F4_1:[257,1221],
+  FS1_0:[592,689], FS1_1:[593,851], FS2_0:[593,1016], FS2_1:[592,1179],
+  REP1_0:[904,769], REP2_0:[904,1096],
+  P1a_0:[262,1714], P1a_1:[262,1796], P1b_0:[262,1875], P1b_1:[262,1957], P1f_0:[598,1753], P1f_1:[597,1916], P1c_0:[910,1833],
+  P2a_0:[262,2258], P2a_1:[262,2340], P2b_0:[262,2419], P2b_1:[262,2501], P2f_0:[598,2297], P2f_1:[597,2460], P2c_0:[910,2377],
+  P3a_0:[1339,1714], P3a_1:[1339,1796], P3b_0:[1339,1875], P3b_1:[1339,1957], P3f_0:[1675,1753], P3f_1:[1674,1916], P3c_0:[1986,1833],
+  P4a_0:[1339,2258], P4a_1:[1339,2340], P4b_0:[1339,2419], P4b_1:[1339,2501], P4f_0:[1675,2297], P4f_1:[1674,2460], P4c_0:[1986,2377]
+};
+function qixian2SeedLabel(seed){
+  if(seed==null) return '';
+  return seed>100 ? '決'+String(seed-100).padStart(2,'0') : String(seed).padStart(2,'0');
+}
+function buildQixian2Matches(){
+  const ms=[];
+  const S=function(seed){ return {seed:seed, isBye:false}; };
+  for(let k=1;k<=4;k++){
+    const b=(k-1)*4;
+    ms.push({id:'P'+k+'a', slots:[S(b+1),S(b+2)], advanceTo:{matchId:'P'+k+'f', slotIndex:0}});
+    ms.push({id:'P'+k+'b', slots:[S(b+3),S(b+4)], advanceTo:{matchId:'P'+k+'f', slotIndex:1}});
+    ms.push({id:'P'+k+'f', slots:[S(null),S(null)], advanceTo:{matchId:'P'+k+'c', slotIndex:0}});
+    ms.push({id:'P'+k+'c', slots:[S(null)], advanceTo:{matchId:'F'+k, slotIndex:1}}); /* 入2/入4/入6/入8 */
+  }
+  for(let k=1;k<=4;k++){
+    ms.push({id:'F'+k, slots:[S(100+2*k-1),S(null)], advanceTo:{matchId:'FS'+Math.ceil(k/2), slotIndex:(k-1)%2}});
+  }
+  ms.push({id:'FS1', slots:[S(null),S(null)], advanceTo:{matchId:'REP1', slotIndex:0}});
+  ms.push({id:'FS2', slots:[S(null),S(null)], advanceTo:{matchId:'REP2', slotIndex:0}});
+  ms.push({id:'REP1', slots:[S(null)], advanceTo:null});
+  ms.push({id:'REP2', slots:[S(null)], advanceTo:null});
+  return ms;
+}
+function buildQixian2PrintRounds(byId){
+  const pick=function(ids){ return ids.map(function(id){ return byId[id]; }); };
+  return {
+    rounds:[
+      pick(['P1a','P1b','P2a','P2b','P3a','P3b','P4a','P4b']),
+      pick(['P1f','P2f','P3f','P4f']),
+      pick(['F1','F2','F3','F4']),
+      pick(['FS1','FS2'])
+    ],
+    customLabels:['初選1回','初選2回','決選四強','決選決賽']
+  };
+}
+function renderQixian2Overlay(st){
+  const stageId = st.id;
+  const allMatches = buildQixian2Matches();
+  const byId = {};
+  const wrap = document.createElement('div');
+  wrap.className = 'zh-overlay-wrap';
+  wrap.style.maxWidth = '1100px';
+  const img = document.createElement('img');
+  img.src = viewImageUrl(QIXIAN2_IMAGE_URL);
+  img.className = 'zh-overlay-img';
+  img.draggable = false;
+  wrap.appendChild(img);
+  attachOverlayLoadingHint(wrap, img);
+  const canvasEl = document.createElement('canvas');
+  canvasEl.className = 'zh-overlay-canvas';
+  wrap.appendChild(canvasEl);
+
+  function doRedraw(){
+    if(!img.naturalWidth) return;
+    if(canvasEl.width!==img.naturalWidth || canvasEl.height!==img.naturalHeight){
+      canvasEl.width = img.naturalWidth; canvasEl.height = img.naturalHeight;
+    }
+    const ctx = canvasEl.getContext('2d');
+    ctx.clearRect(0,0,canvasEl.width,canvasEl.height);
+    drawQixian2Names(ctx, wrap, canvasEl.width, canvasEl.height);
+  }
+  zhRedrawFns[stageId] = doRedraw;
+  img.addEventListener('load', doRedraw);
+
+  allMatches.forEach(function(m){
+    byId[m.id] = m;
+    matchRegistry[stageId][m.id] = m;
+    m.slots.forEach(function(slot, slotIdx){
+      const key = m.id+'_'+slotIdx;
+      const p = QIXIAN2_POS[key];
+      if(!p) return;
+      const isDisplayOnly = m.slots.length===1;
+      const container = document.createElement('div');
+      container.id = slotWrapId(stageId, m.id, slotIdx);
+      container.className = 'zh-slot' + (isDisplayOnly ? ' zh-champion-slot' : '');
+      container.dataset.zhKey = key;
+      container.style.left = (p[0]/QIXIAN2_BOX.W*100)+'%'; container.style.top = (p[1]/QIXIAN2_BOX.H*100)+'%';
+      container.style.width = (QIXIAN2_BOX.w/QIXIAN2_BOX.W*100)+'%'; container.style.height = (QIXIAN2_BOX.h/QIXIAN2_BOX.H*100)+'%';
+      const el = document.createElement('input');
+      el.type = 'text'; el.readOnly = true;
+      el.id = inputId(stageId, m.id, slotIdx);
+      el.className = 'zh-slot-input' + (isDisplayOnly ? ' zh-champion-input' : '');
+      if(!isDisplayOnly){ container.addEventListener('click', function(){ toggleWinner(stageId, m.id, slotIdx); }); }
+      container.appendChild(el);
+      wrap.appendChild(container);
+      const badge = document.createElement('span');
+      badge.id = seedBadgeId(stageId, m.id, slotIdx);
+      badge.className = 'seed-badge';
+      badge.style.display = 'none';
+      badge.textContent = qixian2SeedLabel(slot.seed);
+      wrap.appendChild(badge);
+    });
+  });
+
+  if(img.complete && img.naturalWidth){ doRedraw(); }
+  setTimeout(doRedraw, 0); /* 從存檔讀回時名字是之後才由 restoreOutputDOM 補上 */
+  const pr = buildQixian2PrintRounds(byId);
+  return {wrap, data:{rounds:pr.rounds, customLabels:pr.customLabels, hasChampion:false, irregularPrefix:0}};
+}
+function drawQixian2Names(ctx, rootEl, W, H){
+  rootEl.querySelectorAll('.zh-slot').forEach(function(slotEl){
+    const inputEl = slotEl.querySelector('.zh-slot-input');
+    if(!inputEl) return;
+    const name = inputEl.value.trim();
+    if(!name) return;
+    const x = parseFloat(slotEl.style.left)/100*W, y = parseFloat(slotEl.style.top)/100*H;
+    const w = parseFloat(slotEl.style.width)/100*W, h = parseFloat(slotEl.style.height)/100*H;
+    drawNameHorizontal(ctx, name, x, y, w, h);
+  });
+}
+function downloadQixian2Composite(){
+  const img = new Image();
+  img.onload = function(){
+    const W = fullImageWidth(QIXIAN2_IMAGE_URL, img), H = img.naturalHeight * W / img.naturalWidth;
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, W, H);
+    drawQixian2Names(ctx, document.getElementById('output'), W, H);
+    canvas.toBlob(function(blob){
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (currentBracket.title||'賽程圖')+'_'+(currentBracket.stageName||'')+'.jpg';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 'image/jpeg', 0.88);
+  };
+  img.src = viewImageUrl(QIXIAN2_IMAGE_URL);
+}
+
 /* 決賽不用貼名單：跟 generateQiwang19Stage 一樣直接產生 */
 function generateXuanleFinalStage(){
   const preset=PRESET_TOURNAMENTS.find(function(p){return p.id===opState.presetId;});
@@ -5065,6 +5227,9 @@ function renderSingleElimStage(st){
   if(st.customBracket==='xuanleFinal'){
     return renderXuanleFinalOverlay(st);
   }
+  if(st.customBracket==='qixian2'){
+    return renderQixian2Overlay(st);
+  }
   if(st.customBracket==='kuaiqi7prelimImg' && st.count===39 && KUAIQI7_PRELIM_IMAGE_URL && KUAIQI7_PRELIM_IMAGE_URL.indexOf('PLACEHOLDER')!==0){
     return renderKuaiqi7PrelimOverlay(st);
   }
@@ -5116,7 +5281,7 @@ function renderStage(st, title){
   section.className='stage-block';
   const isOverlay = (st.customBracket==='qiwang19circle') || (st.customBracket==='qiwang20prelim') || (st.customBracket==='qiwang20fusai') || (st.customBracket==='guoshou22') || (st.customBracket==='qiwang20qualifier') || (st.customBracket==='zhonghuan69')
     || (st.customBracket==='kuaiqi7prelimImg' && st.count===39 && KUAIQI7_PRELIM_IMAGE_URL && KUAIQI7_PRELIM_IMAGE_URL.indexOf('PLACEHOLDER')!==0)
-    || st.customBracket==='xuanlePrelim' || st.customBracket==='xuanleMain48' || st.customBracket==='xuanleFinal';
+    || st.customBracket==='xuanlePrelim' || st.customBracket==='xuanleMain48' || st.customBracket==='xuanleFinal' || st.customBracket==='qixian2';
   if(!isOverlay){
     const header=document.createElement('div');
     header.className='stage-header';
@@ -5602,6 +5767,9 @@ function renderStageEntry(){
     (stageDef.customBracket==='xuanleMain48'
       ? ('<input type="hidden" id="opCount" value="'+(stageDef.defaultCount||48)+'">'+
          '<p class="hint" style="margin-top:0;">這個階段固定 48 個籤位。已經在「初賽」決出優勝的選手會自動帶入對應籤位，不用重複貼上；其餘（種子／直接晉級）選手，用「籤號 姓名」貼在下面即可，沒有的籤號可以先留空、之後再補。</p>')
+    : stageDef.customBracket==='qixian2'
+      ? ('<input type="hidden" id="opCount" value="16">'+
+         '<p class="hint" style="margin-top:0;"><b>初選</b> 16 位照籤號貼「01 姓名」～「16 姓名」；<b>決選</b>已確定的 4 位在籤號前加「決」，寫成「決01 姓名」「決03 姓名」「決05 姓名」「決07 姓名」。決選的 02／04／06／08 由初選各組優勝自動帶入，不用貼。</p>')
     : stageDef.customBracket
       ? ('<input type="hidden" id="opCount" value="'+(stageDef.defaultCount||8)+'">'+
          '<p class="hint" style="margin-top:0;">這個階段套用固定底圖，人數以下面貼的名單筆數為準，不用另外填人數。</p>')
@@ -5767,10 +5935,14 @@ function parseEntrants(text){
 function generateStage(){
   const preset=PRESET_TOURNAMENTS.find(function(p){return p.id===opState.presetId;});
   const stageDef=preset.stages[opState.stageIdx];
-  const entrants=parseEntrants(document.getElementById('opEntrants').value);
+  let entrantsText=document.getElementById('opEntrants').value;
+  /* 棋仙戰：決選已確定的選手寫「決01 姓名」，內部籤號用 101~108，跟初選的 01~16 分開 */
+  const isQixian = stageDef.customBracket==='qixian2';
+  if(isQixian) entrantsText = entrantsText.replace(/^(\s*)決選?\s*0*(\d+)/gm, function(_, sp, n){ return sp+(100+parseInt(n,10)); });
+  const entrants=parseEntrants(entrantsText);
   if(entrants.length===0){ alert('請貼上至少一位參賽選手，格式：籤號 姓名（例如「01 賴均輔」）'); return; }
   const dupSeeds=entrants.map(function(e){return e.seed;}).filter(function(s,i,arr){return arr.indexOf(s)!==i;});
-  if(dupSeeds.length>0){ alert('籤號重複：'+Array.from(new Set(dupSeeds)).join('、')+'，請修正後再產生。'); return; }
+  if(dupSeeds.length>0){ alert('籤號重複：'+Array.from(new Set(dupSeeds)).map(function(s){ return isQixian ? qixian2SeedLabel(s) : s; }).join('、')+'，請修正後再產生。'); return; }
   /* 底圖疊字模式的「人數」欄位本身不給使用者手動改（見上面「這個階段套用固定底圖」那段提示），
      不看「參賽人數」這個手動欄位——欄位沒改對是很常見的操作失誤，之前就因為這樣悄悄退回沒有底圖的通用畫法，
      使用者完全看不出來哪裡錯了。
@@ -5804,10 +5976,11 @@ function generateStage(){
 
   let filled=0; const notFound=[];
   entrants.forEach(function(e){
-    if(e.seed>count){ notFound.push(e.seed); return; }
+    const label = isQixian ? qixian2SeedLabel(e.seed) : e.seed;
+    if(e.seed>count && !(isQixian && e.seed>100)){ notFound.push(label); return; }
     const loc=findSeedSlotLocation(id, e.seed);
     if(loc){ setSlotName(id, loc.matchId, loc.slotIndex, e.name); filled++; }
-    else notFound.push(e.seed);
+    else notFound.push(label);
   });
   let msg='已產生「'+stageDef.name+'」，成功帶入 '+filled+' 位選手。';
   if(notFound.length>0){ msg += '\n找不到對應籤位的號碼（可能超過參賽人數上限）：'+notFound.join('、'); }
@@ -6206,6 +6379,7 @@ const PUB_DEFAULT_DATES = {
   guoshou22: { '1回賽':'2026-09-07', '2回賽':'2026-09-14', '3回賽':'2026-09-21', '16強賽':'2026-10-05', '8強賽':'2026-11-02 11:00', '4強賽':'2026-11-09 11:00', '挑戰者決定賽':'2026-11-16 11:00' },
   /* 本賽的「決賽」2026-10-21 起改由獨立的「決賽」階段（xuanleFinal，一局一筆、各局各自標勝方）送，這裡拿掉免得重複 */
   xuanleMain48: { '48強':'2026-09-10', '32強':'2026-09-17', '16強':'2026-10-01', '8強':'2026-10-08', '4強':'2026-10-15' },
+  qixian2: { '初選1回':'2026-10-28 10:00', '初選2回':'2026-10-28 14:00', '決選四強':'2026-11-04 10:00', '決選決賽':'2026-11-04 14:00' },
   xuanleFinal: { '第1局':'2026-10-22 11:00', '第2局':'2026-10-29 11:00', '第3局':'2026-11-05 11:00', '第4局':'2026-11-26 11:00', '第5局':'2026-12-03 11:00' },
   qiwang20prelim: {
     '勝部1回 (1~28號)':'2026-09-29 10:00', '勝部2回 (1~28號)':'2026-09-29 14:00', '敗部1回 (1~28號)':'2026-09-29 14:00',
@@ -7462,6 +7636,10 @@ function downloadBracketSVG(){
   }
   if(currentStConfig && currentStConfig.customBracket==='xuanleFinal'){
     downloadXuanleFinalComposite();
+    return;
+  }
+  if(currentStConfig && currentStConfig.customBracket==='qixian2'){
+    downloadQixian2Composite();
     return;
   }
   if(currentStConfig && currentStConfig.customBracket==='zhonghuan69'){
