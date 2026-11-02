@@ -13,6 +13,10 @@
      r = { name, rank, total:{n,win,loss,rate,bn,bwin,wn,wwin}, years:[{year, ...同total}], games:[...] }
      games 每局 = { year, date, c1, c2, event, stage, black, white, winner, margin, color('黑'/'白'), opponent, won }
 
+   升段進度（2026-11-02 新增）：
+     HaifongResults.renderDan('#myDan', '賴均輔')       現成畫面：目前段位、升X段還差幾勝、進度條
+     HaifongResults.dan('賴均輔').then(function (d) { ... })   只要資料（欄位見 danProgress 說明）
+
    資料直接讀成績系統的公開資料（Firestore 公開唯讀），不需要登入、不需要金鑰。
    算法跟成績系統查詢頁一樣：勝方欄＝這位棋士才算勝，其他都算敗。
    ========================================================================== */
@@ -167,5 +171,94 @@
     });
   }
 
-  window.HaifongResults = { load: loadAll, player: player, render: render };
+  /* ---- 升段進度（2026-11-02）----
+     跟成績系統「升段提醒」同一套算法：
+       還差幾勝 ＝ 升段需要勝場 －（結算日期已達成的勝場 ＋ 結算日期「之後」到今天（台灣時間）的勝局）
+       國內、國際、正式、限制都算；交流賽不算。
+     段位資料 results/danPlayers [[姓名, 目前段位, 結算日期, 已達成勝場]]、升段規則 results/danRules [[段位, 需要勝場]]
+     院方隨時會改（升段、改結算日），所以每次都重讀、不快取（兩份都很小）。 */
+  var DAN_ORDER = ['初段', '二段', '三段', '四段', '五段', '六段', '七段', '八段', '九段'];
+  var DEFAULT_DAN_RULES = [['初段', 20], ['二段', 30], ['三段', 50], ['四段', 60], ['五段', 70], ['六段', 100], ['七段', 110], ['八段', 120], ['九段', 150]];
+  function getDoc(id) {
+    return fetch(BASE + '/' + id, { cache: 'no-cache' }).then(function (r) {
+      if (r.status === 404) return null;
+      if (!r.ok) throw new Error('段位資料 HTTP ' + r.status);
+      return r.json();
+    });
+  }
+  function jsonField(doc, key) {
+    try { return JSON.parse((doc && doc.fields && doc.fields[key] && doc.fields[key].stringValue) || 'null'); } catch (e) { return null; }
+  }
+  function dateStrNum(s) {
+    var m = String(s).match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
+    return m ? Number(m[1]) * 10000 + Number(m[2]) * 100 + Number(m[3]) : 0;
+  }
+  function numDateStr(n) { n = String(n); return n.slice(0, 4) + '-' + n.slice(4, 6) + '-' + n.slice(6, 8); }
+  function todayNum() {
+    var t = new Date(Date.now() + 8 * 3600000);   /* 台灣時間 */
+    return t.getUTCFullYear() * 10000 + (t.getUTCMonth() + 1) * 100 + t.getUTCDate();
+  }
+
+  function danProgress(name) {
+    var p = norm(name);
+    return Promise.all([loadAll(), getDoc('danPlayers'), getDoc('danRules')]).then(function (res) {
+      var data = res[0];
+      var players = jsonField(res[1], 'players') || [];
+      var rules = jsonField(res[2], 'rules') || DEFAULT_DAN_RULES;
+      var row = players.filter(function (r) { return r && norm(r[0]) === p; })[0];
+      if (!row) return null;
+      var dan = row[1] || '', base = dateStrNum(row[2]), baseWins = Number(row[3]) || 0, until = todayNum();
+      var ruleRow = rules.filter(function (x) { return x[0] === dan; })[0];
+      var need = ruleRow ? Number(ruleRow[1]) : null;
+      var idx = DAN_ORDER.indexOf(dan);
+      var wins = data.games.filter(function (g) {
+        return norm(g.win) === p && g.c2 !== '交流' && dateNum(g) > base && dateNum(g) <= until;
+      }).sort(function (a, b) { return dateNum(a) - dateNum(b); }).map(function (g, k) {
+        var isB = norm(g.b) === p;
+        return { no: baseWins + k + 1, year: g.y, date: g.d, event: g.ev, stage: g.st,
+                 opponent: isB ? g.w : g.b, color: isB ? '黑' : '白', margin: g.mv };
+      });
+      var total = baseWins + wins.length;
+      var remaining = need == null ? null : need - total;
+      var reachGame = (need != null && baseWins < need && total >= need) ? wins[need - baseWins - 1] : null;
+      return {
+        name: row[0], dan: dan,
+        nextDan: idx >= 0 && idx < DAN_ORDER.length - 1 ? DAN_ORDER[idx + 1] : null,
+        need: need, settleDate: base ? numDateStr(base) : '', baseWins: baseWins,
+        winsSince: wins.length, total: total, remaining: remaining,
+        reached: remaining != null && remaining <= 0, reachGame: reachGame,
+        asOf: numDateStr(until), wins: wins
+      };
+    });
+  }
+
+  /* 現成畫面（同樣只用嵌入網站的 class 與 CSS 變數） */
+  function renderDan(target, name) {
+    var el = typeof target === 'string' ? document.querySelector(target) : target;
+    if (!el) return Promise.resolve();
+    el.innerHTML = '<p class="muted mb-0" style="font-size:.9rem">載入中…</p>';
+    return danProgress(name).then(function (d) {
+      if (!d) { el.innerHTML = '<p class="muted mb-0" style="font-size:.9rem">段位資料裡沒有這位棋士。</p>'; return d; }
+      var slash = function (s) { return String(s).replace(/-/g, '/'); };
+      var h = '<p class="mb-0" style="font-size:.9rem">目前段位　<strong style="color:var(--ink)">' + esc(d.dan) + '</strong></p>';
+      if (!d.nextDan || d.need == null) {
+        h += '<p class="muted mb-0" style="font-size:.84rem;margin-top:6px">' + (d.nextDan ? '升段規則沒有設定這個段位。' : '已是最高段位。') + '</p>';
+      } else {
+        var pct = Math.max(0, Math.min(100, Math.round(d.total * 100 / d.need)));
+        h += '<p class="mb-0" style="font-size:1.05rem;margin-top:6px"><strong style="color:var(--ink)">' +
+          (d.reached ? '已達升' + esc(d.nextDan) + '標準' : '升' + esc(d.nextDan) + '還差 ' + d.remaining + ' 勝') + '</strong></p>' +
+          '<div style="height:8px;background:var(--line);border-radius:4px;margin:8px 0 4px;overflow:hidden">' +
+            '<div style="height:100%;width:' + pct + '%;background:var(--good)"></div></div>' +
+          '<p class="muted mb-0" style="font-size:.84rem">累積 ' + d.total + '／' + d.need + ' 勝（結算日 ' + slash(d.settleDate) + ' 已 ' + d.baseWins +
+            ' 勝，之後又贏 ' + d.winsSince + ' 局；算到 ' + slash(d.asOf) + '，交流賽不算）</p>' +
+          (d.reached ? '<p class="muted mb-0" style="font-size:.84rem;margin-top:4px">升段以院方公告為準。</p>' : '');
+      }
+      el.innerHTML = h;
+      return d;
+    }).catch(function (err) {
+      el.innerHTML = '<p class="muted mb-0" style="font-size:.9rem">升段進度載入失敗（' + esc(err.message) + '）。</p>';
+    });
+  }
+
+  window.HaifongResults = { load: loadAll, player: player, render: render, dan: danProgress, renderDan: renderDan };
 })();
