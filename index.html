@@ -7497,6 +7497,18 @@ const SERIES_FINALS = {
   zhonghuan69: { games: 3, gameIds: ['zh69_game0','zh69_game1','zh69_game2'] },
   xuanleMain48: { games: 5 }
 };
+/* 2026-11-03 使用者要求：列印的成績紀錄表標題一律帶屆數（例：「第20屆棋王賽　複賽」）。
+   屆數從比賽選單名稱（preset.label「第20屆 棋王賽」）抓，不用每個賽事各自寫死；
+   階段名稱本身帶屆數的（「第14屆本賽」）把屆數拿掉，免得印兩次。 */
+const EDITION_RE = /^第[\d一二三四五六七八九十]+屆\s*/;
+function printEventTitle(){
+  const presetId = activeBracketKey ? activeBracketKey.slice(0, activeBracketKey.lastIndexOf('__')) : opState.presetId;
+  const preset = PRESET_TOURNAMENTS.find(function(p){ return p.id===presetId; });
+  const title = currentBracket.title||'';
+  const m = preset && String(preset.label).match(EDITION_RE);
+  return (m && !EDITION_RE.test(title) ? m[0].trim() : '') + title; /* 快棋爭霸戰的 title 本來就有「第七屆」 */
+}
+function printStageName(){ return String(currentBracket.stageName||'').replace(EDITION_RE, ''); }
 function printRoundScoreSheet(){
   if(!currentBracket){ alert('請先產生賽程表'); return; }
   const idx=parseInt(document.getElementById('exportRoundSelect').value,10);
@@ -7530,7 +7542,7 @@ function printRoundScoreSheet(){
       const mid='xf_g'+(g+1);
       return { n0:getSlotName(sid,mid,0), n1:getSlotName(sid,mid,1) };
     });
-    printSeriesScoreSheet(currentBracket.title+'　決賽五番勝負　成績紀錄表', '決賽', games);
+    printSeriesScoreSheet(printEventTitle()+'　決賽五番勝負　成績紀錄表', '決賽', games);
     return;
   }
   /* 龍星賽：選決賽第幾局都印三局長版 */
@@ -7540,7 +7552,7 @@ function printRoundScoreSheet(){
       const mid='lx_g'+(g+1);
       return { n0:getSlotName(sid,mid,0), n1:getSlotName(sid,mid,1) };
     });
-    printSeriesScoreSheet(currentBracket.title+'　決賽三番勝負　成績紀錄表', '決賽', games);
+    printSeriesScoreSheet(printEventTitle()+'　決賽三番勝負　成績紀錄表', '決賽', games);
     return;
   }
   const round=currentBracket.rounds[idx];
@@ -7555,16 +7567,12 @@ function printRoundScoreSheet(){
     }
     const label=roundLabelFor(idx);
     const N=['','一','二','三','四','五','六','七','八','九'][series.games];
-    printSeriesScoreSheet(currentBracket.title+'　'+currentBracket.stageName+'　'+label+N+'番勝負　成績紀錄表', label, games);
+    printSeriesScoreSheet(printEventTitle()+'　'+printStageName()+'　'+label+N+'番勝負　成績紀錄表', label, games);
     return;
   }
   const matches = round.filter(function(m){ return !(m.slots[0].isBye || m.slots[1].isBye); });
   if(matches.length===0){ alert('這一輪沒有需要記錄成績的對局（可能都是輪空）'); return; }
   const label=roundLabelFor(idx);
-  /* 使用者要求資格賽的成績登記表標題要加上屆數（跟循環圈/挑戰賽那兩份列印一樣有「第19屆」
-     前綴），但這裡是好幾個賽事共用的通用列印函式（中環國手賽/中環碁聖賽/玄樂盃等都經過
-     這裡），不能直接把「第20屆」寫死進標題，只能針對資格賽這個customBracket特別加。 */
-  const titlePrefix = (currentStConfig && currentStConfig.customBracket==='qiwang20qualifier') ? '第20屆' : '';
 
   function gameBlock(m, gameNo){
     const n0=getSlotName(stageId,m.id,0), s0=getSlotSeed(stageId,m.id,0);
@@ -7597,7 +7605,7 @@ function printRoundScoreSheet(){
     for(let c=0;c<colsThisPage;c++){ const cnt=Math.min(PER_COL, matches.length-tmp); colCounts.push(cnt); tmp+=cnt; }
 
     html += '<div class="ss-page">';
-    html += '<div class="ss-header"><div class="ss-title">'+titlePrefix+escapeHtml(currentBracket.title)+'　'+escapeHtml(currentBracket.stageName)+'　'+escapeHtml(label)+' 成績紀錄表</div>'+
+    html += '<div class="ss-header"><div class="ss-title">'+escapeHtml(printEventTitle())+'　'+escapeHtml(printStageName())+'　'+escapeHtml(label)+' 成績紀錄表</div>'+
       '<div class="ss-notary">公證人　＿＿＿＿＿＿＿＿＿＿</div></div>';
     html += '<div class="ss-sub">'+(firstPage?('（'+escapeHtml(label)+'　共'+matches.length+'局）'):'')+'<span class="ss-date">日期：＿＿＿＿年＿＿月＿＿日</span></div>';
     firstPage=false;
@@ -7690,7 +7698,7 @@ function printQiwang19ScoreSheet(idx){
   }
 
   let html = '<div class="ss-page">';
-  html += '<div class="ss-header"><div class="ss-title">第19屆'+escapeHtml(currentBracket.title)+'　'+escapeHtml(currentBracket.stageName)+'-'+escapeHtml(bareLabel)+' 成績紀錄表</div></div>';
+  html += '<div class="ss-header"><div class="ss-title">'+escapeHtml(printEventTitle())+'　'+escapeHtml(printStageName())+'-'+escapeHtml(bareLabel)+' 成績紀錄表</div></div>';
   html += '<div class="ss-sub">'+escapeHtml(bareLabel)+'（第1~'+matches.length+'局）'+
     (dateDisplay ? ('<span class="ss-date">'+escapeHtml(dateDisplay)+'</span>') : '<span class="ss-date">日期：＿＿＿＿年＿＿月＿＿日</span>')+
     '</div>';
@@ -7724,7 +7732,7 @@ function printQiwang19ChallengeScoreSheet(){
     const mid='ch_g'+g;
     matches.push({ n0:getSlotName(stageId,mid,0) || QIWANG19_CHALLENGE_NAMES[0], n1:getSlotName(stageId,mid,1) || QIWANG19_CHALLENGE_NAMES[1] });
   }
-  printSeriesScoreSheet('第19屆'+currentBracket.title+currentBracket.stageName+'五番勝負　成績紀錄表', currentBracket.stageName, matches);
+  printSeriesScoreSheet(printEventTitle()+printStageName()+'五番勝負　成績紀錄表', currentBracket.stageName, matches);
 }
 
 /* 番棋（同兩人連下好幾局）共用的長版成績紀錄表：一頁4局、每局一個寬表格，欄位「持」＋
@@ -7825,7 +7833,7 @@ function printQiwang20PrelimScoreSheet(idx){
     /* 使用者要求初賽的列印標題也要加上屆數（跟資格賽那份列印一樣印「第20屆」）——
        這個函式是初賽專屬的（不像printRoundScoreSheet被好幾個賽事共用），可以直接
        寫死，不會影響其他賽事。 */
-    html += '<div class="ss-header"><div class="ss-title">第20屆'+escapeHtml(currentBracket.title)+'　'+escapeHtml(currentBracket.stageName)+'-'+escapeHtml(bareLabel)+' 成績紀錄表</div>'+
+    html += '<div class="ss-header"><div class="ss-title">'+escapeHtml(printEventTitle())+'　'+escapeHtml(printStageName())+'-'+escapeHtml(bareLabel)+' 成績紀錄表</div>'+
       '<div class="ss-notary">公證人　＿＿＿＿＿＿＿＿＿＿</div></div>';
     /* 「日期」空格每一頁都印（不只第一頁），第二頁以後只是不重複「共N局」那段文字，
        單純留日期空格，跟generic printRoundScoreSheet那邊是同一次改動、同一個理由。 */
@@ -7900,7 +7908,7 @@ function printQiwang20FusaiScoreSheet(idx){
     for(let c=0;c<colsThisPage;c++){ const cnt=Math.min(PER_COL, matches.length-tmp); colCounts.push(cnt); tmp+=cnt; }
 
     html += '<div class="ss-page">';
-    html += '<div class="ss-header"><div class="ss-title">'+escapeHtml(currentBracket.title)+'　'+escapeHtml(currentBracket.stageName)+'-'+escapeHtml(sess.label)+' 成績紀錄表</div>'+
+    html += '<div class="ss-header"><div class="ss-title">'+escapeHtml(printEventTitle())+'　'+escapeHtml(printStageName())+'-'+escapeHtml(sess.label)+' 成績紀錄表</div>'+
       '<div class="ss-notary">公證人　＿＿＿＿＿＿＿＿＿＿</div></div>';
     /* 「日期」空格每一頁都印（不只第一頁），第二頁以後只是不重複「共N局」那段文字，
        單純留日期空格，跟generic printRoundScoreSheet那邊是同一次改動、同一個理由。 */
