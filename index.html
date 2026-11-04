@@ -3106,7 +3106,7 @@ function daxueCell(col, row){ /* 回傳原圖像素 */
 function daxueDataId(stageId){ return 'dxdata_'+stageId; }
 function daxueGetData(stageId){
   const el = document.getElementById(daxueDataId(stageId));
-  try{ const d = JSON.parse(el && el.value || '{}'); return { rows: d.rows||[], rankText: d.rankText||{} }; }
+  try{ const d = JSON.parse(el && el.value || '{}'); return { rows: d.rows||[], rankText: d.rankText||{}, showScores: !!d.showScores }; }
   catch(e){ return { rows:[], rankText:{} }; }
 }
 function daxueSetData(stageId, d){
@@ -3268,7 +3268,9 @@ function daxueBuildView(d){
 
 function drawDaxue2026(ctx, stageId, W, H){
   const G = DAXUE_GRID, sx = W/G.W, sy = H/G.H;
-  const view = daxueBuildView(daxueGetData(stageId));
+  const data = daxueGetData(stageId), view = daxueBuildView(data);
+  /* 2026-11-04 使用者：主分、輔分（連同名次）比賽中先不顯示，最後一輪記成績時按「顯示主分・輔分・名次」才畫 */
+  const showScores = data.showScores;
   const serif = '"Noto Serif TC","Noto Serif CJK TC","Source Han Serif TC","PMingLiU","MingLiU",serif';
   const INK = '#22262f', RED = '#a0393f';
   function box(col, row){ const c = daxueCell(col, row); return { x:c.x*sx, y:c.y*sy, w:c.w*sx, h:c.h*sy }; }
@@ -3286,7 +3288,7 @@ function drawDaxue2026(ctx, stageId, W, H){
     /* 姓名：「(棄)」不印；兩個字的中間空一格（跟 2025 的「王　翔」一樣） */
     let nm = String(v.name||'').replace(/[（(]\s*(棄|退)\s*[）)]/g, '').trim();
     if(nm.length === 2) nm = nm[0]+'　'+nm[1];
-    text(nm, DAXUE_COL.name, row, INK, 0.52);
+    text(nm, DAXUE_COL.name, row, INK, 0.72); /* 2026-11-04 使用者：名字比照 2025 再大一點（2025 約列高的七成） */
     v.cells.forEach(function(c, r){
       if(c.res){
         const b = box(DAXUE_COL.res(r), row);
@@ -3309,6 +3311,7 @@ function drawDaxue2026(ctx, stageId, W, H){
         if(c.arrow){ ctx.font = '600 '+Math.round(fs*0.62)+'px '+serif; ctx.fillText(c.arrow, x0+nw, cy); }
       }
     });
+    if(!showScores) return;
     text(v.main, DAXUE_COL.main, row, INK, 0.5);
     v.fu.forEach(function(val, i){ text(String(val), DAXUE_COL.fu+i, row, RED, 0.5); });
     text(v.rank, DAXUE_COL.rank, row, RED, v.rank.length > 2 ? 0.34 : 0.5);
@@ -3363,7 +3366,8 @@ function renderDaxue2026Overlay(st){
   bar.className = 'setup-actions';
   bar.style.cssText = 'margin:0 auto 10px;max-width:900px;flex-wrap:wrap;align-items:center;gap:8px;';
   bar.innerHTML = '<button type="button" class="btn">📋 貼上排陣資料</button>'+
-    '<span class="hint" style="margin:0;">在瑞士制排陣網站按「複製給賽程表」（或從 Excel 排陣系統選取「籤號～最後一場對手」複製），再按這顆就填好。名次欄按右鍵可改字（例：女子代表）。</span>';
+    '<button type="button" class="btn secondary">顯示主分・輔分・名次</button>'+
+    '<span class="hint" style="margin:0;">在瑞士制排陣網站按「複製給賽程表」（或從 Excel 排陣系統選取「籤號～最後一場對手」複製），再按這顆就填好。主分、輔分、名次平常不顯示，最後一輪記成績時按「顯示主分・輔分・名次」（輔分、名次要第六場全部有成績才會出現）。名次欄按右鍵可改字（例：女子代表）。</span>';
   const pasteBox = document.createElement('textarea');
   pasteBox.placeholder = '瀏覽器不讓網頁直接讀剪貼簿：請點這裡按 Ctrl+V 貼上';
   pasteBox.style.cssText = 'display:none;width:100%;max-width:900px;height:80px;margin:0 auto 10px;box-sizing:border-box;';
@@ -3396,7 +3400,16 @@ function renderDaxue2026Overlay(st){
     const ctx = canvasEl.getContext('2d');
     ctx.clearRect(0,0,canvasEl.width,canvasEl.height);
     drawDaxue2026(ctx, stageId, canvasEl.width, canvasEl.height);
+    scoreBtn.textContent = daxueGetData(stageId).showScores ? '隱藏主分・輔分・名次' : '顯示主分・輔分・名次';
   }
+  const scoreBtn = bar.querySelectorAll('button')[1];
+  scoreBtn.addEventListener('click', function(){
+    const d = daxueGetData(stageId);
+    d.showScores = !d.showScores;
+    daxueSetData(stageId, d);
+    doRedraw();
+    saveState();
+  });
   zhRedrawFns[stageId] = doRedraw;
   img.addEventListener('load', doRedraw);
 
@@ -6757,7 +6770,7 @@ function showExistingStage(key, stageDef){
     '<p class="hint" style="margin-top:0;">「'+escapeHtml(stageDef.name)+'」已經有資料，下面顯示的就是目前的賽程表，可以直接繼續記錄勝負。'+
       (MANUAL_EDIT_BRACKETS.indexOf(stageDef.customBracket)!==-1 ? '<br>特殊情況（例如雙方都沒到要寫「棄」）：在格子上按<b>滑鼠右鍵</b>可以直接修改那一格的文字。' : '')+
       (stageDef.customBracket==='longxing2' ? '<br>決賽三番勝負：4強打完後，兩位決賽選手會自動帶入中央三條灰欄。點該局灰欄的<b>左半邊＝左邊那位勝</b>、<b>右半邊＝右邊那位勝</b>，接著輸入成績（例：白中盤勝）；再點一次取消；成績打錯在欄上按<b>滑鼠右鍵</b>修改。先拿 2 勝的自動填進最上面的冠軍格。' : '')+
-      (stageDef.customBracket==='daxue2026' ? '<br>每打完一場：在瑞士制排陣網站按「複製給賽程表」，回來按賽程表上方的「📋 貼上排陣資料」，整張表（○●、對手、↑↓、主分）就會更新；第六場打完會自動補上輔分和前 10 名。名次欄按<b>滑鼠右鍵</b>可以改字（例：女子代表）。' : '')+
+      (stageDef.customBracket==='daxue2026' ? '<br>每打完一場：在瑞士制排陣網站按「複製給賽程表」，回來按賽程表上方的「📋 貼上排陣資料」，整張表（姓名、○●、對手、↑↓）就會更新。主分、輔分、名次平常不顯示，最後一輪記成績時按「顯示主分・輔分・名次」（輔分和前 10 名要第六場全部有成績才會出現）。名次欄按<b>滑鼠右鍵</b>可以改字（例：女子代表）。' : '')+
       (stageDef.customBracket==='qiwang19challenge' ? '<br>記錄勝負：點該局藍色「獲勝者」欄的<b>左半邊＝'+QIWANG19_CHALLENGE_NAMES[0]+'勝</b>、<b>右半邊＝'+QIWANG19_CHALLENGE_NAMES[1]+'勝</b>，接著輸入成績（例：白中盤勝）；再點一次取消；成績打錯點右邊白色「對局結果」欄修改。' : '')+
       (stageDef.customBracket==='xuanleFinal' ? '<br>記錄勝負：點該局灰色欄的<b>左半邊＝'+XUANLE_FINAL_NAMES[0]+'勝</b>、<b>右半邊＝'+XUANLE_FINAL_NAMES[1]+'勝</b>，接著輸入成績（例：白中盤勝）；再點一次取消；成績打錯在欄上按<b>滑鼠右鍵</b>修改。' : '')+'</p>'+
     '<div class="setup-actions"><button type="button" class="btn secondary small" onclick="confirmRegenerateStage()">重新輸入名單（會清除本階段目前資料）</button></div>';
