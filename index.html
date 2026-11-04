@@ -586,6 +586,16 @@ const PRESET_TOURNAMENTS = [
     ]
   },
   {
+    /* 2026-11-04：瑞士制 52 人 6 場的成績總表，資料從瑞士制排陣系統複製貼上（見 renderDaxue2026Overlay）。 */
+    id: 'daxue2026',
+    label: '2026 全國大學生圍棋十傑賽',
+    title: '全國大學生圍棋十傑賽',
+    org: '財團法人培生海峰文教基金會／海峰棋院',
+    stages: [
+      { name:'本賽', type:'single', customBracket:'daxue2026' }
+    ]
+  },
+  {
     id: 'kuaiqi7',
     label: '第七屆快棋爭霸戰',
     title: '第七屆快棋爭霸戰',
@@ -1045,7 +1055,7 @@ const FULL_IMAGE_WIDTHS = {
   'images/guoshou22.jpg':6532, 'images/qiwang19.jpg':3269, 'images/qiwang20_fusai.jpg':6539,
   'images/qiwang20_prelim.jpg':6418, 'images/qiwang20_qualifier.jpg':1038, 'images/xuanle_main48.jpg':6539,
   'images/xuanle_prelim.jpg':3968, 'images/zhonghuan69.jpg':6532, 'images/xuanle_final.jpg':2646,
-  'images/qixian2.jpg':2309, 'images/longxing2.jpg':3402, 'images/qiwang19_challenge.jpg':2646
+  'images/qixian2.jpg':2309, 'images/longxing2.jpg':3402, 'images/qiwang19_challenge.jpg':2646, 'images/daxue2026.jpg':3240
 };
 function fullImageWidth(url, img){ return FULL_IMAGE_WIDTHS[url] || img.naturalWidth; }
 
@@ -3069,6 +3079,420 @@ function downloadLongxing2Composite(){
     }, 'image/jpeg', 0.88);
   };
   img.src = viewImageUrl(LONGXING2_IMAGE_URL);
+}
+
+/* ============ 2026 全國大學生圍棋十傑賽（2026-11-04）============
+   瑞士制 52 人 6 場，底圖 images/daxue2026.jpg（原圖 3240×7178）是一張成績總表：
+   序｜選手姓名｜第一~六場（成績、對手）｜主分｜輔分一｜輔分二｜輔分三｜名次，格式照 2025 年那張。
+   對手是用「瑞士制排陣系統」排的，這裡不排陣、也不點勝負：在排陣網站按「複製給賽程表」
+   （或從 Excel 排陣系統選取「籤號～最後一輪對手」整塊複製），到這裡按「📋 貼上排陣資料」一次填好。
+   全部資料存在一個隱藏欄位 dxdata_<階段>（JSON：{rows:[{id,name,res[],opp[]}], rankText:{籤號:文字}}，
+   class mini-input，snapshotOutputDOM 會一起存）。
+   畫的規則（照 2025）：成績 ○＝勝、●＝負；對手號碼後面 ↑＝跟分數比自己高的人下（輪高）、↓＝輪低；
+   空＝輪空、棄＝棄權。主分每個人都畫；第六場全部打完後，輔分只畫「排前 10 名需要比到的那一層」
+   （同分的一群裡有人在前 10 名，才畫下一層輔分），名次只畫前 10 名。
+   名次欄按右鍵可以改成別的字（例：女子代表）。輔分、名次的算法跟排陣網站「計算排名」一模一樣（daxueComputeRanking）。
+   格線位置是用 Python 在原圖上量的白線（像素）。 */
+const DAXUE2026_IMAGE_URL = 'images/daxue2026.jpg';
+const DAXUE_GRID = { W:3240, H:7178, y0:755, y1:6931, rows:52, rounds:6, top:10,
+  /* 每一欄的左右邊界：0序 1姓名 2~13 第1~6場（成績、對手輪流） 14主分 15輔分一 16輔分二 17輔分三 18名次 */
+  xl:[137, 279, 667, 807, 947, 1088, 1229, 1370, 1512, 1653, 1794, 1935, 2074, 2215, 2357, 2498, 2640, 2797, 2955],
+  xr:[267, 654, 797, 937, 1078, 1218, 1359, 1500, 1642, 1783, 1924, 2065, 2204, 2345, 2487, 2628, 2786, 2944, 3101] };
+const DAXUE_COL = { name:1, res:function(r){ return 2+2*r; }, opp:function(r){ return 3+2*r; }, main:14, fu:15, rank:18 };
+function daxueCell(col, row){ /* 回傳原圖像素 */
+  const G = DAXUE_GRID, rh = (G.y1-G.y0)/G.rows;
+  return { x:G.xl[col], y:G.y0+row*rh, w:G.xr[col]-G.xl[col]+1, h:rh };
+}
+function daxueDataId(stageId){ return 'dxdata_'+stageId; }
+function daxueGetData(stageId){
+  const el = document.getElementById(daxueDataId(stageId));
+  try{ const d = JSON.parse(el && el.value || '{}'); return { rows: d.rows||[], rankText: d.rankText||{} }; }
+  catch(e){ return { rows:[], rankText:{} }; }
+}
+function daxueSetData(stageId, d){
+  const el = document.getElementById(daxueDataId(stageId));
+  if(el) el.value = JSON.stringify(d);
+}
+
+/* ---- 排名：從瑞士制排陣網站 swiss-core.js 的 computeRanking 原封不動搬過來（台灣標準：
+   主分 → 第一輔分 SOS → 第二輔分（所負對手主分）→ 直接對戰 → 第四輔分 SOSOS），
+   兩邊排出來的名次才會一樣。⚠ 不要自己改規則；排陣網站那邊改了要跟著同步。 ---- */
+function daxueComputeRanking(sheet){
+  function vbTrim(s){ return String(s).replace(/^ +| +$/g, ''); }
+  function str(v){ return v === undefined || v === null ? '' : String(v); }
+  function getRes(row, r){ return str(row.res[r]); }
+  function getOpp(row, r){ return str(row.opp[r]); }
+  const rows = sheet.rows, numPlayers = rows.length;
+  if(numPlayers < 2) return { ok:false, rows:[] };
+  const maxRounds = sheet.maxRounds || 7;
+  let maxR = 1, rd, i, j;
+  for(rd = maxRounds; rd >= 1; rd--){
+    let hasResult = false;
+    for(i = 0; i < numPlayers; i++){ if(vbTrim(getRes(rows[i], rd-1)) !== ''){ hasResult = true; break; } }
+    if(hasResult){ maxR = rd; break; }
+  }
+  const pName = [], pID = [], withdrawn = [], sMain = [], sSOS = [], sSODOS = [], sSOSOS = [], sHead = [];
+  const oppRec = [], winRec = [];
+  for(i = 1; i <= numPlayers; i++){
+    pID[i] = vbTrim(str(rows[i-1].id));
+    pName[i] = vbTrim(str(rows[i-1].name));
+    withdrawn[i] = pName[i].indexOf('棄') >= 0 || pName[i].indexOf('退') >= 0;
+    oppRec[i] = []; winRec[i] = [];
+    let m = 0;
+    for(rd = 1; rd <= maxR; rd++){
+      const res = getRes(rows[i-1], rd-1), opp = getOpp(rows[i-1], rd-1);
+      if(res.indexOf('○') >= 0 || res.indexOf('1') >= 0){ m++; winRec[i][rd] = true; }
+      else winRec[i][rd] = false;
+      oppRec[i][rd] = 0;
+      if(opp !== '' && opp !== '空' && opp.indexOf('棄') < 0){
+        for(j = 1; j <= numPlayers; j++){ if(vbTrim(str(rows[j-1].id)) === opp){ oppRec[i][rd] = j; break; } }
+      }
+    }
+    sMain[i] = m;
+  }
+  for(i = 1; i <= numPlayers; i++){
+    let sos = 0, sodos = 0;
+    for(rd = 1; rd <= maxR; rd++){
+      const o = oppRec[i][rd];
+      if(o > 0){ sos += sMain[o]; if(!winRec[i][rd]) sodos += sMain[o]; }
+    }
+    sSOS[i] = sos; sSODOS[i] = sodos;
+  }
+  for(i = 1; i <= numPlayers; i++){
+    let sosos = 0;
+    for(rd = 1; rd <= maxR; rd++) if(oppRec[i][rd] > 0) sosos += sSOS[oppRec[i][rd]];
+    sSOSOS[i] = sosos;
+  }
+  for(i = 1; i <= numPlayers; i++){
+    let hw = 0;
+    for(rd = 1; rd <= maxR; rd++){
+      const oi = oppRec[i][rd];
+      if(oi > 0 && sMain[i] === sMain[oi] && sSOS[i] === sSOS[oi] && sSODOS[i] === sSODOS[oi] && winRec[i][rd]) hw = 1;
+    }
+    sHead[i] = hw;
+  }
+  /* 照原版的交換排序，不可改成 Array.sort：直接對戰的比較不具遞移性 */
+  const sortArr = [];
+  for(i = 1; i <= numPlayers; i++) sortArr[i] = i;
+  for(i = 1; i <= numPlayers-1; i++){
+    for(j = i+1; j <= numPlayers; j++){
+      const p1 = sortArr[i], p2 = sortArr[j]; let swap = false;
+      if(withdrawn[p1] && !withdrawn[p2]) swap = true;
+      else if(!withdrawn[p1] && withdrawn[p2]) swap = false;
+      else if(sMain[p1] < sMain[p2]) swap = true;
+      else if(sMain[p1] === sMain[p2]){
+        if(sSOS[p1] < sSOS[p2]) swap = true;
+        else if(sSOS[p1] === sSOS[p2]){
+          if(sSODOS[p1] < sSODOS[p2]) swap = true;
+          else if(sSODOS[p1] === sSODOS[p2]){
+            let directWin = 0;
+            for(let cR = 1; cR <= maxR; cR++){ if(oppRec[p1][cR] === p2) directWin = winRec[p1][cR] ? 1 : 2; }
+            if(directWin === 2) swap = true;
+            else if(directWin === 0 && sSOSOS[p1] < sSOSOS[p2]) swap = true;
+          }
+        }
+      }
+      if(swap){ const t = sortArr[i]; sortArr[i] = sortArr[j]; sortArr[j] = t; }
+    }
+  }
+  const out = [];
+  let rankNum = 1;
+  for(i = 1; i <= numPlayers; i++){
+    const p = sortArr[i];
+    if(withdrawn[p]){ out.push({ rank:'-', id:pID[p], name:pName[p], withdrawn:true }); continue; }
+    if(i > 1){
+      const pr = sortArr[i-1];
+      if(sMain[p] === sMain[pr] && sSOS[p] === sSOS[pr] && sSODOS[p] === sSODOS[pr] && sSOSOS[p] === sSOSOS[pr]){
+        let isLoss = false;
+        for(rd = 1; rd <= maxR; rd++) if(oppRec[p][rd] === pr && !winRec[p][rd]) isLoss = true;
+        if(isLoss) rankNum = i;
+      } else {
+        rankNum = i;
+      }
+    }
+    out.push({ rank:rankNum, id:pID[p], name:pName[p], main:sMain[p], sos:sSOS[p], sodosL:sSODOS[p], headWin:sHead[p], sosos:sSOSOS[p], withdrawn:false });
+  }
+  return { ok:true, maxR:maxR, rows:out };
+}
+
+/* 把要畫的東西都算好：每列 {name, cells[第r場]={res:'○'/'●'/'', opp:'34'/'空'/'棄'/'', arrow:'↑'/'↓'/''}, main, fu[], rank} */
+function daxueBuildView(d){
+  const G = DAXUE_GRID, rows = d.rows, byId = {};
+  rows.forEach(function(x){ byId[x.id] = x; });
+  const isWin = function(x, r){ return /○/.test(x.res[r]||''); };
+  const before = function(x, r){ let s = 0; for(let k = 0; k < r; k++) if(isWin(x, k)) s++; return s; };
+  /* 第六場全部打完（有對手的都有成績）才畫輔分、名次 */
+  const last = G.rounds-1;
+  const finished = rows.some(function(x){ return x.res[last]; }) &&
+    !rows.some(function(x){ return /^\d+$/.test(x.opp[last]||'') && !x.res[last]; });
+  const rk = daxueComputeRanking({ rows:rows, maxRounds:G.rounds });
+  const info = {};
+  (rk.rows||[]).forEach(function(x){ info[x.id] = x; });
+  /* 輔分要畫到第幾層：同分（含前幾層輔分也相同）的一群超過 1 人、而且裡面有人在前 10 名，這群就畫下一層 */
+  const showLv = {};
+  if(finished){
+    const keys = ['main','sos','sodosL','headWin'];
+    const groupBy = function(list, key){ const g = {}; list.forEach(function(x){ (g[x[key]] = g[x[key]] || []).push(x); }); return Object.keys(g).map(function(k){ return g[k]; }); };
+    const rec = function(group, lv){
+      if(lv >= 3 || group.length < 2) return;
+      if(Math.min.apply(null, group.map(function(x){ return x.rank; })) > G.top) return;
+      group.forEach(function(x){ showLv[x.id] = lv+1; });
+      groupBy(group, keys[lv+1]).forEach(function(g){ rec(g, lv+1); });
+    };
+    groupBy((rk.rows||[]).filter(function(x){ return !x.withdrawn; }), 'main').forEach(function(g){ rec(g, 0); });
+  }
+  const out = {};
+  rows.forEach(function(x){
+    const n = parseInt(x.id, 10);
+    if(!(n >= 1 && n <= G.rows)) return;
+    const cells = [];
+    for(let r = 0; r < G.rounds; r++){
+      const opp = x.opp[r] || '';
+      /* 排陣系統棄賽那一場寫「棄、×」，2025 那張只寫「棄」不畫圈 */
+      const res = opp==='棄' ? '' : (isWin(x, r) ? '○' : (/×|●/.test(x.res[r]||'') ? '●' : ''));
+      let arrow = '';
+      const o = /^\d+$/.test(opp) && byId[opp];
+      if(o){ const a = before(x, r), b = before(o, r); arrow = a < b ? '↑' : (a > b ? '↓' : ''); }
+      cells.push({ res:res, opp:opp, arrow:arrow });
+    }
+    const it = info[x.id] || {};
+    const lv = showLv[x.id] || 0;
+    const fu = [it.sos, it.sodosL, it.headWin].slice(0, lv);
+    let rank = '';
+    if(d.rankText[x.id]) rank = d.rankText[x.id];
+    else if(finished && !it.withdrawn && it.rank <= G.top) rank = String(it.rank);
+    out[n] = { name: x.name, cells: cells, main: rows.some(function(y){ return y.res.some(function(v){ return v; }); }) ? String(before(x, G.rounds)) : '', fu: fu, rank: rank };
+  });
+  return out;
+}
+
+function drawDaxue2026(ctx, stageId, W, H){
+  const G = DAXUE_GRID, sx = W/G.W, sy = H/G.H;
+  const view = daxueBuildView(daxueGetData(stageId));
+  const serif = '"Noto Serif TC","Noto Serif CJK TC","Source Han Serif TC","PMingLiU","MingLiU",serif';
+  const INK = '#22262f', RED = '#a0393f';
+  function box(col, row){ const c = daxueCell(col, row); return { x:c.x*sx, y:c.y*sy, w:c.w*sx, h:c.h*sy }; }
+  function text(t, col, row, color, scale){
+    if(!t) return;
+    const b = box(col, row);
+    let fs = Math.round(b.h*(scale||0.5));
+    ctx.font = '600 '+fs+'px '+serif;
+    while(fs > 6 && ctx.measureText(t).width > b.w*0.9){ fs--; ctx.font = '600 '+fs+'px '+serif; }
+    ctx.fillStyle = color || INK; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(t, b.x+b.w/2, b.y+b.h/2+b.h*0.03);
+  }
+  Object.keys(view).forEach(function(k){
+    const v = view[k], row = parseInt(k, 10)-1;
+    /* 姓名：「(棄)」不印；兩個字的中間空一格（跟 2025 的「王　翔」一樣） */
+    let nm = String(v.name||'').replace(/[（(]\s*(棄|退)\s*[）)]/g, '').trim();
+    if(nm.length === 2) nm = nm[0]+'　'+nm[1];
+    text(nm, DAXUE_COL.name, row, INK, 0.52);
+    v.cells.forEach(function(c, r){
+      if(c.res){
+        const b = box(DAXUE_COL.res(r), row);
+        const rad = Math.min(b.w, b.h)*0.27;
+        ctx.beginPath(); ctx.arc(b.x+b.w/2, b.y+b.h/2, rad, 0, Math.PI*2);
+        if(c.res === '○'){ ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = rad*0.16; ctx.strokeStyle = INK; ctx.stroke(); }
+        else { ctx.fillStyle = INK; ctx.fill(); }
+      }
+      if(c.opp){
+        const b = box(DAXUE_COL.opp(r), row);
+        const fs = Math.round(b.h*0.5);
+        ctx.font = '600 '+fs+'px '+serif;
+        const nw = ctx.measureText(c.opp).width;
+        ctx.font = '600 '+Math.round(fs*0.62)+'px '+serif;
+        const aw = c.arrow ? ctx.measureText(c.arrow).width : 0;
+        const x0 = b.x+(b.w-(nw+aw))/2, cy = b.y+b.h/2+b.h*0.03;
+        ctx.fillStyle = INK; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.font = '600 '+fs+'px '+serif;
+        ctx.fillText(c.opp, x0, cy, b.w*0.9);
+        if(c.arrow){ ctx.font = '600 '+Math.round(fs*0.62)+'px '+serif; ctx.fillText(c.arrow, x0+nw, cy); }
+      }
+    });
+    text(v.main, DAXUE_COL.main, row, INK, 0.5);
+    v.fu.forEach(function(val, i){ text(String(val), DAXUE_COL.fu+i, row, RED, 0.5); });
+    text(v.rank, DAXUE_COL.rank, row, RED, v.rank.length > 2 ? 0.34 : 0.5);
+  });
+}
+
+/* 讀「從排陣系統複製來的文字」：一行一位選手，Tab 分隔（Excel 複製也是 Tab）；也接受 CSV（逗號）。
+   每行：籤號、姓名、第1場成績、第1場對手、第2場成績…（標題列、空白列自動略過） */
+function daxueParsePaste(text){
+  const G = DAXUE_GRID, rows = [], seen = {};
+  String(text||'').split(/\r?\n/).forEach(function(line){
+    if(!line.trim()) return;
+    let cells = line.split('\t');
+    if(cells.length < 3) cells = line.split(',');
+    cells = cells.map(function(c){ return c.replace(/^"|"$/g, '').trim(); });
+    if(!/^\d+$/.test(cells[0]) || !cells[1]) return;
+    const id = String(parseInt(cells[0], 10));
+    if(seen[id]) return;
+    seen[id] = true;
+    const res = [], opp = [];
+    for(let r = 0; r < G.rounds; r++){
+      const a = cells[2+2*r] || '', b = (cells[3+2*r] || '').replace(/[↑↓]/g, '').trim();
+      res.push(/○|勝|^[1oO]$/.test(a) ? '○' : (/×|●|敗|負|^[0xX]$/.test(a) ? '×' : ''));
+      opp.push(/^\d+$/.test(b) ? String(parseInt(b, 10)) : (/棄/.test(b) ? '棄' : (/空/.test(b) ? '空' : '')));
+    }
+    rows.push({ id:id, name:cells[1], res:res, opp:opp });
+  });
+  return rows;
+}
+/* 貼上前檢查：對手兩邊要互相對到、一勝一負；有問題列出來讓使用者決定要不要照貼 */
+function daxueCheckRows(rows){
+  const G = DAXUE_GRID, byId = {}, warn = [];
+  rows.forEach(function(x){ byId[x.id] = x; });
+  rows.forEach(function(x){
+    if(parseInt(x.id, 10) > G.rows) warn.push('籤號 '+x.id+' 超過底圖的 '+G.rows+' 格，畫不上去');
+    for(let r = 0; r < G.rounds; r++){
+      const o = x.opp[r];
+      if(!/^\d+$/.test(o)) continue;
+      const y = byId[o];
+      if(!y){ warn.push('第'+(r+1)+'場 '+x.id+'號的對手 '+o+' 號不在名單裡'); continue; }
+      if(y.opp[r] !== x.id) warn.push('第'+(r+1)+'場 '+x.id+'號對 '+o+'號，但 '+o+'號那邊寫的對手是「'+(y.opp[r]||'空白')+'」');
+      else if(+x.id < +o && x.res[r] && y.res[r] && x.res[r] === y.res[r]) warn.push('第'+(r+1)+'場 '+x.id+'號對 '+o+'號，兩邊成績都是「'+x.res[r]+'」');
+    }
+  });
+  return warn;
+}
+
+function renderDaxue2026Overlay(st){
+  const stageId = st.id;
+  const outer = document.createElement('div');
+  const bar = document.createElement('div');
+  bar.className = 'setup-actions';
+  bar.style.cssText = 'margin:0 auto 10px;max-width:900px;flex-wrap:wrap;align-items:center;gap:8px;';
+  bar.innerHTML = '<button type="button" class="btn">📋 貼上排陣資料</button>'+
+    '<span class="hint" style="margin:0;">在瑞士制排陣網站按「複製給賽程表」（或從 Excel 排陣系統選取「籤號～最後一場對手」複製），再按這顆就填好。名次欄按右鍵可改字（例：女子代表）。</span>';
+  const pasteBox = document.createElement('textarea');
+  pasteBox.placeholder = '瀏覽器不讓網頁直接讀剪貼簿：請點這裡按 Ctrl+V 貼上';
+  pasteBox.style.cssText = 'display:none;width:100%;max-width:900px;height:80px;margin:0 auto 10px;box-sizing:border-box;';
+  outer.appendChild(bar);
+  outer.appendChild(pasteBox);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'zh-overlay-wrap';
+  wrap.style.maxWidth = '900px';
+  const img = document.createElement('img');
+  img.src = viewImageUrl(DAXUE2026_IMAGE_URL);
+  img.className = 'zh-overlay-img';
+  img.draggable = false;
+  wrap.appendChild(img);
+  attachOverlayLoadingHint(wrap, img);
+  const canvasEl = document.createElement('canvas');
+  canvasEl.className = 'zh-overlay-canvas';
+  wrap.appendChild(canvasEl);
+  const dataEl = document.createElement('input');
+  dataEl.type = 'hidden'; dataEl.className = 'mini-input';
+  dataEl.id = daxueDataId(stageId);
+  wrap.appendChild(dataEl);
+  outer.appendChild(wrap);
+
+  function doRedraw(){
+    if(!img.naturalWidth) return;
+    if(canvasEl.width!==img.naturalWidth || canvasEl.height!==img.naturalHeight){
+      canvasEl.width = img.naturalWidth; canvasEl.height = img.naturalHeight;
+    }
+    const ctx = canvasEl.getContext('2d');
+    ctx.clearRect(0,0,canvasEl.width,canvasEl.height);
+    drawDaxue2026(ctx, stageId, canvasEl.width, canvasEl.height);
+  }
+  zhRedrawFns[stageId] = doRedraw;
+  img.addEventListener('load', doRedraw);
+
+  function apply(text){
+    const rows = daxueParsePaste(text);
+    if(!rows.length){ alert('貼上的內容裡找不到選手資料。\n每一行要是「籤號、姓名、第1場成績、第1場對手…」，請在排陣網站按「複製給賽程表」再試一次。'); return false; }
+    const warn = daxueCheckRows(rows);
+    let played = 0;
+    for(let r = 0; r < DAXUE_GRID.rounds; r++) if(rows.some(function(x){ return x.res[r]; })) played = r+1;
+    let msg = '讀到 '+rows.length+' 位選手，成績到第 '+played+' 場。';
+    if(warn.length) msg += '\n\n⚠ 有 '+warn.length+' 個地方對不起來：\n'+warn.slice(0, 8).join('\n')+(warn.length > 8 ? '\n…' : '')+'\n\n還是要照這份資料填上去嗎？';
+    else msg += '\n\n要用這份資料取代目前的賽程表內容嗎？';
+    if(!confirm(msg)) return false;
+    const d = daxueGetData(stageId);
+    d.rows = rows;
+    daxueSetData(stageId, d);
+    doRedraw();
+    saveState();
+    return true;
+  }
+  bar.querySelector('button').addEventListener('click', function(){
+    if(navigator.clipboard && navigator.clipboard.readText){
+      navigator.clipboard.readText().then(function(t){ apply(t); }, function(){ pasteBox.style.display = 'block'; pasteBox.focus(); });
+    } else { pasteBox.style.display = 'block'; pasteBox.focus(); }
+  });
+  pasteBox.addEventListener('paste', function(e){
+    const t = (e.clipboardData || window.clipboardData).getData('text');
+    e.preventDefault();
+    if(apply(t)) pasteBox.style.display = 'none';
+  });
+
+  /* 名次欄：右鍵改字 */
+  for(let row = 0; row < DAXUE_GRID.rows; row++){
+    const c = daxueCell(DAXUE_COL.rank, row);
+    const hit = document.createElement('div');
+    hit.style.cssText = 'position:absolute;left:'+(c.x/DAXUE_GRID.W*100)+'%;top:'+(c.y/DAXUE_GRID.H*100)+'%;width:'+(c.w/DAXUE_GRID.W*100)+'%;height:'+(c.h/DAXUE_GRID.H*100)+'%;';
+    hit.title = '按右鍵可以改這格的字（例：女子代表）';
+    hit.addEventListener('contextmenu', function(e){
+      e.preventDefault();
+      const id = String(row+1), d = daxueGetData(stageId);
+      const ans = prompt((row+1)+' 號的名次欄要顯示什麼字？（例：女子代表）\n清空＝恢復自動顯示名次', d.rankText[id] || '');
+      if(ans===null) return;
+      if(ans.trim()) d.rankText[id] = ans.trim(); else delete d.rankText[id];
+      daxueSetData(stageId, d);
+      doRedraw();
+      saveState();
+    });
+    wrap.appendChild(hit);
+  }
+
+  /* 從存檔讀回時，資料是在這個函式結束後才由 restoreOutputDOM 補上，所以晚一拍再畫一次 */
+  if(img.complete && img.naturalWidth){ doRedraw(); }
+  setTimeout(doRedraw, 0);
+  return { wrap: outer, data: { rounds: [], customLabels: [], hasChampion:false, irregularPrefix:0 } };
+}
+function downloadDaxue2026Composite(){
+  const img = new Image();
+  img.onload = function(){
+    const W = fullImageWidth(DAXUE2026_IMAGE_URL, img), H = img.naturalHeight * W / img.naturalWidth;
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, W, H);
+    drawDaxue2026(ctx, currentBracket.stageId, W, H);
+    canvas.toBlob(function(blob){
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (currentBracket.title||'賽程圖')+'_'+(currentBracket.stageName||'')+'.jpg';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 'image/jpeg', 0.88);
+  };
+  img.src = viewImageUrl(DAXUE2026_IMAGE_URL);
+}
+
+/* 大學生十傑不用貼名單：名單跟著排陣資料一起貼進來，跟玄樂盃決賽一樣直接產生 */
+function generateDaxue2026Stage(){
+  const preset=PRESET_TOURNAMENTS.find(function(p){return p.id===opState.presetId;});
+  const stageDef=preset.stages[opState.stageIdx];
+  const id=newStageId();
+  const st={ id:id, name:stageDef.name, type:stageDef.type, count:DAXUE_GRID.rows,
+    advance:1, pairing:'sequential', customBracket:'daxue2026' };
+  matchRegistry[id]={};
+  const out=document.getElementById('output');
+  out.innerHTML='';
+  const built=renderStage(st, opState.title);
+  out.appendChild(built.section);
+  currentBracket = { stageId:id, title:opState.title, org:opState.org, stageName:stageDef.name,
+    rounds:built.data.rounds, hasChampion:false, customLabels:built.data.customLabels, irregularPrefix:0 };
+  currentStConfig = st;
+  activeBracketKey = bracketKey(opState.presetId, opState.stageIdx);
+  setupExportPanel();
+  if(preset.stages.length>1){ renderStageMenu(); }
+  else { opState.stageIdx++; renderStageEntry(); }
+  saveState();
 }
 
 /* 決賽不用貼名單：跟 generateQiwang19Stage 一樣直接產生 */
@@ -5508,6 +5932,9 @@ function renderSingleElimStage(st){
   if(st.customBracket==='longxing2'){
     return renderLongxing2Overlay(st);
   }
+  if(st.customBracket==='daxue2026'){
+    return renderDaxue2026Overlay(st);
+  }
   if(st.customBracket==='kuaiqi7prelimImg' && st.count===39 && KUAIQI7_PRELIM_IMAGE_URL && KUAIQI7_PRELIM_IMAGE_URL.indexOf('PLACEHOLDER')!==0){
     return renderKuaiqi7PrelimOverlay(st);
   }
@@ -5559,7 +5986,7 @@ function renderStage(st, title){
   section.className='stage-block';
   const isOverlay = (st.customBracket==='qiwang19circle') || (st.customBracket==='qiwang20prelim') || (st.customBracket==='qiwang20fusai') || (st.customBracket==='guoshou22') || (st.customBracket==='qiwang20qualifier') || (st.customBracket==='zhonghuan69')
     || (st.customBracket==='kuaiqi7prelimImg' && st.count===39 && KUAIQI7_PRELIM_IMAGE_URL && KUAIQI7_PRELIM_IMAGE_URL.indexOf('PLACEHOLDER')!==0)
-    || st.customBracket==='xuanlePrelim' || st.customBracket==='xuanleMain48' || st.customBracket==='xuanleFinal' || st.customBracket==='qixian2' || st.customBracket==='longxing2' || st.customBracket==='qiwang19challenge';
+    || st.customBracket==='xuanlePrelim' || st.customBracket==='xuanleMain48' || st.customBracket==='xuanleFinal' || st.customBracket==='qixian2' || st.customBracket==='longxing2' || st.customBracket==='qiwang19challenge' || st.customBracket==='daxue2026';
   if(!isOverlay){
     const header=document.createElement('div');
     header.className='stage-header';
@@ -6170,6 +6597,11 @@ function renderStageEntry(){
     generateXuanleFinalStage();
     return;
   }
+  /* 大學生十傑：名單跟排陣資料一起貼，一樣跳過填選手 */
+  if(stageDef.customBracket==='daxue2026'){
+    generateDaxue2026Stage();
+    return;
+  }
 
   /* 棋王挑戰賽七番勝負：2026-11-02 換成底圖版，兩人姓名印在底圖上，跟玄樂盃決賽一樣跳過填選手 */
   if(stageDef.customBracket==='qiwang19challenge'){
@@ -6325,6 +6757,7 @@ function showExistingStage(key, stageDef){
     '<p class="hint" style="margin-top:0;">「'+escapeHtml(stageDef.name)+'」已經有資料，下面顯示的就是目前的賽程表，可以直接繼續記錄勝負。'+
       (MANUAL_EDIT_BRACKETS.indexOf(stageDef.customBracket)!==-1 ? '<br>特殊情況（例如雙方都沒到要寫「棄」）：在格子上按<b>滑鼠右鍵</b>可以直接修改那一格的文字。' : '')+
       (stageDef.customBracket==='longxing2' ? '<br>決賽三番勝負：4強打完後，兩位決賽選手會自動帶入中央三條灰欄。點該局灰欄的<b>左半邊＝左邊那位勝</b>、<b>右半邊＝右邊那位勝</b>，接著輸入成績（例：白中盤勝）；再點一次取消；成績打錯在欄上按<b>滑鼠右鍵</b>修改。先拿 2 勝的自動填進最上面的冠軍格。' : '')+
+      (stageDef.customBracket==='daxue2026' ? '<br>每打完一場：在瑞士制排陣網站按「複製給賽程表」，回來按賽程表上方的「📋 貼上排陣資料」，整張表（○●、對手、↑↓、主分）就會更新；第六場打完會自動補上輔分和前 10 名。名次欄按<b>滑鼠右鍵</b>可以改字（例：女子代表）。' : '')+
       (stageDef.customBracket==='qiwang19challenge' ? '<br>記錄勝負：點該局藍色「獲勝者」欄的<b>左半邊＝'+QIWANG19_CHALLENGE_NAMES[0]+'勝</b>、<b>右半邊＝'+QIWANG19_CHALLENGE_NAMES[1]+'勝</b>，接著輸入成績（例：白中盤勝）；再點一次取消；成績打錯點右邊白色「對局結果」欄修改。' : '')+
       (stageDef.customBracket==='xuanleFinal' ? '<br>記錄勝負：點該局灰色欄的<b>左半邊＝'+XUANLE_FINAL_NAMES[0]+'勝</b>、<b>右半邊＝'+XUANLE_FINAL_NAMES[1]+'勝</b>，接著輸入成績（例：白中盤勝）；再點一次取消；成績打錯在欄上按<b>滑鼠右鍵</b>修改。' : '')+'</p>'+
     '<div class="setup-actions"><button type="button" class="btn secondary small" onclick="confirmRegenerateStage()">重新輸入名單（會清除本階段目前資料）</button></div>';
@@ -7421,7 +7854,8 @@ function setupExportPanel(){
      成績登記表列印也還沒支援這個模式，所以只留「下載賽程圖」按鈕，把跟輪次有關的部分藏起來。
      玄樂盃初賽／本賽雖然也是疊圖模式，但底下的對戰結構本來就有清楚的「輪次」分組
      （見 buildXuanlePrelimPrintRounds／buildXuanleMain48PrintRounds），所以不用比照快棋隱藏。 */
-  if(currentStConfig && currentStConfig.customBracket==='kuaiqi7prelimImg'){
+  /* 大學生十傑（瑞士制成績總表）也一樣：排陣、列印、對陣都在瑞士制排陣網站做，這裡只出圖 */
+  if(currentStConfig && (currentStConfig.customBracket==='kuaiqi7prelimImg' || currentStConfig.customBracket==='daxue2026')){
     roundField.style.display='none';
     printBtn.style.display='none';
     panel.style.display='flex';
@@ -8096,6 +8530,10 @@ function downloadBracketSVG(){
   }
   if(currentStConfig && currentStConfig.customBracket==='qiwang19challenge'){
     downloadQiwang19ChallengeComposite();
+    return;
+  }
+  if(currentStConfig && currentStConfig.customBracket==='daxue2026'){
+    downloadDaxue2026Composite();
     return;
   }
   if(currentStConfig && currentStConfig.customBracket==='zhonghuan69'){
