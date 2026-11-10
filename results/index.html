@@ -105,10 +105,14 @@ table.grid tr:not(:first-child):hover td{background:#FFB020;}
 table.grid.detail{table-layout:auto;}
 table.grid.detail col.c-date{width:8%;}
 table.grid.detail col.c-cat{width:3.5%;}
-table.grid.detail col.c-ev{width:26%;}
-table.grid.detail col.c-st{width:24%;}
+table.grid.detail col.c-ev{width:24%;}
+table.grid.detail col.c-st{width:21%;}
 table.grid.detail col.c-name{width:8%;}
 table.grid.detail col.c-mv{width:10%;}
+table.grid.detail col.c-kifu{width:5%;}
+/* 棋譜連結（HiGO 圍棋）：higo.json 由 工具\更新HiGO棋譜連結.py 產生 */
+table.grid a.kifu{color:#0050b3;text-decoration:underline;white-space:nowrap;}
+table.grid a.kifu:visited{color:#6b2fa0;}
 table.grid.detail th{font-size:20px;}
 table.grid.detail td{font-size:21px;padding:6px 8px;}
 table.grid.detail td.small{font-size:18px;}
@@ -772,15 +776,39 @@ function fmtDate(g){
   const m = String(g.d).match(/^(\d{1,2})[.\/-](\d{1,2})$/);
   return m ? g.y+'/'+m[1].padStart(2,'0')+'/'+m[2].padStart(2,'0') : (g.y+' '+g.d);
 }
+/* ============ HiGO 棋譜連結 ============
+   higo.json（跟這頁放在同一個資料夾）由 工具\更新HiGO棋譜連結.py 產生：用「日期＋黑方＋白方」把每局配到
+   HiGO 圍棋的公開棋譜，map 的鍵是「年份|日期|黑|白」，值是棋譜編號陣列（同一天同一對下兩盤就會有兩個）。
+   讀不到 higo.json 不影響任何功能，只是不顯示棋譜連結。 */
+let HIGO = null, lastDetailList = null;
+function higoKey(g){ return [g.y,g.d,g.b,g.w].map(norm).join('|'); }
+function kifuLinks(g){
+  const ids = HIGO && HIGO.map[higoKey(g)];
+  if(!ids || !ids.length) return '';
+  return ids.map((id,i)=>'<a class="kifu" href="'+esc(HIGO.url+id)+'" target="_blank" rel="noopener" title="在 HiGO 圍棋看這局棋譜">棋譜'+(ids.length>1?(i+1):'')+'</a>').join(' ');
+}
+async function loadHigo(){
+  try{
+    const r = await fetch('higo.json', {cache:'no-cache'});
+    if(!r.ok) return;
+    const j = await r.json();
+    if(!j || !j.map) return;
+    HIGO = { url: j.url || 'https://www.higohigo.org/#/kifu/', map: j.map };
+    if(lastDetailList) renderDetails(lastDetailList);          // 明細先畫好了 → 補上棋譜欄
+    if(rankLastModalName && document.getElementById('rankModal').style.display!=='none') rankShowPlayer(rankLastModalName);
+  }catch(e){ console.warn('棋譜連結（higo.json）讀取失敗，不顯示棋譜欄', e); }
+}
+let rankLastModalName = null;
 function renderDetails(list){
+  lastDetailList = list;
   const area = document.getElementById('detailArea');
   document.getElementById('detailTopBtn').style.display = (list && list.length) ? '' : 'none';
   if(!list || list.length===0){ area.innerHTML=''; return; }
   const shown = list.slice(0, DETAIL_LIMIT);
   let html = (list.length>DETAIL_LIMIT ? '<p class="hint">共 '+list.length.toLocaleString()+' 局，畫面只列出最新 '+DETAIL_LIMIT+' 局；全部明細請登入後用「管理功能」下載。</p>' : '');
-  html += '<div class="grid-wrap"><table class="grid detail" lang="en"><colgroup><col class="c-date"><col class="c-cat"><col class="c-cat"><col class="c-ev"><col class="c-st"><col class="c-name"><col class="c-name"><col class="c-name"><col class="c-mv"></colgroup><tr><th>日期</th><th>大類</th><th>小類</th><th>賽名</th><th>階段</th><th>執黑</th><th>執白</th><th>勝方</th><th>目數</th></tr>';
+  html += '<div class="grid-wrap"><table class="grid detail" lang="en"><colgroup><col class="c-date"><col class="c-cat"><col class="c-cat"><col class="c-ev"><col class="c-st"><col class="c-name"><col class="c-name"><col class="c-name"><col class="c-mv"><col class="c-kifu"></colgroup><tr><th>日期</th><th>大類</th><th>小類</th><th>賽名</th><th>階段</th><th>執黑</th><th>執白</th><th>勝方</th><th>目數</th><th>棋譜</th></tr>';
   shown.forEach(g=>{
-    html += '<tr><td class="small">'+fmtDate(g)+'</td><td class="small">'+esc(g.c1)+'</td><td class="small">'+esc(g.c2)+'</td><td>'+esc(g.ev)+'</td><td>'+esc(g.st)+'</td><td>'+esc(g.b)+'</td><td>'+esc(g.w)+'</td><td>'+esc(g.win)+'</td><td>'+esc(g.mv)+'</td></tr>';
+    html += '<tr><td class="small">'+fmtDate(g)+'</td><td class="small">'+esc(g.c1)+'</td><td class="small">'+esc(g.c2)+'</td><td>'+esc(g.ev)+'</td><td>'+esc(g.st)+'</td><td>'+esc(g.b)+'</td><td>'+esc(g.w)+'</td><td>'+esc(g.win)+'</td><td>'+esc(g.mv)+'</td><td class="small">'+kifuLinks(g)+'</td></tr>';
   });
   html += '</table></div>';
   area.innerHTML = html;
@@ -1572,11 +1600,12 @@ function rankShowPlayer(name){
   const games = rankLast.games.filter(g=>norm(g.b)===p || norm(g.w)===p).slice().reverse();
   const s = P.s;
   let html = '<p style="font-size:19px;font-weight:700;margin:0 0 8px;">'+esc(rankLast.label)+'　'+s.n+' 局　'+s.win+' 勝 '+(s.n-s.win)+' 敗　勝率 '+pct(s.win,s.n)+'　連勝紀錄 '+s.best+'</p>';
-  html += '<div class="grid-wrap" style="margin-top:0;"><table class="grid rank-pop" lang="en"><tr><th>日期</th><th>賽名</th><th>階段</th><th>對手</th><th>執</th><th>勝負</th><th>目數</th></tr>';
+  html += '<div class="grid-wrap" style="margin-top:0;"><table class="grid rank-pop" lang="en"><tr><th>日期</th><th>賽名</th><th>階段</th><th>對手</th><th>執</th><th>勝負</th><th>目數</th><th>棋譜</th></tr>';
+  rankLastModalName = name;
   games.forEach(g=>{
     const isB = norm(g.b)===p, won = norm(g.win)===p;
     html += '<tr><td>'+fmtDate(g)+'</td><td class="left">'+esc(g.ev)+'</td><td class="left">'+esc(g.st)+'</td><td>'+esc(isB ? g.w : g.b)+'</td><td>'+(isB?'黑':'白')+'</td>'+
-      '<td style="color:'+(won?'#c0392b':'#555')+';">'+(won?'勝':'敗')+'</td><td>'+esc(g.mv)+'</td></tr>';
+      '<td style="color:'+(won?'#c0392b':'#555')+';">'+(won?'勝':'敗')+'</td><td>'+esc(g.mv)+'</td><td>'+kifuLinks(g)+'</td></tr>';
   });
   html += '</table></div>';
   document.getElementById('rankModalTitle').textContent = P.name + (P.dan ? '（'+P.dan+'）' : '');
@@ -1641,6 +1670,7 @@ async function doLogin(){
     fb = { auth: app.auth(), db: app.firestore() };
     fb.auth.onAuthStateChanged(user=>setAdmin(!!user, user && user.email));
   }
+  loadHigo();                       // 棋譜連結另外讀，不等它、失敗也不影響查詢
   try{
     await loadData(false);
   }catch(err){
