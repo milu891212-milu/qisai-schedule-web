@@ -88,6 +88,8 @@ td.edit input[type=number]{width:52px}
 td.edit select{width:auto;min-width:58px}
 td.adjcell input.adjamt{width:80px;text-align:right}
 td.money input.amt{width:78px;text-align:right}
+.addform{display:block;padding:10px 14px}
+.addform input,.addform select{margin:2px 4px 2px 0;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:14px}
 .stg{font-size:12px;color:#5f6b6a;margin-right:3px;white-space:nowrap}
 td.adjcell input[type=text]{width:150px;text-align:left}
 td.edit > div{justify-content:center}
@@ -376,6 +378,9 @@ function deriveAuto(games){
 function inputKey(sh, p, col){ return sh+'|'+p+'|'+col; }
 /* 局數、階段欄「直接輸入的金額」另外存在「頁|棋士|欄位|$」：有這個鍵就用它，沒有才依局數×單價／階段獎金表計算 */
 function moneyKey(sh, p, col){ return inputKey(sh, p, col)+'|$'; }
+/* 世界賽類（外幣欄）另外記「階段」文字：「頁|棋士|欄位|階段」；金額可以填原幣（存在 頁|棋士|欄位，照倍率換台幣）或直接填台幣（存在 …|$） */
+function stageKey(sh, p, col){ return inputKey(sh, p, col)+'|階段'; }
+const hasInput = k => !!(FEE && FEE.inputs && Object.prototype.hasOwnProperty.call(FEE.inputs, k));
 const isMoneyMode = c => c.k==='count' || c.k==='stage';
 const ADJ = '調整金額', ADJ_NOTE = '調整原因', NOT_COUNTED = '不計';
 const isAdjCol = col => col===ADJ || col===ADJ_NOTE;
@@ -436,20 +441,26 @@ function calcSheet(sh, p){
   s.cols.forEach(c=>{
     const {v, src} = cellValue(sh, p, c.h);
     const mk = moneyKey(sh, p, c.h);
-    const hasM = isMoneyMode(c) && FEE && FEE.inputs && Object.prototype.hasOwnProperty.call(FEE.inputs, mk);
+    const hasM = (isMoneyMode(c) || c.k==='fx') && hasInput(mk);
+    const stage = c.k==='fx' && hasInput(stageKey(sh, p, c.h)) ? String(FEE.inputs[stageKey(sh, p, c.h)]) : '';
     const hasV = !(v==='' || v==null);
-    if(!hasV && !hasM) return;
+    if(!hasV && !hasM && !stage) return;
     any = true;
     let {amt, calc, bad} = hasV ? amountOf(sh, c, v, ru) : {amt:0, calc:'', bad:false};
     const orig = amt;
     let src2 = src;
-    if(hasM){
+    if(c.k==='fx'){
+      if(hasM){ amt = num(FEE.inputs[mk]); bad = false; calc = '台幣 '+fmt(amt); }
+      else if(hasV) calc = '原幣 '+calc;
+      if(stage) calc = stage+'：'+(calc || '（還沒填金額）');
+      src2 = 'hand';
+    } else if(hasM){
       amt = num(FEE.inputs[mk]); bad = false;
       calc = '手動輸入金額' + (hasV ? '（原本 '+calc+' ＝ '+fmt(orig)+'）' : '');
       src2 = isAuto(sh, c.h) ? 'manual' : 'hand';
     }
     total += amt;
-    items.push({col:c.h, kind:c.k, v: hasV ? v : '', src: src2, amt, calc, bad, orig, money: hasM});
+    items.push({col:c.h, kind:c.k, v: hasV ? v : '', src: src2, amt, calc, bad, orig, money: hasM, stage});
   });
   if(hasFx) total = roundX(total);
   // 金額調整（自動帶入的局數、階段不動，只在金額上加減，並記錄原因）
@@ -679,7 +690,7 @@ function buildFeeRelease(){
         if(it.adj) return {item:'金額調整', amount: it.amt};
         const o = {item: it.col, amount: it.amt};
         /* 「3 局 × 2,000」「8強 → 40,000」這種計算說明給棋士看；手動輸入的金額沒有計算式（只寫院內說明），就只給內容 */
-        const detail = it.money ? (it.kind==='count' && it.v!=='' ? it.v+' 局' : String(it.v||'')) : String(it.calc||'');
+        const detail = it.kind==='fx' ? String(it.stage||'') : it.money ? (it.kind==='count' && it.v!=='' ? it.v+' 局' : String(it.v||'')) : String(it.calc||'');
         if(detail) o.detail = detail;
         return o;
       });
@@ -907,7 +918,7 @@ function queryDetailHtml(r){
       anyRow = true;
       c.items.forEach((it, i)=>{
         h += '<tr>'+(i===0?'<td rowspan="'+(c.items.length+1)+'" style="vertical-align:top"><span style="color:'+g.dark+'">●</span> '+esc(s.id)+'</td>':'')+
-          '<td>'+esc(it.col)+'</td><td>'+(it.adj ? ((it.v>0?'+':'')+fmt(it.v)) : esc(it.v)+(it.kind==='count'?' 局':''))+'</td><td'+(it.bad?' class="bad"':'')+'>'+esc(it.calc)+'</td>'+
+          '<td>'+esc(it.col)+'</td><td>'+(it.adj ? ((it.v>0?'+':'')+fmt(it.v)) : it.kind==='fx' ? esc(it.stage||'') : esc(it.v)+(it.kind==='count'?' 局':''))+'</td><td'+(it.bad?' class="bad"':'')+'>'+esc(it.calc)+'</td>'+
           '<td class="num">'+fmt(it.amt)+'</td><td>'+srcBadge(it.src)+'</td></tr>';
       });
       h += '<tr class="sub"><td colspan="3">'+esc(s.id)+' 小計</td><td class="num">'+fmt(c.total)+'</td><td></td></tr>';
@@ -960,16 +971,28 @@ function renderEvents(){
   }));
   h += '</div>';
   const autoCount = s.cols.filter(c=>isAuto(sh, c.h)).length;
+  const fxCols = s.cols.filter(c=>c.k==='fx');
+  if(fxCols.length){
+    h += '<div class="card addform"><b>新增／修改一筆</b>　'+
+      '<span class="ac"><input id="wfName" placeholder="棋士" autocomplete="off" style="width:110px;font-size:14px;padding:5px 8px"><div class="ac-list"></div></span>'+
+      '<select id="wfCol" class="btn" onchange="wfPreview()">'+fxCols.map(c=>'<option>'+esc(c.h)+'</option>').join('')+'</select>'+
+      '<input id="wfStage" placeholder="階段，例：16強" style="width:120px">'+
+      '<input id="wfAmt" inputmode="numeric" placeholder="金額" style="width:110px;text-align:right" oninput="wfPreview()">'+
+      '<select id="wfCur" class="btn" onchange="wfPreview()"><option value="fx">原幣</option><option value="twd">台幣</option></select>'+
+      '<span id="wfPrev" class="muted"></span>'+
+      '<button class="btn primary small" onclick="wfSave()">儲存</button>'+
+      '<div class="muted" style="margin-top:4px">同一位棋士、同一個比賽再存一次就是修改。「原幣」會照右邊的倍率換成台幣；已經換算好就選「台幣」。表格裡點 ✎ 可以把那筆帶上來修改，✕ 刪除。</div></div>';
+  }
   h += '<div class="flex"><div class="grow"><div class="toolbar">'+
     '<label><input type="checkbox" '+(VIEW_STATE.onlyData?'checked':'')+' onchange="VIEW_STATE.onlyData=this.checked;renderEvents()"> 只顯示有資料的棋士</label>'+
     '<input type="search" placeholder="搜尋棋士" value="'+esc(VIEW_STATE.filter)+'" oninput="VIEW_STATE.filter=this.value;renderEventsBody()">'+
-    (autoCount ? '<span class="muted">格子裡都是<b>金額</b>。<span class="badge auto">青綠</span> 自動從成績系統算出（滑鼠移到格子上可看局數）；直接改金額會變 <span class="badge manual">淺橘</span>，按 ↺ 恢復自動</span>' :
+    (fxCols.length ? '<span class="muted">格子裡是換算後的<b>台幣</b>（小字是階段，滑鼠移上去看原幣與倍率）；請用上面的表單新增或修改。</span>' : autoCount ? '<span class="muted">格子裡都是<b>金額</b>。<span class="badge auto">青綠</span> 自動從成績系統算出（滑鼠移到格子上可看局數）；直接改金額會變 <span class="badge manual">淺橘</span>，按 ↺ 恢復自動</span>' :
                  '<span class="muted">這個賽事沒有自動帶入，請直接填寫（<span class="badge hand">黃底</span>）</span>')+'</div>';
   h += '<div class="tablewrap"><table class="grid"><thead><tr class="hdr">';
   h += '<th class="stick1" style="top:0;min-width:44px">序</th><th class="stick2" style="top:0">棋士</th>';
   s.cols.forEach(c=>{
     const a = isAuto(sh, c.h);
-    const unit = c.k==='fx' ? '(原幣)' : '';
+    const unit = '';
     h += '<th style="top:0;background:'+(a?'var(--teal)':'var(--navy)')+';color:#fff">'+esc(c.h)+unit+'</th>';
   });
   h += '<th style="top:0;background:var(--gray);color:#fff">計算獎金</th>'+
@@ -980,7 +1003,7 @@ function renderEvents(){
   s.cols.forEach(c=>{
     let v = 0;
     CALC.rows.forEach(r=>{
-      if(isMoneyMode(c)){ const it = r.sheets[sh].items.find(i=>i.col===c.h); if(it) v += it.amt; }
+      if(isMoneyMode(c) || c.k==='fx'){ const it = r.sheets[sh].items.find(i=>i.col===c.h); if(it) v += it.amt; }
       else { const cv = cellValue(sh, r.p.name, c.h).v; if(cv!=='' && cv!=null) v += num(cv); }
     });
     h += '<th class="num" style="top:33px;background:var(--green-l)">'+fmt(v)+'</th>';
@@ -1000,7 +1023,45 @@ function renderEvents(){
   if(fx.length) h += '<table class="list"><thead><tr><th>換算</th><th class="num">倍率</th></tr></thead><tbody>'+fx.map(c=>'<tr><td>'+esc(c.h)+'</td><td class="num">'+(+num((ru.rates||{})[c.h]).toFixed(6))+'</td></tr>').join('')+'</tbody></table><br>';
   h += '<button class="btn small" onclick="go(\'settings\',{ruleSheet:\''+sh+'\'})">修改規則</button></div></div>';
   document.getElementById('main').innerHTML = h;
+  if(fxCols.length){ attachAutocomplete(document.getElementById('wfName'), n=>{ document.getElementById('wfName').value = n; }); wfPreview(); }
   renderEventsBody();
+}
+function wfPreview(){
+  const el = document.getElementById('wfPrev'); if(!el) return;
+  const sh = VIEW_STATE.event, col = document.getElementById('wfCol').value, cur = document.getElementById('wfCur').value;
+  const a = Number(String(document.getElementById('wfAmt').value).replace(/[,，\s]/g,''));
+  const rv = (sheetRules(sh).rates||{})[col];
+  if(cur==='twd'){ el.textContent = isNaN(a) || !document.getElementById('wfAmt').value ? '' : '＝ 台幣 '+fmt(a); return; }
+  if(rv==null || rv===''){ el.innerHTML = '<span class="bad">'+esc(col)+' 還沒設定換算倍率，請選「台幣」或先到設定填倍率</span>'; return; }
+  el.textContent = '× '+(+num(rv).toFixed(6))+(isNaN(a) || !document.getElementById('wfAmt').value ? '' : ' ＝ 台幣 '+fmt(roundX(a*num(rv))));
+}
+function wfSave(){
+  const sh = VIEW_STATE.event;
+  const name = document.getElementById('wfName').value.trim(), col = document.getElementById('wfCol').value;
+  const stage = document.getElementById('wfStage').value.trim(), cur = document.getElementById('wfCur').value;
+  const raw = String(document.getElementById('wfAmt').value).replace(/[,，\s]/g,'');
+  if(!(FEE.players||[]).some(p=>p.name===name)){ alert('名單裡沒有「'+name+'」，請從下拉清單選；新棋士請先到「設定 → 棋士名單」加入。'); return; }
+  if(raw==='' && !stage){ alert('請填金額（或至少填階段）'); return; }
+  const a = raw==='' ? null : Number(raw);
+  if(a!=null && (isNaN(a) || a<0)){ alert('金額請填 0 以上的數字'); return; }
+  const k = inputKey(sh, name, col);
+  setInputs({[k]: cur==='fx' ? a : null, [moneyKey(sh, name, col)]: cur==='twd' ? a : null, [stageKey(sh, name, col)]: stage || null});
+  document.getElementById('wfAmt').value = ''; document.getElementById('wfStage').value = ''; wfPreview();
+}
+function wfEdit(p, col){
+  const sh = VIEW_STATE.event;
+  document.getElementById('wfName').value = p; document.getElementById('wfCol').value = col;
+  document.getElementById('wfStage').value = hasInput(stageKey(sh, p, col)) ? FEE.inputs[stageKey(sh, p, col)] : '';
+  const twd = hasInput(moneyKey(sh, p, col));
+  document.getElementById('wfCur').value = twd ? 'twd' : 'fx';
+  const v = twd ? FEE.inputs[moneyKey(sh, p, col)] : (hasInput(inputKey(sh, p, col)) ? FEE.inputs[inputKey(sh, p, col)] : '');
+  document.getElementById('wfAmt').value = v===''||v==null ? '' : v;
+  wfPreview(); document.getElementById('wfAmt').focus(); window.scrollTo(0,0);
+}
+function wfDelete(p, col){
+  const sh = VIEW_STATE.event;
+  if(!confirm('刪除 '+p+' 的「'+col+'」這一筆？')) return;
+  setInputs({[inputKey(sh, p, col)]: null, [moneyKey(sh, p, col)]: null, [stageKey(sh, p, col)]: null});
 }
 function renderEventsBody(){
   const sh = VIEW_STATE.event, s = SHEET[sh];
@@ -1027,6 +1088,17 @@ function renderEventsBody(){
         ctl = tag + '<input type="text" inputmode="numeric" class="amt" '+data+' value="'+(it ? fmt(it.amt)||'0' : '')+'" title="'+esc(it ? it.calc : '')+'" onchange="moneyChanged(this)">';
         if(srcNow==='manual') ctl += '<button class="restore" title="恢復自動（'+esc(it.calc)+'）" onclick="restoreCell(VIEW_STATE.event,\''+esc(r.p.name)+'\',\''+esc(c.h)+'\')">↺</button>';
         h += '<td class="'+cls+'"><div style="display:flex;align-items:center">'+ctl+'</div></td>';
+        return;
+      } else if(c.k==='fx'){
+        // 世界賽類：顯示換算後的台幣；用上面的表單新增／修改
+        const it = item;
+        if(!it){ h += '<td class="edit hand"></td>'; return; }
+        const tag = it.stage ? '<span class="stg">'+esc(it.stage)+'</span>' : '';
+        const pq = esc(r.p.name).replace(/'/g,"\\'"), cq = esc(c.h).replace(/'/g,"\\'");
+        h += '<td class="edit hand'+(it.bad?' badcell':'')+'" title="'+esc(it.calc)+'"><div style="display:flex;align-items:center;justify-content:flex-end;gap:2px">'+tag+
+          '<span style="min-width:64px;text-align:right">'+fmt(it.amt)+'</span>'+
+          '<button class="restore" style="color:#2F5597" title="帶到上面修改" onclick="wfEdit(\''+pq+'\',\''+cq+'\')">✎</button>'+
+          '<button class="restore" style="color:#C00000" title="刪除這一筆" onclick="wfDelete(\''+pq+'\',\''+cq+'\')">✕</button></div></td>';
         return;
       } else {
         ctl = '<input type="number" min="0" step="any" '+data+' value="'+esc(v)+'" onchange="cellChanged(this)">';
@@ -1366,7 +1438,7 @@ function downloadAll(){
   SHEETS.forEach(s=>{
     const a = [['棋士', ...s.cols.map(c=>c.h), '計算獎金', '調整金額', '調整原因', '實發金額']];
     CALC.rows.forEach(r=>{ const c = r.sheets[s.id]; if(!c.any) return; a.push([r.p.name, ...s.cols.map(cc=>{
-      if(isMoneyMode(cc)){ const it = c.items.find(i=>i.col===cc.h); return it ? it.amt : null; }
+      if(isMoneyMode(cc) || cc.k==='fx'){ const it = c.items.find(i=>i.col===cc.h); return it ? it.amt : null; }
       const v = cellValue(s.id, r.p.name, cc.h).v; return v===''?null:v; }), c.base, c.adj||null, c.note||null, c.total]); });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(a), s.id.slice(0,31));
   });
