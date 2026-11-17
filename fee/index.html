@@ -582,6 +582,7 @@ function subscribeResults(){
 function onDataChanged(){
   if(!FEE_LOADED) return;
   recompute();
+  scheduleAutoPublish();
   updateStatus();
   const a = document.activeElement;
   if(a && a.closest && a.closest('#main') && (a.tagName==='INPUT' || a.tagName==='SELECT') && VIEW!=='summary'){ pendingRender = true; return; }
@@ -606,7 +607,8 @@ function updateStatus(){
   const t = window.RESULTS_TIME ? window.RESULTS_TIME.toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}) : '';
   const n = GAMES.length;
   el.innerHTML = '成績 '+n+' 局（'+t+' 更新，有新成績會自動同步）　' +
-    (CALC.issues ? '<b class="bad">⚠ '+CALC.issues+' 項待處理</b>' : '<b class="ok">✔ 檢核正常</b>');
+    (CALC.issues ? '<b class="bad">⚠ '+CALC.issues+' 項待處理</b>' : '<b class="ok">✔ 檢核正常</b>') +
+    '　<span id="relStatus">'+(window.REL_STATUS||'')+'</span>';
 }
 
 /* ============ 寫入 ============ */
@@ -734,12 +736,60 @@ function copyReleaseUrl(){
   const el = document.getElementById('relUrl'); if(!el) return;
   navigator.clipboard.writeText(el.value).then(()=>toast('已複製網址'), ()=>{ el.select(); document.execCommand('copy'); toast('已複製網址'); });
 }
+/* ---- 自動發布（使用者 2026-11-17 決定：對局費一改就自動發布給官網，不用再按按鈕）----
+   資料有變動（有人改金額、成績系統進了新成績）後等 8 秒，內容跟官網上那份不一樣才寫入，避免重複寫。
+   只有開著這個網頁（登入院方帳號）的電腦會發布；沒人開著時進的新成績，等下次有人打開網頁就會補發布。 */
+let REL_TIMER = null, REL_LAST = {}, REL_BUSY = false;
+function setRelStatus(html){ window.REL_STATUS = html; const el = document.getElementById('relStatus'); if(el) el.innerHTML = html; }
+function releaseBody(rel){ return JSON.stringify(Object.assign({}, rel, {published_at: ''})); }
+function scheduleAutoPublish(){
+  if(!FEE || !CALC || !RESULTS_LOADED) return;
+  if(YEAR !== new Date().getFullYear()) return;     // 只自動發布今年；舊年度要發布請按「立即發布」
+  clearTimeout(REL_TIMER);
+  REL_TIMER = setTimeout(autoPublish, 8000);
+}
+async function autoPublish(){
+  if(!FEE || !CALC || !RESULTS_LOADED) return;
+  if(REL_BUSY){ scheduleAutoPublish(); return; }
+  REL_BUSY = true;
+  const yr = YEAR;
+  try{
+    const rel = buildFeeRelease();
+    const body = releaseBody(rel);
+    const key = await getReleaseKey(true);
+    const id = releaseDocId(key, yr);
+    if(REL_LAST[id] == null){
+      // 第一次：先讀官網上目前那份，內容一樣就不用再寫
+      let cur = null;
+      if(LOCAL_MODE){ cur = (JSON.parse(localStorage.getItem(LOCAL_KEY+'-release')||'{}'))[id] || null; }
+      else { const snap = await feeReleaseRef(key, yr).get({source:'server'}); cur = snap.exists ? snap.data() : null; }
+      REL_LAST[id] = cur && cur.json ? releaseBody(JSON.parse(cur.json)) : '';
+      if(cur && cur.published_at) setRelStatus('<span class="muted">官網：已是最新（'+esc(String(cur.published_at).replace('T',' ').slice(5,16))+'）</span>');
+    }
+    if(body === REL_LAST[id] || yr !== YEAR){ REL_BUSY = false; return; }
+    setRelStatus('<span class="muted">官網：更新中…</span>');
+    const total = rel.players.reduce((a,p)=>a+p.total, 0);
+    const doc = { year: yr, published_at: rel.published_at, count: rel.players.length, total: total, json: JSON.stringify(rel), auto: true };
+    if(LOCAL_MODE){
+      const all = JSON.parse(localStorage.getItem(LOCAL_KEY+'-release')||'{}'); all[id] = doc; localStorage.setItem(LOCAL_KEY+'-release', JSON.stringify(all));
+    } else {
+      await feeReleaseRef(key, yr).set(doc);
+    }
+    REL_LAST[id] = body;
+    setRelStatus('<span class="ok">官網：已自動更新（'+esc(rel.published_at.replace('T',' ').slice(11,16))+'）</span>');
+    if(VIEW==='settings'){ const el = document.getElementById('relMeta'); if(el) el.innerHTML = '上次發布：<b>'+esc(rel.published_at.replace('T',' ').slice(0,16))+'</b>（自動）　'+rel.players.length+' 位棋士、總額 '+fmt(total)+' 元'; }
+  }catch(e){
+    console.error(e);
+    setRelStatus('<span class="bad" title="'+esc(e.message||e)+'">官網：自動發布失敗</span>');
+  }
+  REL_BUSY = false;
+}
 async function publishFeeRelease(){
   if(!FEE || !CALC){ alert(YEAR+' 年還沒有對局費資料'); return; }
   if(CALC.issues && !confirm('「檢核」還有 '+CALC.issues+' 項待處理，確定要照目前的金額發布嗎？')) return;
   const rel = buildFeeRelease();
   const total = rel.players.reduce((a,p)=>a+p.total, 0);
-  if(!confirm('要把 '+YEAR+' 年對局費發布給官網嗎？\n\n共 '+rel.players.length+' 位棋士、總額 '+fmt(total)+' 元。\n發布後，棋士登入官網棋士專區就看得到自己的金額（官網大約隔天更新）。\n之後再改金額，要再按一次發布才會更新。')) return;
+  if(!confirm('要立刻把 '+YEAR+' 年對局費發布給官網嗎？\n\n共 '+rel.players.length+' 位棋士、總額 '+fmt(total)+' 元。\n（平常改金額後會自動發布，不用按這個按鈕。）')) return;
   const doc = { year: YEAR, published_at: rel.published_at, count: rel.players.length, total: total, json: JSON.stringify(rel) };
   try{
     const key = await getReleaseKey(true);
@@ -748,6 +798,8 @@ async function publishFeeRelease(){
     } else {
       await feeReleaseRef(key).set(doc);
     }
+    REL_LAST[releaseDocId(key)] = releaseBody(rel);
+    setRelStatus('<span class="ok">官網：已更新（'+esc(rel.published_at.replace('T',' ').slice(11,16))+'）</span>');
     toast('已發布給官網');
     renderSettings();
   }catch(e){ console.error(e); alert('發布失敗：'+(e.message||e)+(/permission/i.test(e.message||'') ? '\n（可能是 Firebase 規則還沒加 fee_release，請找負責的人處理）' : '')); }
@@ -1237,10 +1289,11 @@ function renderSettings(){
        '<div class="muted">「從 Excel 匯入」讀取「2026對局費計算_優化版.xlsx」格式：棋士名單、各賽事獎金規則、手填與手動修改的格子，會<b>整份取代</b>這一年的資料。</div></div>';
   if(FEE){
     h += '<div class="card"><h2>📤 發布給官網</h2>'+
-      '<div class="muted">按下去，會把目前每位棋士的對局費（總額＋各賽事明細，不含調整原因、排名）發布到協會官網棋士專區，棋士只看得到自己的。'+
-      '在這裡改金額<b>不會</b>自動更新官網，核對好之後要再按一次。</div>'+
+      '<div class="muted">每位棋士的對局費（總額＋各賽事明細，不含調整原因、排名）會發布到協會官網棋士專區，棋士只看得到自己的。'+
+      '<b>現在是自動發布</b>：這個網頁開著時，改了金額或進了新成績，大約 10 秒內就會自動更新給官網（畫面右上會顯示「官網：已自動更新」）。'+
+      '沒有人開網頁時進的新成績，下次有人打開網頁就會補上。官網那邊多久抓一次，依官網的設定。</div>'+
       '<p id="relMeta" class="muted">讀取上次發布紀錄中…</p>'+
-      '<div class="toolbar"><button class="btn primary" onclick="publishFeeRelease()">發布 '+YEAR+' 年對局費給官網</button></div>'+
+      '<div class="toolbar"><button class="btn" onclick="publishFeeRelease()">立即發布 '+YEAR+' 年（平常不用按）</button></div>'+
       '<div id="relUrlBox"></div></div>';
     h += playersEditorHtml(); h += rulesEditorHtml();
   }
