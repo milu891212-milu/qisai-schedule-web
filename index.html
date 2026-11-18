@@ -371,6 +371,7 @@ table.ss-table.ss-table-wide.ss-table-challenge col.c-notary{width:13.5%;}
     <div class="setup-actions" style="margin-top:0;">
       <button type="button" class="btn" id="printScoreBtn" onclick="printRoundScoreSheet()">🖨 列印本輪成績登記表</button>
       <button type="button" class="btn secondary" onclick="downloadBracketSVG()">⬇ 下載賽程圖（電子檔）</button>
+      <button type="button" class="btn secondary" onclick="downloadBracketPrintSVG()" title="底圖用原始高解析度圖、名字成績是向量文字的 SVG，給印刷廠用（檔案比較大）">🖨 下載送印檔（SVG）</button>
       <button type="button" class="btn secondary" id="matchupTextBtn" onclick="generateMatchupText()" style="display:none;">📋 產生對陣文字（給官網用）</button>
       <button type="button" class="btn" id="scoreImportBtn" onclick="openScorePhotoImport()" style="display:none;" title="開啟辨識工具，上傳這一輪的成績表照片；寫入 Excel 後自動標好勝方、下載賽程圖與下輪對陣">📷 匯入成績照片（自動晉級）</button>
     </div>
@@ -512,7 +513,9 @@ const PRESET_TOURNAMENTS = [
     title: '中環國手賽',
     org: '中華職業圍棋協會／海峰棋院',
     stages: [
-      { name:'第22屆本賽', type:'single', defaultCount:70, advance:'', pairing:'sequential', customBracket:'guoshou22' }
+      { name:'第22屆本賽', type:'single', defaultCount:70, advance:'', pairing:'sequential', customBracket:'guoshou22' },
+      /* 2026-11-17 加：挑戰賽三番勝負（兩人姓名印在底圖上，不用貼名單），見 renderGs22cOverlay */
+      { name:'挑戰賽', type:'single', customBracket:'guoshou22challenge' }
     ]
   },
   {
@@ -1055,7 +1058,8 @@ const FULL_IMAGE_WIDTHS = {
   'images/guoshou22.jpg':6532, 'images/qiwang19.jpg':3269, 'images/qiwang20_fusai.jpg':6539,
   'images/qiwang20_prelim.jpg':6418, 'images/qiwang20_qualifier.jpg':1038, 'images/xuanle_main48.jpg':6539,
   'images/xuanle_prelim.jpg':3968, 'images/zhonghuan69.jpg':6532, 'images/xuanle_final.jpg':2646,
-  'images/qixian2.jpg':2309, 'images/longxing2.jpg':3402, 'images/qiwang19_challenge.jpg':2646, 'images/daxue2026.jpg':3240
+  'images/qixian2.jpg':2309, 'images/longxing2.jpg':3402, 'images/qiwang19_challenge.jpg':2646, 'images/daxue2026.jpg':3240,
+  'images/guoshou22_challenge.jpg':2646
 };
 function fullImageWidth(url, img){ return FULL_IMAGE_WIDTHS[url] || img.naturalWidth; }
 
@@ -2669,6 +2673,161 @@ function downloadXuanleFinalComposite(){
   };
   img.src = viewImageUrl(XUANLE_FINAL_IMAGE_URL);
 }
+
+/* ============ 第22屆中環國手賽・挑戰賽三番勝負（2026-11-17）============
+   底圖 images/guoshou22_challenge.jpg（原圖 2646×3024，70×80 公分）：兩位選手姓名印在圖上（左賴均輔九段、右許皓鋐國手），
+   下方 3 條灰色欄＝第1~3局成績（日期 11/23、11/30、12/07 印在左邊深藍格）。做法跟玄樂盃決賽一模一樣：
+   每局一場 match（gc_g1~gc_g3，兩格固定兩人、不晉級），灰欄左半邊＝slot0（賴均輔）、右半邊＝slot1（許皓鋐），
+   點哪半邊就標誰贏，再點一次取消；欄裡畫「賴均輔九段　持白中盤勝」。成績存在隱藏欄位 gcres_<階段>_<局>。
+   灰色欄位置是用 Python 在原圖上量的像素（x 1317~2151，高 84）。 */
+const GS22C_IMAGE_URL = 'images/guoshou22_challenge.jpg';
+const GS22C_NAMES = ['賴均輔', '許皓鋐'];
+const GS22C_TITLES = ['九段', '國手']; /* 跟海報上印的一樣 */
+const GS22C_BAR = { W:2646, H:3024, x0:1317, x1:2151, h:84, ys:[2225, 2358, 2491] };
+function gs22cBarRect(g){
+  const B = GS22C_BAR;
+  return { x: B.x0/B.W*100, y: B.ys[g]/B.H*100, w: (B.x1-B.x0+1)/B.W*100, h: B.h/B.H*100 };
+}
+function gs22cResId(stageId, g){ return 'gcres_'+stageId+'_'+(g+1); }
+function gs22cGetRes(stageId, g){
+  const el = document.getElementById(gs22cResId(stageId, g));
+  return el ? el.value.trim() : '';
+}
+function gs22cSetRes(stageId, g, text){
+  const el = document.getElementById(gs22cResId(stageId, g));
+  if(el) el.value = String(text||'').trim().replace(/^持/, '');
+}
+function gs22cWinnerIdx(stageId, g){
+  const mid = 'gc_g'+(g+1);
+  return slotIsWinner(stageId, mid, 0) ? 0 : (slotIsWinner(stageId, mid, 1) ? 1 : -1);
+}
+function gs22cResultText(stageId, g){
+  const i = gs22cWinnerIdx(stageId, g);
+  if(i<0) return '';
+  const who = (getSlotName(stageId, 'gc_g'+(g+1), i) || GS22C_NAMES[i]) + GS22C_TITLES[i];
+  const res = gs22cGetRes(stageId, g);
+  return res ? (who+'　持'+res) : (who+'　勝');
+}
+/* 標完勝方後問成績；hint＝預先填好的文字（📷匯入時知道執黑執白，先幫忙填顏色） */
+function gs22cAskRes(stageId, g, hint){
+  const i = gs22cWinnerIdx(stageId, g);
+  if(i<0) return;
+  const cur = gs22cGetRes(stageId, g);
+  const ans = prompt('第'+(g+1)+'局　'+GS22C_NAMES[i]+GS22C_TITLES[i]+' 勝\n請輸入成績（例：白中盤勝、黑3目半勝）。不填就只顯示「勝」。', cur || hint || '');
+  if(ans===null) return;
+  gs22cSetRes(stageId, g, ans);
+  if(zhRedrawFns[stageId]) zhRedrawFns[stageId]();
+  saveState();
+}
+function drawGs22cResults(ctx, stageId, W, H){
+  GS22C_BAR.ys.forEach(function(_, g){
+    const text = gs22cResultText(stageId, g);
+    if(!text) return;
+    const r = gs22cBarRect(g);
+    const x = r.x/100*W, y = r.y/100*H, w = r.w/100*W, h = r.h/100*H;
+    const family = '"Noto Sans CJK TC","Noto Sans TC","Microsoft JhengHei",sans-serif';
+    let fs = Math.round(h*0.74);
+    ctx.font = '700 '+fs+'px '+family;
+    while(fs>10 && ctx.measureText(text).width > w*0.94){ fs--; ctx.font = '700 '+fs+'px '+family; }
+    ctx.fillStyle = '#1f2d5c';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, x+w/2, y+h/2+h*0.03);
+  });
+}
+function renderGs22cOverlay(st){
+  const stageId = st.id;
+  const allMatches = GS22C_BAR.ys.map(function(_, g){
+    return { id:'gc_g'+(g+1), slots:[{seed:null,isBye:false},{seed:null,isBye:false}], advanceTo:null, redrawOnToggle:true };
+  });
+  const wrap = document.createElement('div');
+  wrap.className = 'zh-overlay-wrap';
+  wrap.style.maxWidth = '900px'; /* 直式海報，太寬畫面要捲很久 */
+  const img = document.createElement('img');
+  img.src = viewImageUrl(GS22C_IMAGE_URL);
+  img.className = 'zh-overlay-img';
+  img.draggable = false;
+  wrap.appendChild(img);
+  attachOverlayLoadingHint(wrap, img);
+  const canvasEl = document.createElement('canvas');
+  canvasEl.className = 'zh-overlay-canvas';
+  wrap.appendChild(canvasEl);
+
+  function doRedraw(){
+    if(!img.naturalWidth) return;
+    if(canvasEl.width!==img.naturalWidth || canvasEl.height!==img.naturalHeight){
+      canvasEl.width = img.naturalWidth; canvasEl.height = img.naturalHeight;
+    }
+    const ctx = canvasEl.getContext('2d');
+    ctx.clearRect(0,0,canvasEl.width,canvasEl.height);
+    drawGs22cResults(ctx, stageId, canvasEl.width, canvasEl.height);
+  }
+  zhRedrawFns[stageId] = doRedraw;
+  img.addEventListener('load', doRedraw);
+
+  allMatches.forEach(function(m, g){
+    matchRegistry[stageId][m.id] = m;
+    const r = gs22cBarRect(g);
+    [0,1].forEach(function(slotIdx){
+      const container = document.createElement('div');
+      container.id = slotWrapId(stageId, m.id, slotIdx);
+      container.className = 'zh-slot xf-slot';
+      container.title = '第'+(g+1)+'局：點這裡標「'+GS22C_NAMES[slotIdx]+'」勝（再點一次取消；按右鍵改成績）';
+      container.style.left = (r.x + (slotIdx ? r.w/2 : 0))+'%'; container.style.top = r.y+'%';
+      container.style.width = (r.w/2)+'%'; container.style.height = r.h+'%';
+      const el = document.createElement('input');
+      el.type = 'text'; el.readOnly = true;
+      el.id = inputId(stageId, m.id, slotIdx);
+      el.className = 'zh-slot-input';
+      el.value = GS22C_NAMES[slotIdx]; /* 從存檔讀回時 restoreOutputDOM 會再寫一次，一樣的名字 */
+      container.addEventListener('click', function(){
+        const wasThis = slotIsWinner(stageId, m.id, slotIdx);
+        gs22cSetRes(stageId, g, ''); /* 取消或換人贏，舊成績都不算了 */
+        toggleWinner(stageId, m.id, slotIdx);
+        if(!wasThis) gs22cAskRes(stageId, g, '');
+      });
+      container.addEventListener('contextmenu', function(e){
+        if(gs22cWinnerIdx(stageId, g)<0) return;
+        e.preventDefault();
+        gs22cAskRes(stageId, g, '');
+      });
+      container.appendChild(el);
+      wrap.appendChild(container);
+    });
+    const res = document.createElement('input');
+    res.type = 'hidden'; res.className = 'mini-input';
+    res.id = gs22cResId(stageId, g);
+    wrap.appendChild(res);
+  });
+
+  /* 從存檔讀回時，勝方是在這個函式結束後才由 restoreOutputDOM 補上，所以晚一拍再畫一次 */
+  if(img.complete && img.naturalWidth){ doRedraw(); }
+  setTimeout(doRedraw, 0);
+  return {wrap, data:{
+    rounds: allMatches.map(function(m){ return [m]; }),
+    customLabels: allMatches.map(function(_, g){ return '第'+(g+1)+'局'; }),
+    hasChampion:false, irregularPrefix:0
+  }};
+}
+function downloadGs22cComposite(){
+  const img = new Image();
+  img.onload = function(){
+    const W = fullImageWidth(GS22C_IMAGE_URL, img), H = img.naturalHeight * W / img.naturalWidth;
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, W, H);
+    drawGs22cResults(ctx, currentBracket.stageId, W, H);
+    canvas.toBlob(function(blob){
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (currentBracket.title||'賽程圖')+'_'+(currentBracket.stageName||'')+'.jpg';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 'image/jpeg', 0.88);
+  };
+  img.src = viewImageUrl(GS22C_IMAGE_URL);
+}
 /* ============ 第2屆世界棋仙戰台灣代表選拔（2026-10-27）============
    底圖 images/qixian2.jpg（原圖 2309×2760），上半「決選」、下半「初選」畫在同一張：
    - 初選 4 組各 4 人（籤號 01~04／05~08／09~12／13~16），1回→2回→組優勝（底圖「入2/入4/入6/入8」顯示格），
@@ -3509,12 +3668,12 @@ function generateDaxue2026Stage(){
 }
 
 /* 決賽不用貼名單：跟 generateQiwang19Stage 一樣直接產生 */
-function generateXuanleFinalStage(){
+function generateXuanleFinalStage(customBracket){ /* 國手挑戰賽（guoshou22challenge）也共用這支 */
   const preset=PRESET_TOURNAMENTS.find(function(p){return p.id===opState.presetId;});
   const stageDef=preset.stages[opState.stageIdx];
   const id=newStageId();
   const st={ id:id, name:stageDef.name, type:stageDef.type, count:2,
-    advance:1, pairing:'sequential', customBracket:'xuanleFinal' };
+    advance:1, pairing:'sequential', customBracket: customBracket || 'xuanleFinal' };
   matchRegistry[id]={};
   const out=document.getElementById('output');
   out.innerHTML='';
@@ -5939,6 +6098,9 @@ function renderSingleElimStage(st){
   if(st.customBracket==='xuanleFinal'){
     return renderXuanleFinalOverlay(st);
   }
+  if(st.customBracket==='guoshou22challenge'){
+    return renderGs22cOverlay(st);
+  }
   if(st.customBracket==='qixian2'){
     return renderQixian2Overlay(st);
   }
@@ -5999,7 +6161,7 @@ function renderStage(st, title){
   section.className='stage-block';
   const isOverlay = (st.customBracket==='qiwang19circle') || (st.customBracket==='qiwang20prelim') || (st.customBracket==='qiwang20fusai') || (st.customBracket==='guoshou22') || (st.customBracket==='qiwang20qualifier') || (st.customBracket==='zhonghuan69')
     || (st.customBracket==='kuaiqi7prelimImg' && st.count===39 && KUAIQI7_PRELIM_IMAGE_URL && KUAIQI7_PRELIM_IMAGE_URL.indexOf('PLACEHOLDER')!==0)
-    || st.customBracket==='xuanlePrelim' || st.customBracket==='xuanleMain48' || st.customBracket==='xuanleFinal' || st.customBracket==='qixian2' || st.customBracket==='longxing2' || st.customBracket==='qiwang19challenge' || st.customBracket==='daxue2026';
+    || st.customBracket==='xuanlePrelim' || st.customBracket==='xuanleMain48' || st.customBracket==='xuanleFinal' || st.customBracket==='qixian2' || st.customBracket==='longxing2' || st.customBracket==='qiwang19challenge' || st.customBracket==='daxue2026' || st.customBracket==='guoshou22challenge';
   if(!isOverlay){
     const header=document.createElement('div');
     header.className='stage-header';
@@ -6606,8 +6768,8 @@ function renderStageEntry(){
     return;
   }
   /* 玄樂盃決賽：兩人姓名印在底圖上，一樣跳過填選手 */
-  if(stageDef.customBracket==='xuanleFinal'){
-    generateXuanleFinalStage();
+  if(stageDef.customBracket==='xuanleFinal' || stageDef.customBracket==='guoshou22challenge'){
+    generateXuanleFinalStage(stageDef.customBracket);
     return;
   }
   /* 大學生十傑：名單跟排陣資料一起貼，一樣跳過填選手 */
@@ -6772,6 +6934,7 @@ function showExistingStage(key, stageDef){
       (stageDef.customBracket==='longxing2' ? '<br>決賽三番勝負：4強打完後，兩位決賽選手會自動帶入中央三條灰欄。點該局灰欄的<b>左半邊＝左邊那位勝</b>、<b>右半邊＝右邊那位勝</b>，接著輸入成績（例：白中盤勝）；再點一次取消；成績打錯在欄上按<b>滑鼠右鍵</b>修改。先拿 2 勝的自動填進最上面的冠軍格。' : '')+
       (stageDef.customBracket==='daxue2026' ? '<br>每打完一場：在瑞士制排陣網站按「複製給賽程表」，回來按賽程表上方的「📋 貼上排陣資料」，整張表（姓名、○●、對手、↑↓）就會更新。主分、輔分、名次平常不顯示，最後一輪記成績時按「顯示主分・輔分・名次」（輔分和前 10 名要第六場全部有成績才會出現）。名次欄按<b>滑鼠右鍵</b>可以改字（例：女子代表）。' : '')+
       (stageDef.customBracket==='qiwang19challenge' ? '<br>記錄勝負：點該局藍色「獲勝者」欄的<b>左半邊＝'+QIWANG19_CHALLENGE_NAMES[0]+'勝</b>、<b>右半邊＝'+QIWANG19_CHALLENGE_NAMES[1]+'勝</b>，接著輸入成績（例：白中盤勝）；再點一次取消；成績打錯點右邊白色「對局結果」欄修改。' : '')+
+      (stageDef.customBracket==='guoshou22challenge' ? '<br>記錄勝負：點該局灰色欄的<b>左半邊＝'+GS22C_NAMES[0]+'勝</b>、<b>右半邊＝'+GS22C_NAMES[1]+'勝</b>，接著輸入成績（例：白中盤勝）；再點一次取消；成績打錯在欄上按<b>滑鼠右鍵</b>修改。' : '')+
       (stageDef.customBracket==='xuanleFinal' ? '<br>記錄勝負：點該局灰色欄的<b>左半邊＝'+XUANLE_FINAL_NAMES[0]+'勝</b>、<b>右半邊＝'+XUANLE_FINAL_NAMES[1]+'勝</b>，接著輸入成績（例：白中盤勝）；再點一次取消；成績打錯在欄上按<b>滑鼠右鍵</b>修改。' : '')+'</p>'+
     '<div class="setup-actions"><button type="button" class="btn secondary small" onclick="confirmRegenerateStage()">重新輸入名單（會清除本階段目前資料）</button></div>';
   area.appendChild(box);
@@ -7249,6 +7412,8 @@ const PUB_DEFAULT_DATES = {
   qixian2: { '初選1回':'2026-10-28 10:00', '初選2回':'2026-10-28 14:00', '決選四強':'2026-11-04 10:00', '決選決賽':'2026-11-04 14:00' },
   /* 第19屆棋王挑戰賽五番勝負：日期照底圖（第一局11/03～第五局12/10），2026-11-02 使用者確認都是 11:00 開始 */
   qiwang19challenge: { '第1局':'2026-11-03 11:00', '第2局':'2026-11-24 11:00', '第3局':'2026-12-01 11:00', '第4局':'2026-12-08 11:00', '第5局':'2026-12-10 11:00' },
+  /* 第22屆國手挑戰賽三番勝負：日期照底圖（11/23、11/30、12/07，都是週一），時間比照國手賽其他輪 11:00 */
+  guoshou22challenge: { '第1局':'2026-11-23 11:00', '第2局':'2026-11-30 11:00', '第3局':'2026-12-07 11:00' },
   xuanleFinal: { '第1局':'2026-10-22 11:00', '第2局':'2026-10-29 11:00', '第3局':'2026-11-05 11:00', '第4局':'2026-11-26 11:00', '第5局':'2026-12-03 11:00' },
   qiwang20prelim: {
     '勝部1回 (1~28號)':'2026-09-29 10:00', '勝部2回 (1~28號)':'2026-09-29 14:00', '敗部1回 (1~28號)':'2026-09-29 14:00',
@@ -7261,7 +7426,7 @@ const PUB_DEFAULT_DATES = {
    上面已經寫在各輪日期後面；循環圈的日期是從輪次標籤讀的，時間另外在這裡給。已經比完的早期輪次沒問，就不填。 */
 const PUB_LABEL_DATE_TIME = { qiwang19circle: '11:00' };
 /* 番棋先拿幾勝；整個階段都是番棋的寫數字，只有後面幾輪是番棋的（龍星賽決賽）寫 {need, label:輪次文字的規則} */
-const PUB_SERIES_WINS = { xuanleFinal: 3, longxing2: {need:2, label:/^決賽第\d局$/}, qiwang19challenge: 3 }; /* 五番勝負先拿3勝；三番勝負先拿2勝 */
+const PUB_SERIES_WINS = { xuanleFinal: 3, longxing2: {need:2, label:/^決賽第\d局$/}, qiwang19challenge: 3, guoshou22challenge: 2 }; /* 五番勝負先拿3勝；三番勝負先拿2勝 */
 function pubSessionsOf(rec, r){
   const v = PUB_DEFAULT_DATES[rec.stConfig && rec.stConfig.customBracket];
   const t = v && v[r.label];
@@ -7775,6 +7940,12 @@ function applyScoreItems(sess, items){
       const color = win && win===normPlayerName(it.game.black) ? '黑' : (win && win===normPlayerName(it.game.white) ? '白' : '');
       if(gIdx>=0) xuanleFinalAskRes(stageId, gIdx, color);
     }
+    if(currentStConfig && currentStConfig.customBracket==='guoshou22challenge' && /^gc_g\d$/.test(it.matchId)){
+      const gIdx = parseInt(String(it.matchId).replace('gc_g',''),10)-1;
+      const win = normPlayerName(it.game && it.game.winner);
+      const color = win && win===normPlayerName(it.game.black) ? '黑' : (win && win===normPlayerName(it.game.white) ? '白' : '');
+      gs22cAskRes(stageId, gIdx, color);
+    }
     if(currentStConfig && currentStConfig.customBracket==='qiwang19challenge' && /^ch_g\d$/.test(it.matchId)){
       const gIdx = parseInt(String(it.matchId).replace('ch_g',''),10)-1;
       const win = normPlayerName(it.game && it.game.winner);
@@ -7980,6 +8151,16 @@ function printRoundScoreSheet(){
      對不上，另外寫一支專用的列印函式處理。 */
   if(currentStConfig && currentStConfig.customBracket==='qiwang20fusai'){
     printQiwang20FusaiScoreSheet(idx);
+    return;
+  }
+  /* 國手挑戰賽：選哪一局都印三局長版 */
+  if(currentStConfig && currentStConfig.customBracket==='guoshou22challenge'){
+    const sid=currentBracket.stageId;
+    const games=GS22C_BAR.ys.map(function(_, g){
+      const mid='gc_g'+(g+1);
+      return { n0:getSlotName(sid,mid,0) || GS22C_NAMES[0], n1:getSlotName(sid,mid,1) || GS22C_NAMES[1] };
+    });
+    printSeriesScoreSheet(printEventTitle()+printStageName()+'三番勝負　成績紀錄表', currentBracket.stageName, games);
     return;
   }
   /* 玄樂盃決賽（獨立階段）：選哪一局都印五局長版 */
@@ -8533,6 +8714,10 @@ function downloadBracketSVG(){
     downloadXuanleFinalComposite();
     return;
   }
+  if(currentStConfig && currentStConfig.customBracket==='guoshou22challenge'){
+    downloadGs22cComposite();
+    return;
+  }
   if(currentStConfig && currentStConfig.customBracket==='qixian2'){
     downloadQixian2Composite();
     return;
@@ -8575,6 +8760,206 @@ function downloadBracketSVG(){
   URL.revokeObjectURL(url);
 }
 
+
+/* ============ 下載送印檔（SVG）（2026-11-17）============
+   使用者要送印刷廠。各賽事的「下載賽程圖」都是同一個模式：建一個 canvas → drawImage 畫底圖 →
+   fillText／arc 畫名字成績 → canvas.toBlob 存 JPG。送印版不另外寫一套畫法，而是在按下按鈕的那一刻，
+   把「下一個建立的 canvas」換成會記錄畫圖動作的假 canvas（SvgRecorderCanvas），照原本的下載函式跑一遍：
+   - drawImage（底圖）→ 換成 images/ 底下的「原圖」（不是畫面用的輕量版），整張嵌進 SVG，解析度跟設計師給的一樣
+   - fillText → 向量文字 <text>（對齊、基線、fillText 的最大寬度都先在瀏覽器量好換算，不靠 SVG 的對齊屬性，
+     Illustrator 打開位置才不會跑掉）；arc／moveTo／lineTo／rect → 向量圖形
+   - toBlob → 吐出 SVG，原本的下載流程照常把它存下來，只是副檔名換成「_送印.svg」
+   所以每個賽事的排版跟 JPG 版完全一樣，之後新加的賽事也自動支援，不用另外改。
+   文字用的字型：大多是 Noto Sans TC（Google 免費字型），大學生十傑是新細明體；印刷廠電腦沒有這個字型會被換掉，
+   要的話請印刷廠「文字轉外框」前先裝字型。 */
+function SvgRecorderCanvas(measureCtx){
+  this.width = 300; this.height = 150;
+  this._measure = measureCtx;
+  this._ctx = null;
+}
+SvgRecorderCanvas.prototype.getContext = function(){
+  if(!this._ctx) this._ctx = new SvgRecorderCtx(this);
+  return this._ctx;
+};
+SvgRecorderCanvas.prototype.toBlob = function(cb){
+  const self = this;
+  (this._ctx || this.getContext()).finish().then(function(svg){
+    cb(new Blob([svg], {type:'image/svg+xml'}));
+  }, function(err){
+    hideBracketDownloadWaiting();
+    if(self._onCancel) self._onCancel();
+    if(err==='cancel') return; /* 使用者在問尺寸時按了取消 */
+    console.error(err);
+    alert('送印檔產生失敗：'+(err && err.message || err));
+  });
+};
+function SvgRecorderCtx(canvas){
+  this.canvas = canvas;
+  this.font = '10px sans-serif';
+  this.fillStyle = '#000'; this.strokeStyle = '#000'; this.lineWidth = 1;
+  this.textAlign = 'start'; this.textBaseline = 'alphabetic';
+  this.globalAlpha = 1;
+  this._m = [1,0,0,1,0,0];
+  this._stack = [];
+  this._path = '';
+  this._out = [];
+  this._images = [];
+}
+(function(P){
+  function num(v){ return Math.round(v*100)/100; }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  /* rgba() 拆成 rgb＋透明度（舊版 SVG／Illustrator 不吃 rgba） */
+  function paint(attr, c, alpha){
+    c = String(c||'#000').trim();
+    let op = alpha;
+    const m = c.match(/^rgba\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*\)$/i);
+    if(m){ c = 'rgb('+m[1]+','+m[2]+','+m[3]+')'; op *= parseFloat(m[4]); }
+    return attr+'="'+esc(c)+'"'+(op<1 ? ' '+attr+'-opacity="'+num(op)+'"' : '');
+  }
+  P._pt = function(x, y){ const m = this._m; return [m[0]*x+m[2]*y+m[4], m[1]*x+m[3]*y+m[5]]; };
+  P._s = function(){ const m = this._m; return Math.sqrt(Math.abs(m[0]*m[3]-m[1]*m[2])) || 1; };
+  P.save = function(){
+    this._stack.push({ m:this._m.slice(), font:this.font, fillStyle:this.fillStyle, strokeStyle:this.strokeStyle, lineWidth:this.lineWidth,
+      textAlign:this.textAlign, textBaseline:this.textBaseline, globalAlpha:this.globalAlpha });
+  };
+  P.restore = function(){ const s = this._stack.pop(); if(!s) return; const self = this; Object.keys(s).forEach(function(k){ if(k==='m') self._m = s.m; else self[k] = s[k]; }); };
+  P.transform = function(a,b,c,d,e,f){
+    const m = this._m;
+    this._m = [m[0]*a+m[2]*b, m[1]*a+m[3]*b, m[0]*c+m[2]*d, m[1]*c+m[3]*d, m[0]*e+m[2]*f+m[4], m[1]*e+m[3]*f+m[5]];
+  };
+  P.scale = function(sx, sy){ this.transform(sx,0,0,sy,0,0); };
+  P.translate = function(tx, ty){ this.transform(1,0,0,1,tx,ty); };
+  P.setTransform = function(a,b,c,d,e,f){ this._m = (a && typeof a==='object') ? [a.a,a.b,a.c,a.d,a.e,a.f] : [a,b,c,d,e,f]; };
+  P.resetTransform = function(){ this._m = [1,0,0,1,0,0]; };
+  P.getTransform = function(){ return new DOMMatrix(this._m); };
+  P.measureText = function(t){ const mc = this.canvas._measure; mc.font = this.font; mc.textBaseline = this.textBaseline; return mc.measureText(t); };
+  P.clearRect = function(){};
+  P.drawImage = function(img){
+    const a = arguments;
+    let dx, dy, dw, dh;
+    if(a.length>=9){ dx=a[5]; dy=a[6]; dw=a[7]; dh=a[8]; }
+    else if(a.length>=5){ dx=a[1]; dy=a[2]; dw=a[3]; dh=a[4]; }
+    else { dx=a[1]; dy=a[2]; dw=img.naturalWidth||img.width; dh=img.naturalHeight||img.height; }
+    const p = this._pt(dx, dy), s = this._s();
+    /* 底圖換成原圖（images/view/ 是畫面用的輕量版） */
+    const src = String(img.currentSrc || img.src || '').replace('/images/view/', '/images/');
+    const id = this._images.length;
+    this._images.push(src);
+    this._out.push('<image x="'+num(p[0])+'" y="'+num(p[1])+'" width="'+num(dw*s)+'" height="'+num(dh*s)+'" preserveAspectRatio="none" xlink:href="@@IMG'+id+'@@"/>');
+  };
+  P.fillText = function(t, x, y, maxW){
+    t = String(t);
+    if(!t) return;
+    const mc = this.canvas._measure;
+    mc.font = this.font;
+    mc.textBaseline = 'alphabetic';
+    const w = mc.measureText(t).width, ascA = mc.measureText(t).fontBoundingBoxAscent;
+    mc.textBaseline = this.textBaseline;
+    const ascB = mc.measureText(t).fontBoundingBoxAscent;
+    const k = (maxW!==undefined && maxW>0 && w>maxW) ? maxW/w : 1;
+    const al = this.textAlign;
+    const x0 = (al==='center') ? x-w*k/2 : ((al==='right' || al==='end') ? x-w*k : x);
+    const yb = y + (ascA - ascB); /* 換算成文字基線 */
+    const p = this._pt(x0, yb), s = this._s();
+    const f = String(this.font).match(/^(.*?)([\d.]+)px\s+(.+)$/) || ['', '', '10', 'sans-serif'];
+    const wm = f[1].match(/\b(bold|bolder|[1-9]00)\b/);
+    const weight = wm ? (wm[1]==='bold' ? '700' : wm[1]) : '400';
+    const family = f[3].replace(/"/g, "'");
+    this._out.push('<text x="'+num(p[0])+'" y="'+num(p[1])+'" font-family="'+esc(family)+'" font-size="'+num(parseFloat(f[2])*s)+'" font-weight="'+weight+'" '+
+      paint('fill', this.fillStyle, this.globalAlpha)+
+      (k<1 ? ' transform="matrix('+num(k)+' 0 0 1 '+num(p[0]*(1-k))+' 0)"' : '')+' xml:space="preserve">'+esc(t)+'</text>');
+  };
+  P.strokeText = function(){};
+  P.beginPath = function(){ this._path = ''; };
+  P.closePath = function(){ this._path += 'Z'; };
+  P.moveTo = function(x, y){ const p = this._pt(x, y); this._path += 'M'+num(p[0])+' '+num(p[1]); };
+  P.lineTo = function(x, y){ const p = this._pt(x, y); this._path += 'L'+num(p[0])+' '+num(p[1]); };
+  P.rect = function(x, y, w, h){ this.moveTo(x,y); this.lineTo(x+w,y); this.lineTo(x+w,y+h); this.lineTo(x,y+h); this.closePath(); };
+  P.arc = function(cx, cy, r, a0, a1, ccw){
+    const c = this._pt(cx, cy), R = r*this._s();
+    const span = ccw ? a0-a1 : a1-a0;
+    if(Math.abs(span) >= Math.PI*2-1e-6){
+      this._path += 'M'+num(c[0]+R)+' '+num(c[1])+'A'+num(R)+' '+num(R)+' 0 1 1 '+num(c[0]-R)+' '+num(c[1])+
+        'A'+num(R)+' '+num(R)+' 0 1 1 '+num(c[0]+R)+' '+num(c[1])+'Z';
+      return;
+    }
+    const sx = c[0]+R*Math.cos(a0), sy = c[1]+R*Math.sin(a0), ex = c[0]+R*Math.cos(a1), ey = c[1]+R*Math.sin(a1);
+    let d = ccw ? (a0-a1) : (a1-a0);
+    d = ((d % (Math.PI*2)) + Math.PI*2) % (Math.PI*2);
+    this._path += (this._path ? 'L' : 'M')+num(sx)+' '+num(sy)+'A'+num(R)+' '+num(R)+' 0 '+(d>Math.PI?1:0)+' '+(ccw?0:1)+' '+num(ex)+' '+num(ey);
+  };
+  P.fill = function(){ if(this._path) this._out.push('<path d="'+this._path+'" '+paint('fill', this.fillStyle, this.globalAlpha)+'/>'); };
+  P.stroke = function(){ if(this._path) this._out.push('<path d="'+this._path+'" fill="none" '+paint('stroke', this.strokeStyle, this.globalAlpha)+' stroke-width="'+num(this.lineWidth*this._s())+'"/>'); };
+  P.fillRect = function(x, y, w, h){ const keep = this._path; this.beginPath(); this.rect(x,y,w,h); this.fill(); this._path = keep; };
+  P.strokeRect = function(x, y, w, h){ const keep = this._path; this.beginPath(); this.rect(x,y,w,h); this.stroke(); this._path = keep; };
+  /* 讀 JPG 檔頭（JFIF）裡設計師存的解析度；讀不到就當 96（目前所有底圖都是 96dpi＝實際海報尺寸） */
+  function jpegDpi(buf){
+    const u = new Uint8Array(buf);
+    if(u.length>18 && u[0]===0xFF && u[1]===0xD8 && u[2]===0xFF && u[3]===0xE0 && u[6]===0x4A && u[7]===0x46 && u[8]===0x49 && u[9]===0x46){
+      const unit = u[13], d = u[14]*256+u[15];
+      if(d>1 && unit===1) return d;
+      if(d>1 && unit===2) return d*2.54;
+    }
+    return 96;
+  }
+  P.finish = function(){
+    const self = this, W = this.canvas.width, H = this.canvas.height;
+    const imgInfo = [];
+    return Promise.all(this._images.map(function(src, i){
+      return fetch(src).then(function(r){ if(!r.ok) throw new Error('底圖讀不到（'+src+'）'); return r.blob(); }).then(function(b){
+        return b.arrayBuffer().then(function(buf){
+          return createImageBitmap(b).then(function(bm){ imgInfo[i] = { px:bm.width, dpi:jpegDpi(buf) }; bm.close && bm.close(); }, function(){});
+        }).then(function(){
+          return new Promise(function(res, rej){ const fr = new FileReader(); fr.onload = function(){ res(fr.result); }; fr.onerror = rej; fr.readAsDataURL(b); });
+        });
+      });
+    })).then(function(urls){
+      /* 實際印刷尺寸：底圖原始像素 ÷ 解析度 ＝ 設計師做的海報寬度 */
+      let defCm = W/96*2.54;
+      const m0 = self._out[0] && self._out[0].match(/^<image [^>]*width="([\d.]+)"/);
+      if(imgInfo[0] && m0) defCm = (imgInfo[0].px/imgInfo[0].dpi*2.54) * (W/parseFloat(m0[1]));
+      defCm = Math.round(defCm*10)/10;
+      const ratio = H/W;
+      const ans = prompt('這張海報要印多寬？（單位：公分）\n\n設計師底圖的原始尺寸是：寬 '+defCm+' × 高 '+(Math.round(defCm*ratio*10)/10)+' 公分\n照原尺寸印直接按「確定」；要放大縮小就改寬度，高度會自動等比例。', String(defCm));
+      if(ans===null) throw 'cancel';
+      const wCm = parseFloat(String(ans).replace(/[^\d.]/g, ''));
+      if(!(wCm>0)) throw new Error('寬度請輸入數字（公分）');
+      const hCm = wCm*ratio;
+      self.canvas._sizeLabel = (Math.round(wCm*10)/10)+'x'+(Math.round(hCm*10)/10)+'cm';
+      let body = self._out.join('\n');
+      urls.forEach(function(u, i){ body = body.replace('@@IMG'+i+'@@', u); });
+      return '<?xml version="1.0" encoding="UTF-8"?>\n'+
+        '<!-- 印刷尺寸：寬 '+(Math.round(wCm*10)/10)+' 公分 × 高 '+(Math.round(hCm*10)/10)+' 公分 -->\n'+
+        '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="'+(Math.round(wCm*1000)/1000)+'cm" height="'+(Math.round(hCm*1000)/1000)+'cm" viewBox="0 0 '+num(W)+' '+num(H)+'">\n'+
+        body+'\n</svg>\n';
+    });
+  };
+})(SvgRecorderCtx.prototype);
+
+function downloadBracketPrintSVG(){
+  if(!currentBracket){ alert('請先產生賽程表'); return; }
+  if(location.protocol==='file:'){ downloadBracketSVG(); return; } /* 本機直接開檔會被擋，交給原本的提示 */
+  /* 沒有底圖的一般賽程表，原本的「下載賽程圖」就是 SVG */
+  if(!(currentStConfig && currentStConfig.customBracket && document.querySelector('#output .zh-overlay-img'))){ downloadBracketSVG(); return; }
+  const realCreate = document.createElement;
+  const realClick = HTMLAnchorElement.prototype.click;
+  const measure = realCreate.call(document, 'canvas').getContext('2d');
+  let done = false;
+  function restore(){ if(done) return; done = true; document.createElement = realCreate; HTMLAnchorElement.prototype.click = realClick; }
+  /* 只換掉「下一個」canvas，換完馬上還原，不影響畫面上其他 canvas */
+  let rec = null;
+  document.createElement = function(tag){
+    if(String(tag).toLowerCase()==='canvas'){ document.createElement = realCreate; rec = new SvgRecorderCanvas(measure); rec._onCancel = restore; return rec; }
+    return realCreate.apply(document, arguments);
+  };
+  HTMLAnchorElement.prototype.click = function(){
+    if(/\.jpe?g$/i.test(this.download||'')){ this.download = this.download.replace(/\.jpe?g$/i, '_送印'+(rec && rec._sizeLabel ? '_'+rec._sizeLabel : '')+'.svg'); restore(); }
+    return realClick.apply(this, arguments);
+  };
+  setTimeout(restore, 120000); /* 保險：兩分鐘內沒產生出來就還原 */
+  try{ downloadBracketSVG(); }
+  catch(e){ restore(); throw e; }
+}
 
 function downloadKuaiqi7PrelimComposite(){
   const img = new Image();
