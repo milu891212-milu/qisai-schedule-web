@@ -3923,6 +3923,16 @@ function syncZh69GamesFromFinal(stageId){
 /* 決賽三番戰三戰兩勝：三局裡只要同一邊贏了兩局，就是最終冠軍，自動帶入最上面那個
    唯一、橫式、不可點擊的「冠軍格」（跟其他晉級後顯示格是同一種設計：靠程式自動算出來寫進去，
    不是使用者自己點的）。每次任何一局的勝負被標記/取消，或決賽兩位選手改變時都要重算一次。 */
+/* 2026-11-20 使用者要求：決賽第二、三局一開始不要顯示對陣姓名（還沒下，而且第三局可能不用下），
+   等使用者自己點一下那一局的格子才顯示。姓名資料照常同步（列印、對陣文字、匯入都照舊），只是不畫在圖上。
+   是否已顯示存在隱藏的 .mini-input（zh69show_）裡，跟著存檔走；已經標過勝負的局一律顯示。 */
+function zh69ShowId(stageId, gi){ return 'zh69show_'+stageId+'_'+gi; }
+function zh69GameShown(stageId, gi){
+  if(gi===0) return true;
+  const el = document.getElementById(zh69ShowId(stageId, gi));
+  if(el && el.value==='1') return true;
+  return slotIsWinner(stageId, 'zh69_game'+gi, 0) || slotIsWinner(stageId, 'zh69_game'+gi, 1);
+}
 function updateZh69Champion(stageId){
   if(!matchRegistry[stageId] || !matchRegistry[stageId]['zh69_champion']) return;
   let wins0 = 0, wins1 = 0;
@@ -3987,6 +3997,7 @@ function renderZhonghuan69Overlay(st){
        一旦點了其中一邊標記勝方，輸的那邊直接不畫，贏的那邊改用「兩格合併後的整個寬度」置中畫，
        視覺上就像整個白格只顯示一個贏家的名字。 */
     for(let __gi=0; __gi<3; __gi++){
+      if(!zh69GameShown(stageId, __gi)) continue;
       const s0 = wrap.querySelector('.zh-game-slot[data-zh-key="zh69_game'+__gi+'_0"]');
       const s1 = wrap.querySelector('.zh-game-slot[data-zh-key="zh69_game'+__gi+'_1"]');
       if(!s0 || !s1) continue;
@@ -4057,7 +4068,27 @@ function renderZhonghuan69Overlay(st){
     el.readOnly = true;
     el.id = inputId(stageId, m.id, slotIdx);
     el.className = 'zh-slot-input' + (extraClass?(' '+extraClass):'');
-    container.addEventListener('click', function(){ toggleWinner(stageId, m.id, slotIdx); });
+    const __gm = /^zh69_game([12])$/.exec(m.id);
+    if(__gm){
+      const gi = parseInt(__gm[1],10);
+      container.title = '還沒顯示的局：點一下顯示對陣；已顯示的局按右鍵可以再藏起來';
+      container.addEventListener('contextmenu', function(e){
+        e.preventDefault();
+        const f = document.getElementById(zh69ShowId(stageId, gi));
+        if(!f || f.value!=='1') return;
+        if(slotIsWinner(stageId, m.id, 0) || slotIsWinner(stageId, m.id, 1)){ alert('這局已經標了勝負，要先取消勝負才能藏起來'); return; }
+        if(!confirm('要把第'+(gi===1?'二':'三')+'局的對陣姓名藏起來嗎？')) return;
+        f.value = ''; doRedraw(); saveState();
+      });
+    }
+    container.addEventListener('click', function(){
+      if(__gm && !zh69GameShown(stageId, parseInt(__gm[1],10))){
+        const f = document.getElementById(zh69ShowId(stageId, parseInt(__gm[1],10)));
+        if(f){ f.value = '1'; doRedraw(); saveState(); }
+        return;
+      }
+      toggleWinner(stageId, m.id, slotIdx);
+    });
     container.appendChild(el);
     wrap.appendChild(container);
 
@@ -4089,6 +4120,11 @@ function renderZhonghuan69Overlay(st){
     const gmatch = {id:'zh69_game'+gi, slots:[{seed:null,isBye:false},{seed:null,isBye:false}], advanceTo:null, notifyOnAdvance:'zh69champion'};
     matchRegistry[stageId][gmatch.id] = gmatch;
     gmatch.slots.forEach(function(slot, slotIdx){ placeSlot(gmatch, slotIdx, 'zh-game-slot'); });
+    if(gi>0){
+      const fin = document.createElement('input');
+      fin.type = 'hidden'; fin.id = zh69ShowId(stageId, gi); fin.className = 'mini-input';
+      wrap.appendChild(fin);
+    }
 
     const dcoord = ZH69_COORDS['zh69_date_'+gi];
     if(dcoord){
@@ -4149,6 +4185,7 @@ function renderZhonghuan69Overlay(st){
   return {wrap, data};
 }
 function downloadZhonghuan69Composite(){
+  const __zhSid = currentBracket && currentBracket.stageId; /* 第二、三局還沒點出來就不畫（見 zh69GameShown） */
   const img = new Image();
   img.onload = function(){
     const __FW = fullImageWidth(ZH69_IMAGE_URL, img), __FH = img.naturalHeight * __FW / img.naturalWidth;
@@ -4198,6 +4235,7 @@ function downloadZhonghuan69Composite(){
 
     /* 決賽三番戰三局的對戰格：橫式、贏的人才顯示，邏輯跟畫面上的即時預覽（doRedraw）完全一樣 */
     for(let __gi=0; __gi<3; __gi++){
+      if(__zhSid && !zh69GameShown(__zhSid, __gi)) continue;
       const s0 = document.querySelector('#output .zh-game-slot[data-zh-key="zh69_game'+__gi+'_0"]');
       const s1 = document.querySelector('#output .zh-game-slot[data-zh-key="zh69_game'+__gi+'_1"]');
       if(!s0 || !s1) continue;
