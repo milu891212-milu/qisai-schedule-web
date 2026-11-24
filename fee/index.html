@@ -174,6 +174,9 @@ const firebaseConfig = {
 const LOCAL_MODE = new URLSearchParams(location.search).get('local') === '1';
 const LOCAL_KEY = 'haifong-fee-local-v1';
 
+/*@@ENGINE_BEGIN@@*/
+/* ↑↓ 這兩個標記之間（以及下面 @@RELEASE 那段）會被雲端排程 .github/fee-publish.mjs 原封不動擷取去算對局費、發布給官網。
+   改規則照常改這裡就好；但這段裡不能在載入時就用到 document／location／firebase（雲端沒有瀏覽器），標記也不要刪。 */
 /* ============ 賽事頁結構（欄位種類：count=局數×單價、stage=查階段表、fx=外幣×倍率、money=直接台幣） ============ */
 const C = (h, k, t) => ({h, k, t});
 const SHEETS = [
@@ -530,6 +533,7 @@ function recompute(){
   CALC = {rows, byName, check:{missing, badStages, manual, dups, orphan, unmapped, adjusts, adjNoNote}, sheetTotals,
           issues: missing.length + badStages.length + dups.length + orphan.length + adjNoNote.length};
 }
+/*@@ENGINE_END@@*/
 
 /* ============ 資料載入（即時同步） ============ */
 function feeDocRef(y){ return fb.db.collection('fees').doc('y'+(y||YEAR)); }
@@ -680,6 +684,7 @@ async function getReleaseKey(create){
 function releaseDocId(key, y){ return key+'-y'+(y||YEAR); }
 function releaseUrl(key, y){ return FEE_RELEASE_BASE + releaseDocId(key, y); }
 function feeReleaseRef(key, y){ return fb.db.collection('fee_release').doc(releaseDocId(key, y)); }
+/*@@RELEASE_BEGIN@@*/
 function feeTaipeiIso(d){ return new Date(d.getTime()+8*3600000).toISOString().slice(0,19)+'+08:00'; }
 function buildFeeRelease(){
   const players = [];
@@ -704,6 +709,8 @@ function buildFeeRelease(){
   });
   return { year: YEAR, published_at: feeTaipeiIso(new Date()), players: players };
 }
+function releaseBody(rel){ return JSON.stringify(Object.assign({}, rel, {published_at: ''})); }
+/*@@RELEASE_END@@*/
 async function loadFeeReleaseMeta(){
   const key = await getReleaseKey(false);
   if(!key) return null;
@@ -738,10 +745,11 @@ function copyReleaseUrl(){
 }
 /* ---- 自動發布（使用者 2026-11-17 決定：對局費一改就自動發布給官網，不用再按按鈕）----
    資料有變動（有人改金額、成績系統進了新成績）後等 8 秒，內容跟官網上那份不一樣才寫入，避免重複寫。
-   只有開著這個網頁（登入院方帳號）的電腦會發布；沒人開著時進的新成績，等下次有人打開網頁就會補發布。 */
+   只有開著這個網頁（登入院方帳號）的電腦會發布；沒人開著時進的新成績，等下次有人打開網頁就會補發布。
+   2026-11-24 起另有雲端排程（GitHub Actions .github/workflows/fee-publish.yml，台灣時間每天 07:07、19:07）用同一段程式補發布，
+   沒人開網頁也會更新。兩邊算出來一樣就不會重複寫。 */
 let REL_TIMER = null, REL_LAST = {}, REL_BUSY = false;
 function setRelStatus(html){ window.REL_STATUS = html; const el = document.getElementById('relStatus'); if(el) el.innerHTML = html; }
-function releaseBody(rel){ return JSON.stringify(Object.assign({}, rel, {published_at: ''})); }
 function scheduleAutoPublish(){
   if(!FEE || !CALC || !RESULTS_LOADED) return;
   if(YEAR !== new Date().getFullYear()) return;     // 只自動發布今年；舊年度要發布請按「立即發布」

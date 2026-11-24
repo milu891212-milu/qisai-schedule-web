@@ -1,0 +1,23 @@
+# 對局費自動發布給官網：每天台灣時間 07:07、19:07 各跑一次（官網約 20:17 來抓，19:07 那次讓當天的成績趕得上）
+# 也可以在 GitHub 的 Actions 頁面按「Run workflow」手動跑。程式說明見 .github/fee-publish.mjs
+name: 對局費自動發布給官網
+on:
+  schedule:
+    - cron: '7 11,23 * * *'   # UTC 時間（＝台灣 19:07、07:07）
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: fee-publish
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node .github/fee-publish.mjs
+        env:
+          FIREBASE_SA: ${{ secrets.FIREBASE_SA }}
