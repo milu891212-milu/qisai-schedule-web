@@ -636,12 +636,17 @@ function renderStage(model){
   html += '<div class="stagehead"><h2>'+esc(rec.currentBracket.title)+'　'+esc(rec.currentBracket.stageName)+'</h2>';
   html += '<span class="muted">'+(model.byDate ? '⚠ 這個階段賽程表沒有結構資料（較早封存），只用成績系統依日期分欄' : '欄位照賽程表')+'</span></div>';
   // 成績系統賽名
-  html += '<div class="row">成績系統賽名 <select autocomplete="off" onchange="setEv('+kk+',this.value)">'+['<option value="">（選擇）</option>'].concat(EVENTS.map(e=>'<option'+(e===model.ev?' selected':'')+'>'+esc(e)+'</option>')).join('')+'</select>';
+  // 使用者 2026-11-26：上面選了比賽就是同一個比賽，賽名自動對上就不用顯示；只有對不上（或之前手動改過）才出現下拉
+  const guess = bracketEventGuess(rec);
+  const showEv = !guess || (st.ev && st.ev !== guess);
+  const evSel = '成績系統賽名 <select autocomplete="off" onchange="setEv('+kk+',this.value)">'+['<option value="">（選擇）</option>'].concat(EVENTS.map(e=>'<option'+(e===model.ev?' selected':'')+'>'+esc(e)+'</option>')).join('')+'</select>'
+    + (!guess ? ' <span class="warn">成績系統找不到同名的比賽，請選一下</span>' : ' <a href="javascript:void 0" onclick="setEv('+kk+',\'\')">恢復自動</a>');
+  let rowHtml = showEv ? evSel : '';
   if(model.byDate){
     const stages = [...new Set(GAMES.filter(g=>g.ev===model.ev).map(g=>g.stN))];
-    html += ' 成績系統階段（可多選，按住 Ctrl） <select multiple size="'+Math.min(5,Math.max(2,stages.length))+'" onchange="setResStages('+kk+',this)">'+stages.map(s=>'<option'+((st.resStages||[]).indexOf(s)>=0?' selected':'')+'>'+esc(s)+'</option>').join('')+'</select>';
+    rowHtml += (rowHtml ? ' ' : '') + '成績系統階段（可多選，按住 Ctrl） <select multiple size="'+Math.min(5,Math.max(2,stages.length))+'" onchange="setResStages('+kk+',this)">'+stages.map(s=>'<option'+((st.resStages||[]).indexOf(s)>=0?' selected':'')+'>'+esc(s)+'</option>').join('')+'</select>';
   }
-  html += '</div>';
+  if(rowHtml) html += '<div class="row">'+rowHtml+'</div>';
   // 欄
   html += '<h3>要放進請款單的輪次</h3><div class="row">';
   const selIds = new Set(st.cols||[]);
