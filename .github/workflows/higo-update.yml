@@ -1,0 +1,40 @@
+# 成績系統 HiGO 棋譜連結自動更新：每天台灣時間 23:17 跑一次
+# 讀 HiGO 公開棋譜清單＋成績系統雲端資料 → 重新配對 → 有變化才更新 results/higo.json 並發布網站
+# 也可以在 GitHub 的 Actions 頁面按「Run workflow」手動跑。程式說明見 .github/higo-update.py
+name: HiGO 棋譜連結自動更新
+on:
+  schedule:
+    - cron: '17 15 * * *'   # UTC 時間（＝台灣 23:17）
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+concurrency:
+  group: higo-update
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -X utf8 .github/higo-update.py
+      - name: 有變化才發布
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- results/higo.json; then
+            echo "棋譜連結沒有變化，不用發布"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add results/higo.json
+          git commit -m "自動更新 HiGO 棋譜連結"
+          for i in 1 2 3; do
+            git pull --rebase -X theirs origin master && git push origin HEAD:master && break
+            sleep 15
+          done
+          gh api -X POST "repos/${{ github.repository }}/pages/builds" || echo "（請求重建網站沒成功，push 本身通常也會觸發）"
