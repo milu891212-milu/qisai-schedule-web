@@ -440,7 +440,8 @@ function buildRows(key, rec, ev, pool, allCols, used, M, S, resStages){
     if(idx.length<2) return;
     for(let ci=idx[0]+1; ci<idx[idx.length-1]; ci++){ const c = allCols[ci]; if(!p.cells[c.id] && c.ms.length && c.labels.every(l=>!/第\d+局$/.test(l))) p.cells[c.id] = {mark:'空', fee:''}; }
   });
-  // 備註：最後一個勾選欄贏了、後面還有自己的對局 → 「入○○」
+  // 備註：只有「進決賽」才寫（使用者 2026-11-26：進16強、8強這些不用寫）
+  //   ＝最後一個勾選欄贏了，而且他下一盤所在的輪次是「決賽…」
   const lastSel = sel[sel.length-1];
   Object.values(P).forEach(p=>{
     let note = '';
@@ -448,7 +449,11 @@ function buildRows(key, rec, ev, pool, allCols, used, M, S, resStages){
       const cell = p.cells[lastSel.id];
       if(cell && cell.mark && cell.mark.startsWith('○')){
         const nx = allCols.slice(lastSel.ci+1).find(c=>c.ms.some(m=>m.names.indexOf(p.name)>=0));
-        if(nx){ const m = nx.ms.find(m=>m.names.indexOf(p.name)>=0); const ri = m.ri; note = '入'+cleanRoundLabel(S && ri!=null ? S.rounds[ri].label : nx.labels[0]); }
+        if(nx){
+          const m = nx.ms.find(m=>m.names.indexOf(p.name)>=0), ri = m.ri;
+          const lab = cleanRoundLabel(S && ri!=null ? S.rounds[ri].label : nx.labels[0]);
+          if(/^決賽/.test(lab)) note = '入決賽';
+        }
       }
     }
     if(noClaim.has(p.name)) note = '不請款';
