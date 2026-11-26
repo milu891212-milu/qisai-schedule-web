@@ -24,7 +24,7 @@
   button.primary{ background:#D86018; color:#fff; border-color:#D86018; font-weight:bold; font-size:16px; padding:8px 18px; }
   input[type=text], input[type=email], input[type=password], textarea, select{ font-size:14px; padding:4px 6px; border:1px solid var(--bd); border-radius:5px; font-family:inherit; }
   .heads input{ width:100%; }
-  .heads{ display:grid; grid-template-columns:70px 1fr; gap:6px 10px; align-items:center; max-width:720px; }
+  .heads{ display:grid; grid-template-columns:100px 1fr; gap:6px 10px; align-items:center; max-width:720px; }
   table.pv{ border-collapse:collapse; font-size:14px; margin-top:6px; }
   table.pv th, table.pv td{ border:1px solid var(--bd); padding:2px 4px; text-align:center; white-space:nowrap; }
   table.pv th{ background:var(--soft); font-weight:normal; font-size:13px; }
@@ -123,8 +123,10 @@ const firebaseConfig = {
   appId: "1:892169332286:web:c16a82a686d1f3e024536f"
 };
 const FEE_PAGE_URL = '../fee/index.html';
+const BRACKET_PAGE_URL = '../index.html';
 const LS_KEY = 'haifong-claim-v1';
-const ORG_DEFAULT = ['中華職業圍棋協會','財團法人培生海峰文教基金會'];
+/* 抬頭只有這兩種（使用者 2026-11-26）；每個比賽選哪一個存在雲端 claim/settings.heads[比賽id].org */
+const ORG_OPTIONS = ['財團法人培生海峰文教基金會','中華職業圍棋協會'];
 
 let fb = null;
 let E = null;                 // 對局費系統的計算引擎（RULES、sheetRules…）
@@ -163,6 +165,15 @@ async function loadEngine(){
   if(a<0 || b<0) throw new Error('對局費系統程式裡找不到 @@ENGINE 標記');
   E = new Function(txt.slice(a, b) + '\n;return {RULES, SHEET, normStage, startsAny, sheetRules, num, setFee: function(f){ FEE = f; }};')();
 }
+/* 賽程表程式裡 PRESET_TOURNAMENTS 的 label（例如「第1屆 玄樂盃」）：屆數只寫在這裡，存檔資料裡沒有 */
+let PRESET_LABELS = {};
+async function loadPresetLabels(){
+  try{
+    const txt = await (await fetch(BRACKET_PAGE_URL, {cache:'no-cache'})).text();
+    const re = /\bid:\s*'([^']+)',\s*\r?\n\s*label:\s*'([^']+)'/g; let m;
+    while((m = re.exec(txt))) PRESET_LABELS[m[1]] = m[2];
+  }catch(e){ console.warn('讀不到賽程表的比賽名稱', e); }
+}
 async function loadBrackets(){
   const s = await fb.db.collection('brackets').doc('main').get({source:'server'});
   BR = (s.exists && s.data().brackets) || {};
@@ -190,11 +201,12 @@ async function loadSettings(){
   try{
     const s = await fb.db.collection('claim').doc('settings').get({source:'server'});
     const d = s.exists ? s.data() : {};
-    SETTINGS = {rates: d.rates ? JSON.parse(d.rates) : {}, noClaim: d.noClaim ? JSON.parse(d.noClaim) : []};
+    SETTINGS = {rates: d.rates ? JSON.parse(d.rates) : {}, noClaim: d.noClaim ? JSON.parse(d.noClaim) : [], heads: d.heads ? JSON.parse(d.heads) : {}};
     SETTINGS_REMOTE = true;
   }catch(e){
     SETTINGS_REMOTE = false;
-    SETTINGS = LOCAL.settings || {rates:{}, noClaim:[]};
+    SETTINGS = LOCAL.settings || {rates:{}, noClaim:[], heads:{}};
+    SETTINGS.heads = SETTINGS.heads || {};
     console.warn('claim/settings 讀不到，改存本機', e);
   }
   $('#noClaim').value = (SETTINGS.noClaim||[]).join('\n');
@@ -205,7 +217,7 @@ function saveSettings(){
   setTimer = setTimeout(async ()=>{
     if(!SETTINGS_REMOTE){ LOCAL.settings = SETTINGS; saveLocal(); toast('已存在這台電腦（雲端規則還沒加）'); return; }
     try{
-      await fb.db.collection('claim').doc('settings').set({rates: JSON.stringify(SETTINGS.rates), noClaim: JSON.stringify(SETTINGS.noClaim),
+      await fb.db.collection('claim').doc('settings').set({rates: JSON.stringify(SETTINGS.rates), noClaim: JSON.stringify(SETTINGS.noClaim), heads: JSON.stringify(SETTINGS.heads||{}),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()}, {merge:true});
       toast('設定已存到雲端');
     }catch(e){ SETTINGS_REMOTE = false; LOCAL.settings = SETTINGS; saveLocal(); toast('雲端存不進去，先存在這台電腦'); }
@@ -474,18 +486,55 @@ function noteOf(model, p){ const st = stLocal(model.key); return (p.name in st.n
 function feeNum(v){ if(v===''||v==null) return 0; const n = Number(String(v).replace(/,/g,'')); return isNaN(n) ? 0 : n; }
 function feeVal(v){ if(v===''||v==null) return ''; const n = Number(String(v).replace(/,/g,'')); return isNaN(n) ? String(v) : n; }
 
+/* 1～99 → 一、十四、二十… */
+function zhNum(n){
+  const D = '零一二三四五六七八九'; n = Number(n);
+  if(!(n>0 && n<100)) return String(n);
+  if(n<10) return D[n];
+  const t = Math.floor(n/10), u = n%10;
+  return (t===1 ? '' : D[t]) + '十' + (u ? D[u] : '');
+}
+const RE_JIE = /第\s*([0-9]+|[一二三四五六七八九十]+)\s*屆/;
+function jieOf(rec, key){
+  const cb = rec.currentBracket || {}, ps = rec.pubStruct || {};
+  for(const s of [PRESET_LABELS[presetOf(key||'')], cb.title, ps.event, cb.stageName]){
+    const m = String(s||'').match(RE_JIE);
+    if(m) return /^[0-9]+$/.test(m[1]) ? zhNum(m[1]) : m[1];
+  }
+  // 同一個比賽的其他階段有寫屆數也算
+  const p = presetOf(Object.keys(BR).find(k=>BR[k]===rec)||'');
+  for(const k of Object.keys(BR)){ if(presetOf(k)!==p) continue; const r = BR[k]; for(const s of [(r.currentBracket||{}).stageName, (r.pubStruct||{}).event]){ const m = String(s||'').match(RE_JIE); if(m) return /^[0-9]+$/.test(m[1]) ? zhNum(m[1]) : m[1]; } }
+  return '';
+}
 function defaultHeads(model){
-  const cb = model.rec.currentBracket || {};
-  const org = String(cb.org||'').split(/[／\/]/)[0].trim() || ORG_DEFAULT[0];
-  const ds = model.sel.flatMap(c=>c.dates).sort((a,b)=>dnum(a)-dnum(b));
+  const rec = model.rec, cb = rec.currentBracket || {};
+  // 第一行：抬頭（兩種之一）
+  const org = String(cb.org||'').indexOf('培生')>=0 ? ORG_OPTIONS[0] : ORG_OPTIONS[1];
+  // 第二行：屆數＋賽名
+  const name = String(cb.title||'').replace(RE_JIE,'').trim();
+  const jie = jieOf(rec, model.key);
+  const title = (jie ? '第'+jie+'屆' : '') + name;
+  // 第三行：階段（＋這次勾的輪次）＋日期
+  const stage = String(cb.stageName||'').replace(RE_JIE,'').trim();
+  const sel = model.sel, all = model.allCols.filter(c=>c.nGames>0);
+  let rounds = '';
+  if(sel.length && sel.length < all.length){
+    const a = sel[0].labels[0], b = sel[sel.length-1].labels[sel[sel.length-1].labels.length-1];
+    rounds = a===b ? a : a+'~'+b;
+  }
+  const ds = sel.flatMap(c=>c.dates).sort((a,b)=>dnum(a)-dnum(b));
   const ymd = d => { const p = String(d).split(/[.\/]/); return YEAR+p[0].padStart(2,'0')+(p[1]||'').padStart(2,'0'); };
   let range = '';
   if(ds.length){ range = ymd(ds[0]); if(ds[ds.length-1]!==ds[0]) range += '-'+ymd(ds[ds.length-1]).slice(4); }
-  return {org, title: cb.title||'', sub: (cb.stageName||'')+'--對局費'+(range?'('+range+')':'')};
+  const sub = stage + (rounds && rounds!==stage ? '('+rounds+')' : '') + '--對局費' + (range ? '('+range+')' : '');
+  return {org, title, sub};
 }
 function headsOf(model){
-  const st = stLocal(model.key), d = defaultHeads(model), h = st.heads || {};
-  return {org: h.org!=null ? h.org : d.org, title: h.title!=null ? h.title : d.title, sub: h.sub!=null ? h.sub : d.sub};
+  const st = stLocal(model.key), d = defaultHeads(model);
+  const ph = (SETTINGS.heads||{})[presetOf(model.key)] || {}, h = st.heads || {};
+  return {org: ORG_OPTIONS.indexOf(ph.org)>=0 ? ph.org : d.org,
+          title: ph.title!=null ? ph.title : d.title,
+          sub: h.sub!=null ? h.sub : d.sub};
 }
 
 /* ============ 畫面 ============ */
@@ -524,8 +573,18 @@ function toggleCol(key, cid, on){
 }
 function setEv(key, v){ const st = stLocal(key); st.ev = v; st.cols = null; saveLocal(); renderAll(); }
 function setResStages(key, el){ const st = stLocal(key); st.resStages = [...el.selectedOptions].map(o=>o.value); st.cols = null; saveLocal(); renderAll(); }
-function setHead(key, f, v){ const st = stLocal(key); st.heads = st.heads || {}; st.heads[f] = v; saveLocal(); }
-function resetHeads(key){ stLocal(key).heads = null; saveLocal(); renderAll(); }
+/* 抬頭、標題：整個比賽共用、存雲端；副標題（日期／階段）每次請款不同，只存這台電腦 */
+function setHead(key, f, v){
+  if(f==='sub'){ const st = stLocal(key); st.heads = st.heads || {}; st.heads.sub = v; saveLocal(); return; }
+  const p = presetOf(key); SETTINGS.heads = SETTINGS.heads || {};
+  const o = SETTINGS.heads[p] = SETTINGS.heads[p] || {};
+  o[f] = v; saveSettings(); renderAll();
+}
+function resetHeads(key){
+  stLocal(key).heads = null; saveLocal();
+  if(SETTINGS.heads && SETTINGS.heads[presetOf(key)]){ delete SETTINGS.heads[presetOf(key)]; saveSettings(); }
+  renderAll();
+}
 function editCell(key, name, cid, f, v){
   const st = stLocal(key), k = name+'|'+cid, model = MODELS[key];
   const p = model.rows.find(r=>r.name===name), a = (p && p.cells[cid]) || {mark:'', fee:''};
@@ -585,10 +644,10 @@ function renderStage(model){
   html += '</div>';
   // 表頭
   html += '<h3>表頭 <button class="linkbtn" onclick="resetHeads('+kk+')">恢復預設</button></h3><div class="heads">';
-  html += '<span>抬頭</span><input type="text" list="orgList" value="'+esc(h.org)+'" onchange="setHead('+kk+',\'org\',this.value)">';
-  html += '<span>標題</span><input type="text" value="'+esc(h.title)+'" onchange="setHead('+kk+',\'title\',this.value)">';
-  html += '<span>副標題</span><input type="text" value="'+esc(h.sub)+'" onchange="setHead('+kk+',\'sub\',this.value)">';
-  html += '</div><datalist id="orgList">'+ORG_DEFAULT.map(o=>'<option value="'+esc(o)+'">').join('')+'</datalist>';
+  html += '<span>抬頭</span><select autocomplete="off" onchange="setHead('+kk+',\'org\',this.value)">'+ORG_OPTIONS.map(o=>'<option'+(o===h.org?' selected':'')+'>'+esc(o)+'</option>').join('')+'</select>';
+  html += '<span>屆數＋賽名</span><input type="text" value="'+esc(h.title)+'" onchange="setHead('+kk+',\'title\',this.value)">';
+  html += '<span>日期＋階段</span><input type="text" value="'+esc(h.sub)+'" onchange="setHead('+kk+',\'sub\',this.value)">';
+  html += '</div><p class="muted" style="margin:4px 0 0">抬頭、屆數＋賽名：同一個比賽各階段共用，改了會記住（全部電腦共用）。日期＋階段：會照勾選的輪次自動產生。</p>';
   // 費率
   html += '<h3>每局對局費（從對局費系統帶入；改了會記住，全部電腦共用'+(SETTINGS_REMOTE?'':'——⚠ 目前只存這台電腦')+'）</h3>';
   if(model.rates.length){
@@ -763,7 +822,7 @@ async function downloadExcel(){
       setStatus('載入中…');
       fillYearSelect();
       await loadEngine();
-      await Promise.all([loadBrackets(), loadSettings()]);
+      await Promise.all([loadBrackets(), loadSettings(), loadPresetLabels()]);
       await loadYear();
       fillPresetSelect();
       renderAll();
