@@ -557,7 +557,9 @@ function presetList(){
 }
 function fillPresetSelect(){
   const list = presetList(), sel = $('#presetSel');
-  sel.innerHTML = list.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.title)+(p.archived?'（封存）':'')+'</option>').join('');
+  // 加上屆數（使用者 2026-11-26：第19屆、第20屆棋王賽原本都只顯示「棋王賽」分不出來）
+  const jie = p => { try{ const k = p.keys && p.keys[0]; return k && BR[k] ? jieOf(BR[k], k) : ''; }catch(e){ return ''; } };
+  sel.innerHTML = list.map(p=>{ const j = jie(p), t = String(p.title||''); return '<option value="'+esc(p.id)+'">'+esc((j && !RE_JIE.test(t) ? '第'+j+'屆' : '')+t)+(p.archived?'（封存）':'')+'</option>'; }).join('');
   if(LOCAL.preset && list.some(p=>p.id===LOCAL.preset)) sel.value = LOCAL.preset;
   LOCAL.preset = sel.value;
 }
