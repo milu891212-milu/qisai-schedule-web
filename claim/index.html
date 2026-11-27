@@ -709,7 +709,7 @@ function renderPreview(model){
       const x = cellOf(model, p, c);
       const n = feeNum(x.fee); sum += n; colTot[ci] += n;
       h += '<td'+(x.bad?' class="bad" title="'+esc(x.bad)+'"':'')+'><input class="mk'+(x.markEdited?' edited':'')+'" value="'+esc(x.mark)+'" onchange="editCell('+kk+','+qn+',\''+c.id+'\',\'mark\',this.value)"></td>';
-      h += '<td><input class="fe'+(x.feeEdited?' edited':'')+'" value="'+esc(typeof x.fee==='number'?fmt(x.fee):x.fee)+'" onchange="editCell('+kk+','+qn+',\''+c.id+'\',\'fee\',this.value)"></td>';
+      h += '<td><input class="fe'+(x.feeEdited?' edited':'')+'" value="'+esc(typeof feeVal(x.fee)==='number'?fmt(feeVal(x.fee)):x.fee)+'" onchange="editCell('+kk+','+qn+',\''+c.id+'\',\'fee\',this.value)"></td>';
     });
     grand += sum;
     const note = noteOf(model, p), st = stLocal(k);
