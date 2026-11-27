@@ -405,7 +405,7 @@ function buildRows(key, rec, ev, pool, allCols, used, M, S, resStages){
         if(m.game){
           const g = m.game, won = g.win===n, lost = g.win===other;
           const rt = rateFor(g.ev, g.st);
-          if(won) cell = {mark: g.forfeit ? '不戰勝○' : '○', fee: rt.win, g};   // 寫法照範本（2026-11-27）：不戰勝○、不戰敗╳
+          if(won) cell = {mark: g.forfeit ? '不戰勝○' : '○', fee: rt.win, g};   // 寫法統一（使用者 2026-11-27）：不戰勝○、不戰敗╳，勝負符號放後面
           else if(lost) cell = {mark: g.forfeit ? '不戰敗╳' : '╳', fee: g.forfeit ? 0 : rt.lose, g};
           else cell = {mark:'？', fee:'', g, bad:'成績系統這局的勝方「'+g.win+'」不是對局的兩人'};
           if(m.bwin>=0 && (won||lost) && (m.bwin===i) !== won && selIds.has(c.id) && i===0)
@@ -420,8 +420,8 @@ function buildRows(key, rec, ev, pool, allCols, used, M, S, resStages){
           // 輪空：賽程表已經讓他晉級，或後面的輪次有他 → 「空」；還在等對手的不算
           if(m.bwin===i || allCols.slice(ci+1).some(c2=>c2.ms.some(x=>x.names.indexOf(n)>=0))) cell = {mark:'空', fee:''};
         } else if(m.manual){
-          // 兩人都沒到（下一格手填「棄」）：範本寫「╳不戰敗」、0 元
-          cell = {mark: PLACEHOLDER.test(clean(m.manual)) ? '╳不戰敗' : m.manual, fee:0};
+          // 兩人都沒到（下一格手填「棄」）：不戰敗╳、0 元
+          cell = {mark: PLACEHOLDER.test(clean(m.manual)) ? '不戰敗╳' : m.manual, fee:0};
         } else if(m.bwin>=0){
           cell = {mark: m.bwin===i ? '○' : '╳', fee:'', bad:'賽程表有勝負，但成績系統找不到這一局'};
           if(selIds.has(c.id) && i===0) warns.push('成績系統找不到：'+m.names.join(' vs ')+'（'+c.label+'；賽程表上 '+m.names[m.bwin]+' 勝）');
@@ -487,10 +487,12 @@ function buildRows(key, rec, ev, pool, allCols, used, M, S, resStages){
 /* 手動修改存雲端 claim/settings（2026-11-27 起，全部電腦共用）；以前只存本機的舊修改照樣讀得到 */
 function editsOf(key){ SETTINGS.edits = SETTINGS.edits || {}; return SETTINGS.edits[key] = SETTINGS.edits[key] || {}; }
 function notesOf(key){ SETTINGS.notes = SETTINGS.notes || {}; return SETTINGS.notes[key] = SETTINGS.notes[key] || {}; }
+/* 手打的「○不戰勝」「╳不戰敗」也統一成符號在後面 */
+function normMark(v){ const t = String(v==null?'':v).trim(); const m = t.match(/^([○╳])\s*(不戰[勝敗])$/); return m ? m[2]+m[1] : v; }
 function cellOf(model, p, c){
   const st = stLocal(model.key), k = p.name+'|'+c.id, e = Object.assign({}, st.edits[k] || {}, editsOf(model.key)[k] || {});
   const a = p.cells[c.id] || {mark:'', fee:''};
-  return {mark: ('mark' in e) ? e.mark : a.mark, fee: ('fee' in e) ? e.fee : a.fee,
+  return {mark: normMark(('mark' in e) ? e.mark : a.mark), fee: ('fee' in e) ? e.fee : a.fee,
           markEdited: 'mark' in e, feeEdited: 'fee' in e, bad: a.bad, auto:a};
 }
 function noteOf(model, p){ const st = stLocal(model.key), cn = notesOf(model.key); return (p.name in cn) ? cn[p.name] : (p.name in st.notes) ? st.notes[p.name] : p.autoNote; }
