@@ -112,7 +112,7 @@
                  算法跟對局費系統同一份，不另寫
    自己存的：Firestore claim/settings { rates:{ "賽名|階段": {win,lose} }, noClaim:[姓名…] }（只存「改過的費率」與不請款名單）
             ← 規則還沒加時改存這台電腦的 localStorage
-   畫面上手動改的格子（成績、金額、備註、表頭）只存在這台電腦的 localStorage。
+   畫面上手動改的格子、備註（2026-11-27 起）存雲端 claim/settings 的 edits/notes，全部電腦共用；第三行表頭只存這台電腦。
    ============================================================================ */
 const firebaseConfig = {
   apiKey: "AIzaSyAZAxRuD6MFG4i_FcOf5OX_qzrHunGXqnk",
@@ -201,7 +201,8 @@ async function loadSettings(){
   try{
     const s = await fb.db.collection('claim').doc('settings').get({source:'server'});
     const d = s.exists ? s.data() : {};
-    SETTINGS = {rates: d.rates ? JSON.parse(d.rates) : {}, noClaim: d.noClaim ? JSON.parse(d.noClaim) : [], heads: d.heads ? JSON.parse(d.heads) : {}};
+    SETTINGS = {rates: d.rates ? JSON.parse(d.rates) : {}, noClaim: d.noClaim ? JSON.parse(d.noClaim) : [], heads: d.heads ? JSON.parse(d.heads) : {},
+      edits: d.edits ? JSON.parse(d.edits) : {}, notes: d.notes ? JSON.parse(d.notes) : {}};
     SETTINGS_REMOTE = true;
   }catch(e){
     SETTINGS_REMOTE = false;
@@ -218,6 +219,7 @@ function saveSettings(){
     if(!SETTINGS_REMOTE){ LOCAL.settings = SETTINGS; saveLocal(); toast('已存在這台電腦（雲端規則還沒加）'); return; }
     try{
       await fb.db.collection('claim').doc('settings').set({rates: JSON.stringify(SETTINGS.rates), noClaim: JSON.stringify(SETTINGS.noClaim), heads: JSON.stringify(SETTINGS.heads||{}),
+        edits: JSON.stringify(SETTINGS.edits||{}), notes: JSON.stringify(SETTINGS.notes||{}),
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()}, {merge:true});
       toast('設定已存到雲端');
     }catch(e){ SETTINGS_REMOTE = false; LOCAL.settings = SETTINGS; saveLocal(); toast('雲端存不進去，先存在這台電腦'); }
@@ -403,8 +405,8 @@ function buildRows(key, rec, ev, pool, allCols, used, M, S, resStages){
         if(m.game){
           const g = m.game, won = g.win===n, lost = g.win===other;
           const rt = rateFor(g.ev, g.st);
-          if(won) cell = {mark: g.forfeit ? '○不戰勝' : '○', fee: rt.win, g};
-          else if(lost) cell = {mark: g.forfeit ? '╳不戰敗' : '╳', fee: g.forfeit ? 0 : rt.lose, g};
+          if(won) cell = {mark: g.forfeit ? '不戰勝○' : '○', fee: rt.win, g};   // 寫法照範本（2026-11-27）：不戰勝○、不戰敗╳
+          else if(lost) cell = {mark: g.forfeit ? '不戰敗╳' : '╳', fee: g.forfeit ? 0 : rt.lose, g};
           else cell = {mark:'？', fee:'', g, bad:'成績系統這局的勝方「'+g.win+'」不是對局的兩人'};
           if(m.bwin>=0 && (won||lost) && (m.bwin===i) !== won && selIds.has(c.id) && i===0)
             warns.push('賽程表與成績系統勝負不同：'+m.names.join(' vs ')+'（'+md(g.d)+'，成績系統：'+g.win+' 勝）— 請款單以成績系統為準');
@@ -412,13 +414,14 @@ function buildRows(key, rec, ev, pool, allCols, used, M, S, resStages){
           // 對手那格手填「棄」：沒有成績紀錄，算不戰勝、照這一欄的單價給
           const g0 = c.ms.find(x=>x.game);
           const rt = g0 ? rateFor(g0.game.ev, g0.game.st) : {win:''};
-          cell = {mark:'○不戰勝', fee: rt.win==null ? '' : rt.win, bad:'對手格子寫「'+m.ph[1-i]+'」，成績系統沒有這局，當作不戰勝'};
+          cell = {mark:'不戰勝○', fee: rt.win==null ? '' : rt.win, bad:'對手格子寫「'+m.ph[1-i]+'」，成績系統沒有這局，當作不戰勝'};
           if(selIds.has(c.id)) warns.push('對手寫「'+m.ph[1-i]+'」：'+n+' 算不戰勝、照給對局費（'+c.label+'）— 不對請在預覽表改');
         } else if(!other){
           // 輪空：賽程表已經讓他晉級，或後面的輪次有他 → 「空」；還在等對手的不算
           if(m.bwin===i || allCols.slice(ci+1).some(c2=>c2.ms.some(x=>x.names.indexOf(n)>=0))) cell = {mark:'空', fee:''};
         } else if(m.manual){
-          cell = {mark: m.manual, fee:0};
+          // 兩人都沒到（下一格手填「棄」）：範本寫「╳不戰敗」、0 元
+          cell = {mark: PLACEHOLDER.test(clean(m.manual)) ? '╳不戰敗' : m.manual, fee:0};
         } else if(m.bwin>=0){
           cell = {mark: m.bwin===i ? '○' : '╳', fee:'', bad:'賽程表有勝負，但成績系統找不到這一局'};
           if(selIds.has(c.id) && i===0) warns.push('成績系統找不到：'+m.names.join(' vs ')+'（'+c.label+'；賽程表上 '+m.names[m.bwin]+' 勝）');
@@ -481,13 +484,16 @@ function buildRows(key, rec, ev, pool, allCols, used, M, S, resStages){
 }
 
 /* 套用手動修改後的格子 */
+/* 手動修改存雲端 claim/settings（2026-11-27 起，全部電腦共用）；以前只存本機的舊修改照樣讀得到 */
+function editsOf(key){ SETTINGS.edits = SETTINGS.edits || {}; return SETTINGS.edits[key] = SETTINGS.edits[key] || {}; }
+function notesOf(key){ SETTINGS.notes = SETTINGS.notes || {}; return SETTINGS.notes[key] = SETTINGS.notes[key] || {}; }
 function cellOf(model, p, c){
-  const st = stLocal(model.key), e = st.edits[p.name+'|'+c.id] || {};
+  const st = stLocal(model.key), k = p.name+'|'+c.id, e = Object.assign({}, st.edits[k] || {}, editsOf(model.key)[k] || {});
   const a = p.cells[c.id] || {mark:'', fee:''};
   return {mark: ('mark' in e) ? e.mark : a.mark, fee: ('fee' in e) ? e.fee : a.fee,
           markEdited: 'mark' in e, feeEdited: 'fee' in e, bad: a.bad, auto:a};
 }
-function noteOf(model, p){ const st = stLocal(model.key); return (p.name in st.notes) ? st.notes[p.name] : p.autoNote; }
+function noteOf(model, p){ const st = stLocal(model.key), cn = notesOf(model.key); return (p.name in cn) ? cn[p.name] : (p.name in st.notes) ? st.notes[p.name] : p.autoNote; }
 function feeNum(v){ if(v===''||v==null) return 0; const n = Number(String(v).replace(/,/g,'')); return isNaN(n) ? 0 : n; }
 function feeVal(v){ if(v===''||v==null) return ''; const n = Number(String(v).replace(/,/g,'')); return isNaN(n) ? String(v) : n; }
 
@@ -595,18 +601,20 @@ function resetHeads(key){
 function editCell(key, name, cid, f, v){
   const st = stLocal(key), k = name+'|'+cid, model = MODELS[key];
   const p = model.rows.find(r=>r.name===name), a = (p && p.cells[cid]) || {mark:'', fee:''};
-  const e = st.edits[k] = st.edits[k] || {};
+  const ce = editsOf(key), e = ce[k] = Object.assign({}, st.edits[k] || {}, ce[k] || {});
+  delete st.edits[k];   // 本機舊修改搬到雲端
   const same = f==='fee' ? String(feeVal(String(v).trim()))===String(a.fee==null?'':a.fee) : String(v).trim()===String(a.mark||'');
   if(same) delete e[f]; else e[f] = String(v).trim();
-  if(!Object.keys(e).length) delete st.edits[k];
-  saveLocal(); renderAll(key);
+  if(!Object.keys(e).length) delete ce[k];
+  saveLocal(); saveSettings(); renderAll(key);
 }
 function editNote(key, name, v){
   const st = stLocal(key), model = MODELS[key], p = model.rows.find(r=>r.name===name);
-  if(p && v===p.autoNote) delete st.notes[name]; else st.notes[name] = v;
-  saveLocal(); renderAll(key);
+  const cn = notesOf(key); delete st.notes[name];
+  if(p && v===p.autoNote) delete cn[name]; else cn[name] = v;
+  saveLocal(); saveSettings(); renderAll(key);
 }
-function resetEdits(key){ if(!confirm('把這個階段手動改過的格子、備註全部恢復成自動帶入的內容？')) return; const st = stLocal(key); st.edits = {}; st.notes = {}; saveLocal(); renderAll(); }
+function resetEdits(key){ if(!confirm('把這個階段手動改過的格子、備註全部恢復成自動帶入的內容？')) return; const st = stLocal(key); st.edits = {}; st.notes = {}; if(SETTINGS.edits) delete SETTINGS.edits[key]; if(SETTINGS.notes) delete SETTINGS.notes[key]; saveLocal(); saveSettings(); renderAll(); }
 function editRate(k, f, v){
   const [ev, stN] = k.split('|');
   const a = autoRate(ev, stN);
