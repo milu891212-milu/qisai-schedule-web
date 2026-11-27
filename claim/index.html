@@ -716,7 +716,7 @@ function renderPreview(model){
     h += '<td><b>'+fmt(sum)+'</b></td><td><input class="nt'+((p.name in st.notes)?' edited':'')+'" value="'+esc(note)+'" onchange="editNote('+kk+','+qn+',this.value)"></td></tr>';
   });
   h += '<tr class="tot"><td></td><td>合計：</td>';
-  sel.forEach((c, ci)=>{ h += '<td>'+c.nGames+'盤</td><td>'+fmt(colTot[ci])+'</td>'; });
+  sel.forEach((c, ci)=>{ h += '<td></td><td>'+fmt(colTot[ci])+'</td>'; });
   h += '<td>'+fmt(grand)+'</td><td></td></tr></table></div>';
   h += '<p class="muted">共 '+model.rows.length+' 人，合計 '+fmt(grand)+' 元</p>';
   return h;
@@ -756,7 +756,8 @@ function writeSheet(wb, model, usedNames){
   sel.forEach((c, ci)=>{
     const col = C0+2+ci*2;
     ws.mergeCells(H1, col, H1, col+1);
-    hd(H1, col, (c.dates.map(md).join('、')+' '+c.label).trim(), 9);
+    // 日期一行、階段一行（使用者 2026-11-27 調過的檔案）
+    hd(H1, col, [c.dates.map(md).join('、'), c.label].filter(Boolean).join('\n'), 9);
     hd(H2, col, '成績'); hd(H2, col+1, '對局費', 10, true);
   });
   ws.mergeCells(H1, CL-1, H2, CL-1); hd(H1, CL-1, '合計', 10, true);
@@ -788,7 +789,7 @@ function writeSheet(wb, model, usedNames){
   const tl = ws.getCell(RT, C0+1); tl.value = '合計：'; tl.font = font(11, true); tl.alignment = {horizontal:'right', vertical:'middle'};
   let grand = 0;
   sel.forEach((c, ci)=>{
-    const cm = ws.getCell(RT, C0+2+ci*2); cm.value = c.nGames+'盤'; cm.font = font(11); cm.alignment = center;
+    // 合計列不寫盤數（使用者 2026-11-27）
     const L = colLetter(C0+3+ci*2);
     const tot = model.rows.reduce((a, p)=>a+feeNum(cellOf(model, p, c).fee), 0); grand += tot;
     const cf = ws.getCell(RT, C0+3+ci*2); cf.value = {formula:'SUM('+L+R0+':'+L+Math.max(R0,RL)+')', result:tot}; cf.font = font(11, true); cf.alignment = center; cf.numFmt = '#,##0';
@@ -798,7 +799,7 @@ function writeSheet(wb, model, usedNames){
   // 框線
   for(let rr=H1; rr<=RT; rr++) for(let cc=C0; cc<=CL; cc++){
     const b = {top:thin, bottom:thin, left:thin, right:thin};
-    if(rr===H1) b.top = med;
+    // 表頭上緣用細線（使用者 2026-11-27 調過的檔案：原本日期格上緣是中粗線，跟序/姓名/合計/備註不一樣粗）
     if(rr===H2) b.bottom = med;
     if(rr===RT){ b.top = dbl; b.bottom = med; }
     if(cc===C0) b.left = med;
